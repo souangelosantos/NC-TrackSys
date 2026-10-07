@@ -61,7 +61,7 @@ Login com `Origin` fora da allowlist: 403 `CSRF_REJECTED`. Sessão `console` apr
 
 **Revogação efetiva ≤ 60 s:**
 1. Sessão é conferida no banco a cada requisição (`cookieCache` desligado); memberships são lidas a cada requisição por `app.memberships_for_user` (seção 4). Nenhum cache de sessão ou membership no F0–F1; cache futuro tem TTL ≤ 30 s e é invalidado pelo NOTIFY abaixo.
-2. Logout, "sair de todos", troca ou redefinição de senha, revogação de membership, operadora `suspended`/`closed`, cliente `closed`, grant revogado ou vencido, chave revogada e link revogado gravam e chamam `pg_notify('auth_changed', '{"u":"<userId>"}')` (link: `'{"l":"<shareLinkId>"}'`) na mesma transação.
+2. Logout, "sair de todos", troca ou redefinição de senha, revogação de membership, operadora `suspended`/`closed`, cliente `closed`, grant revogado, chave revogada e link revogado gravam e chamam `pg_notify('auth_changed', '{"u":"<userId>"}')` (link: `'{"l":"<shareLinkId>"}'`) na mesma transação. Vencimento (sessão, grant, link) é conferido em toda requisição e na revalidação do item 3.
 3. O hub SSE fecha as conexões afetadas com `close` `session_revoked` em ≤ 5 s (meta, [07 §11](07-alertas-e-tempo-real.md)) e revalida sessão e memberships de toda conexão a cada 60 s (garantia, mesmo sem NOTIFY).
 
 ## 3. Papéis e permissões
@@ -80,17 +80,18 @@ A matriz é código puro em `packages/domain/src/auth/permissions.ts` (`ROLE_PER
 | `watch_mode.manage` | F0 | S | S | — | — | P | A | — | — |
 | `user.manage_staff` / `user.manage_customer` | F0 | S / S | — / S⁴ | — | — | — / P⁵ | — | — | — |
 | `brand.manage`, `command_policy.manage`, `audit.read` | F0/F1 | S | — | — | — | — | — | L | — |
-| `command.read` | F1 | S | S | — | O | P | A | L | — |
-| `command.execute` (block, unblock) | F1 | S⁶ | S⁶ | — | — | P⁷ | A⁸ | — | — |
+| `command.read` | F1 | S | S | S⁹ | O | P | A | L | — |
+| `command.execute` (block, unblock) | F1 | S⁶ | S⁶ | S⁹ | O | P⁷ | A⁸ | — | — |
 | `share_link.manage` | F1 | S | S | — | O | P | A | — | — |
 | `occurrence.open` / `occurrence.manage` | F1 | S / S | S / S | — | S / S | P / — | A / — | L | — |
 | `billing.read` / `billing.manage` | F1 | S / S | S / — | — | — | P / — | — | L / — | — |
 | `support_grant.manage`, `legal_hold.manage`, `evidence.export` | F1 | S | — | — | — | — | — | — | — |
 | `export.create` (relatório assíncrono) | F1 | S | S | — | O | P | A | — | — |
 | `ticket.manage` | F1 | S | S | — | — | — | — | L | — |
-| `referral.create`, `consent.manage`, `device_key.manage` (próprios) | F1 | — | — | — | — | S | S | — | — |
+| `referral.create`, `consent.manage` (próprios) | F1 | — | — | — | — | S | S | — | — |
+| `device_key.manage` (própria) | F1 | — | — | S | S | S | S | — | — |
 
-¹ só `nickname` e `color`. ² só estado atual dos rastreadores em instalação, sem histórico [PREMISSA]. ³ estado atual reduzido, até o vencimento do link (seção 7). ⁴ convida só `tenant_owner`. ⁵ só `tenant_member`. ⁶ console, com TOTP nos últimos 5 min + motivo (seção 6.4). ⁷ app, com chave do aparelho, `command_policy.allow_app_block = true` e termo de ciência aceito (seção 11). ⁸ só com `can_command` concedido pelo titular [NOVA DECISÃO PROPOSTA: colunas `membership.vehicle_ids uuid[] NULL` (NULL = todos os veículos do cliente) e `membership.can_command boolean NOT NULL DEFAULT false`, aplicadas pela aplicação; o limite de segurança no banco continua sendo o cliente].
+¹ só `nickname` e `color`. ² só estado atual dos rastreadores em instalação, sem histórico [PREMISSA]. ³ estado atual reduzido, até o vencimento do link (seção 7). ⁴ convida só `tenant_owner`. ⁵ só `tenant_member`. ⁶ console, com TOTP nos últimos 5 min + motivo (seção 6.4). ⁷ app, com chave do aparelho e `command_policy.allow_app_block = true`. ⁸ como ⁷ e só com `can_command` concedido pelo titular ([06 §4.1](06-comandos-e-bloqueio.md)) [NOVA DECISÃO PROPOSTA: além de `membership.can_command` (06), coluna `membership.vehicle_ids uuid[] NULL` (NULL = todos os veículos do cliente), aplicada pela aplicação; o limite de segurança no banco continua sendo o cliente]. ⁹ só `reason_code = 'installation_test'`, em vínculo aberto por ele há ≤ 2 h ([06 §4.1](06-comandos-e-bloqueio.md)). Bloqueio por qualquer canal exige termo de ciência aceito pelo titular (seção 11).
 
 Regras: (1) recurso fora do escopo RLS → 404 `NOT_FOUND`; recurso visível sem a permissão → 403 `FORBIDDEN`; (2) `platform_admin` sem grant não lê dado de operadora; com grant, só leitura (seção 5); (3) agentes de IA herdam as permissões de quem os aciona, menos tudo que escreve (seção 12); (4) nenhum papel tem permissão implícita de comando físico.
 
@@ -142,7 +143,7 @@ sequenceDiagram
 
 ### 6.2 Desafio
 
-`POST /api/v1/vehicles/{vehicleId}/commands/challenges` com `{ "type": "block"|"unblock", "reasonCode": "theft" }` (catálogo de `reasonCode` em [06](06-comandos-e-bloqueio.md); formato `^[a-z][a-z_]{2,39}$`):
+`POST /api/v1/vehicles/{vehicleId}/commands/challenges` com `{ "type": "block"|"unblock", "reasonCode": "theft_suspected" }` (catálogo de `reason_code` em [06 §6](06-comandos-e-bloqueio.md)):
 1. Exige `command.execute` sobre o veículo e chave ativa (senão 403 `STEP_UP_REQUIRED`, `requiredMethod: "device_key_registration"`).
 2. Grava em `app.command_challenge` [proposta para [04](04-dominio-e-dados.md): tipo A, colunas `id`, `operator_id`, `tenant_id`, `vehicle_id`, `user_id`, `device_key_id`, `type`, `reason_code`, `nonce bytea` (32 bytes), `expires_at`, `consumed_at`, `created_at`; FK composta para `vehicle`]: nonce de 32 bytes de `crypto.randomBytes`, `expires_at = now() + 60 s`, amarrado a usuário, chave, veículo, tipo e motivo.
 3. Responde 201 `{ challengeId, nonce, expiresAt, deviceKeyId, vehicleId, type, reasonCode }`, com `nonce` em base64url sem padding (43 caracteres). Limite: 10 desafios/min por usuário.
@@ -153,10 +154,10 @@ String assinada (UTF-8, uuids em minúsculas, sem espaços):
 
 ```text
 tracksys-cmd-v1|{challengeId}|{nonce}|{vehicleId}|{type}|{reasonCode}
-tracksys-cmd-v1|0192a1b2-0c00-7000-8000-00000000c001|q3Jx8m2…43 caracteres…|0192a1b2-0000-7000-8000-0000000000f1|block|theft
+tracksys-cmd-v1|0192a1b2-0c00-7000-8000-00000000c001|q3Jx8m2…43 caracteres…|0192a1b2-0000-7000-8000-0000000000f1|block|theft_suspected
 ```
 
-O app monta a string com os valores que exibiu ao usuário (placa, ação, motivo), pede a biometria e assina com ECDSA P-256/SHA-256 (iOS `ecdsaSignatureMessageX962SHA256`; Android `SHA256withECDSA`), assinatura DER em base64url. Envia em `POST /api/v1/vehicles/{vehicleId}/commands` ([09 §9.2](09-api-e-contratos.md)) com `stepUp: { method: "device_key", challengeId, deviceKeyId, signature }`.
+O app monta a string com os valores que exibiu ao usuário (placa, ação, motivo), pede a biometria e assina com ECDSA P-256/SHA-256 (iOS `ecdsaSignatureMessageX962SHA256`; Android `SHA256withECDSA`), assinatura DER em base64url. Envia em `POST /api/v1/vehicles/{vehicleId}/commands` ([09 §9.2](09-api-e-contratos.md)) com `stepUp: { kind: "device_key", challengeId, deviceKeyId, signature }`.
 
 Verificação no `api`, numa transação (depois da checagem de idempotência, que devolve o comando existente sem novo consumo):
 
@@ -170,7 +171,8 @@ const ch = await tx.selectFrom('app.command_challenge').selectAll()
 await tx.updateTable('app.command_challenge').set({ consumed_at: sql`now()` }).where('id', '=', ch.id).execute()
 const ok = verify('sha256', Buffer.from(signingInput, 'utf8'),
   { key: createPublicKey({ key: publicKeyDer, format: 'der', type: 'spki' }), dsaEncoding: 'der' }, signatureDer)
-// falha em 1–3 ou ok = false → 403 STEP_UP_INVALID; o desafio fica consumido (uso único mesmo na falha)
+// falha em 1–3 ou ok = false → 403 STEP_UP_INVALID com reason (challenge_expired, challenge_used, intent_mismatch,
+// key_revoked, signature_invalid); o desafio fica consumido (uso único mesmo na falha); nenhuma linha em command
 ```
 
 O consumo do desafio e a criação do comando ([06](06-comandos-e-bloqueio.md)) estão no mesmo commit. Falha em qualquer passo grava `audit_log` `command.step_up` com `result = 'denied'`; 5 falhas em 10 min do mesmo usuário enviam e-mail ao usuário e aviso na fila da central.
@@ -178,7 +180,7 @@ O consumo do desafio e a criação do comando ([06](06-comandos-e-bloqueio.md)) 
 ### 6.4 Step-up no console (F1)
 
 1. `POST /api/v1/me/step-up` com `{ "code": "123456" }` (TOTP; código de recuperação não vale) grava `stepUpAt = now()` na sessão [VALIDAR — T-006: atualização de campo adicional da sessão; alternativa: tabela `auth.session_step_up (session_id, at)`] e `audit_log` `auth.step_up`. Limite: 5 tentativas por 15 min por usuário.
-2. Comando pelo console exige `stepUpAt ≥ now() − 300 s` (senão 403 `STEP_UP_REQUIRED`, `requiredMethod: "totp"`), `reasonCode` e `reason` em texto livre de 10 a 500 caracteres (senão 422).
+2. Comando pelo console (`stepUp: { kind: "console_totp" }`), registro de contingência e nova versão de `command_policy` ([06 §4.2](06-comandos-e-bloqueio.md)) exigem `stepUpAt ≥ now() − 300 s` (senão 403 `STEP_UP_REQUIRED`, `requiredMethod: "totp"`); comando exige também `reasonCode` e `reason` em texto livre de 10 a 500 caracteres (senão 422).
 
 ### 6.5 Revogação da chave
 
@@ -208,7 +210,7 @@ Revoga (`revoked_at = now()`, NOTIFY `auth_changed`): logout no app; cadastro de
 
 | Alvo | Limite | Chave | Excedido |
 |---|---|---|---|
-| `POST /api/v1/auth/sign-in/email` | 5 falhas / 15 min (bloqueio de 15 min); 20 tentativas / 15 min | e-mail normalizado; IP | 429 `RATE_LIMITED`, `Retry-After`; mesma resposta para e-mail inexistente |
+| `POST /api/v1/auth/sign-in/email` | 5 falhas / 15 min (bloqueio de 15 min a partir da 5ª falha); 50 falhas / h (bloqueio de 1 h + e-mail ao dono da conta); 20 tentativas / 15 min | par e-mail normalizado + IP; e-mail; IP | 429 `RATE_LIMITED`, `Retry-After`; mesma resposta para e-mail inexistente; sessões já abertas não são afetadas (o ladrão não tranca o dono fora do app) |
 | `two-factor/verify-totp`, `POST /api/v1/me/step-up` | 5 / 15 min | usuário | 429; login 2FA pendente é invalidado |
 | `request-password-reset` | 3 / h; 10 / h | e-mail; IP | 200 sempre (sem enumeração) |
 | `invitations/accept`, `public/share-sessions` | 10 / min; 60 falhas / h bloqueiam o IP por 1 h | IP | 429 |
@@ -248,7 +250,7 @@ Os contadores HTTP ficam em memória do processo `api` (um processo no F0–F1);
 
 **Minimização:** CPF/CNPJ só para a equipe da operadora (nunca no app do `tenant_member`, nunca em push); IMEI mascarado fora da tela de cadastro; visitante de link vê só o escopo da seção 7; `search_team` e `installer` limitados pela matriz; logs sem coordenadas; push sem endereço.
 
-**Consentimento e aceite (`consent`, F1):** `purpose` `block_terms` (termo de ciência do bloqueio, aceito pelo `tenant_owner`, com `text_version`) e `sva_referral` com `partner_id` (um por parceiro, opt-in, revogável). Sem `block_terms` ativo no cliente, bloqueio pelo app → 409 `COMMAND_NOT_ALLOWED` com `reason: "block_terms_missing"` (GC-4, [02 §4.3](02-escopo-e-fases.md)); bloqueio pela central nesse caso segue [06](06-comandos-e-bloqueio.md). Revogar `sva_referral` interrompe novas indicações àquele parceiro ([12](12-cobranca-e-svas.md)).
+**Consentimento e aceite (`consent`, F1):** `purpose` `block_terms` (termo de ciência do bloqueio, aceito pelo `tenant_owner` em `POST /api/v1/tenants/{tenantId}/block-terms`, `text_version = 'block-terms-v{N}/{kmh}kmh'`, regras em [06 §12](06-comandos-e-bloqueio.md)) e `sva_referral` com `partner_id` (um por parceiro, opt-in, revogável). Sem `block_terms` válido, bloqueio por app ou central → 422 `COMMAND_NOT_ALLOWED` com `reason: "block_terms_missing"`; desbloqueio continua (GC-4, [02 §4.3](02-escopo-e-fases.md)). Revogar `sva_referral` interrompe novas indicações àquele parceiro ([12](12-cobranca-e-svas.md)).
 
 **Direitos do titular (F1):** prazo de resposta **15 dias**. No app, "Privacidade": baixar meus dados (`POST /api/v1/me/data-exports`, ZIP com cadastro, memberships, consentimentos, alertas e posições dos últimos 90 dias, pronto em ≤ 24 h), revogar consentimentos e pedir correção ou eliminação (abre atendimento `lgpd` com vencimento em 15 dias para a operadora [proposta para [10](10-apps-e-ux.md): `ticket.category` e `ticket.due_at`]). Eliminação = encerramento e anonimização de [04 §9.2](04-dominio-e-dados.md), salvo legal hold ou obrigação legal (DEC-15).
 
@@ -336,12 +338,12 @@ Fixture dos CTs ([02 §3](02-escopo-e-fases.md)): operadoras Alfa e Beta; client
 ### REQ-SEG-013 — Desafio de comando
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-07, INV-08
 **Regra.** O desafio DEVE ter nonce de 32 bytes, validade de 60 s, uso único e ficar amarrado a usuário, chave, veículo, tipo e motivo (seção 6.2).
-**Aceite.** CT-SEG-013 — Dado `dono.a1` com chave ativa, Quando pede desafio `block`/`theft` para V1 às 21:10:00Z, Então 201 com `nonce` de 43 caracteres base64url e `expiresAt = 21:11:00Z`; Quando `dono.a2` pede para V1, Então 404; Dado `dono.a1` sem chave ativa, Então 403 `STEP_UP_REQUIRED` com `requiredMethod = "device_key_registration"`.
+**Aceite.** CT-SEG-013 — Dado `dono.a1` com chave ativa, Quando pede desafio `block`/`theft_suspected` para V1 às 21:10:00Z, Então 201 com `nonce` de 43 caracteres base64url e `expiresAt = 21:11:00Z`; Quando `dono.a2` pede para V1, Então 404; Dado `dono.a1` sem chave ativa, Então 403 `STEP_UP_REQUIRED` com `requiredMethod = "device_key_registration"`.
 
 ### REQ-SEG-014 — Verificação da assinatura com consumo atômico
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-08
 **Regra.** O `api` DEVE verificar a assinatura ECDSA P-256/SHA-256 (DER) da string `tracksys-cmd-v1|…`, consumir o desafio mesmo na falha e criar o comando no mesmo commit; idempotência reconhecida DEVE devolver o comando existente sem novo consumo.
-**Aceite.** CT-SEG-014 — Dado o desafio C1 (`block`, `theft`, V1) de 21:10:00Z, Quando a assinatura válida chega às 21:10:30Z com `Idempotency-Key` K1, Então 202 e C1 consumido; Quando o mesmo corpo chega com K2, Então 403 `STEP_UP_INVALID`; com K1, Então 202 com `Idempotent-Replayed: true` e 1 só comando; Dado C2 de `block` com assinatura de `unblock`, Então 403 e C2 consumido; Dado C3 usado às 21:11:01Z, Então 403; Dado assinatura com a chave de `dono.a2`, Então 403.
+**Aceite.** CT-SEG-014 — Dado o desafio C1 (`block`, `theft_suspected`, V1) de 21:10:00Z, Quando a assinatura válida chega às 21:10:30Z com `Idempotency-Key` K1, Então 202 e C1 consumido; Quando o mesmo corpo chega com K2, Então 403 `STEP_UP_INVALID` com `reason = "challenge_used"`; com K1, Então 202 com `Idempotent-Replayed: true` e 1 só comando; Dado C2 de `block` com assinatura de `unblock`, Então 403 e C2 consumido; Dado C3 usado às 21:11:01Z, Então 403; Dado assinatura com a chave de `dono.a2`, Então 403.
 
 ### REQ-SEG-015 — Step-up do console por TOTP com motivo
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-08
@@ -386,7 +388,7 @@ Fixture dos CTs ([02 §3](02-escopo-e-fases.md)): operadoras Alfa e Beta; client
 ### REQ-SEG-023 — Limites de taxa e bloqueio progressivo
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** —
 **Regra.** A API DEVE aplicar os limites HTTP da seção 9 com 429 `RATE_LIMITED` e `Retry-After`, sem revelar se o e-mail existe.
-**Aceite.** CT-SEG-023 — Dado `dono.a1`, Quando erra a senha 5 vezes entre 10:00:00Z e 10:02:00Z, Então a 6ª tentativa, mesmo com a senha certa, recebe 429 com `Retry-After` entre 780 e 900; Quando `naoexiste@exemplo.com` erra 5 vezes, Então a 6ª recebe a mesma resposta; Quando um IP faz 21 tentativas com e-mails diferentes em 15 min, Então a 21ª recebe 429.
+**Aceite.** CT-SEG-023 — Dado `dono.a1` com sessão aberta no app, Quando o IP 203.0.113.10 erra a senha dele 5 vezes entre 10:00:00Z e 10:02:00Z, Então a 6ª tentativa desse IP às 10:02:05Z, mesmo com a senha certa, recebe 429 com `Retry-After` entre 890 e 900, o login com a senha certa a partir de 198.51.100.7 recebe 200 e a sessão já aberta continua respondendo 200; Quando `naoexiste@exemplo.com` erra 5 vezes do mesmo IP, Então a 6ª recebe a mesma resposta; Quando um IP faz 21 tentativas com e-mails diferentes em 15 min, Então a 21ª recebe 429.
 
 ### REQ-SEG-024 — Porta TCP limitada e salto impossível
 **Fase:** F0 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** INV-08
@@ -415,5 +417,5 @@ Fixture dos CTs ([02 §3](02-escopo-e-fases.md)): operadoras Alfa e Beta; client
 
 ### REQ-SEG-029 — Consentimento por finalidade e direitos do titular
 **Fase:** F1 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** INV-07
-**Regra.** `block_terms` DEVE condicionar o bloqueio pelo app; `sva_referral` DEVE ser por parceiro e revogável; exportação dos dados do titular DEVE ficar pronta em ≤ 24 h e pedidos de correção ou eliminação DEVEM nascer com vencimento de 15 dias (seção 11).
-**Aceite.** CT-SEG-029 — Dado A1 sem `block_terms`, Quando `dono.a1` pede bloqueio pelo app, Então 409 `COMMAND_NOT_ALLOWED` com `reason = "block_terms_missing"`; Quando aceita a versão `2026-11-01`, Então essa checagem passa; Quando `dono.a1` pede exportação às 10:00Z de 02/12/2026, Então o ZIP fica pronto até 10:00Z de 03/12/2026 sem dados de A2; Quando pede eliminação, Então o atendimento nasce com vencimento em 17/12/2026.
+**Regra.** `block_terms` DEVE condicionar o bloqueio por app e central; `sva_referral` DEVE ser por parceiro e revogável; exportação dos dados do titular DEVE ficar pronta em ≤ 24 h e pedidos de correção ou eliminação DEVEM nascer com vencimento de 15 dias (seção 11).
+**Aceite.** CT-SEG-029 — Dado A1 sem `block_terms`, Quando `dono.a1` pede bloqueio pelo app, Então 422 `COMMAND_NOT_ALLOWED` com `reason = "block_terms_missing"`; Quando aceita `block-terms-v1/40kmh` com teto vigente de 40 km/h, Então essa checagem passa; Quando `dono.a1` pede exportação às 10:00Z de 02/12/2026, Então o ZIP fica pronto até 10:00Z de 03/12/2026 sem dados de A2; Quando pede eliminação, Então o atendimento nasce com vencimento em 17/12/2026.
