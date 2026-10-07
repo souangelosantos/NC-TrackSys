@@ -157,7 +157,7 @@ Mais a adesão única de R$ 2.500–3.000. A plataforma pesa 6,5% (R$ 3,90 / R$ 
 | Apple Developer | US$ 99/ano | 45,38 |
 | Domínio .com.br | ~R$ 40/ano | 3,33 |
 | Google Play | US$ 25 único (R$ 137,50) | — (não recorrente) |
-| Uptime Kuma, UptimeRobot, Sentry, Grafana Cloud, Cloudflare R2, Resend/Brevo, FCM | Free tier | 0,00 |
+| Uptime Kuma, UptimeRobot, Sentry, Grafana Cloud, Cloudflare R2, Resend/Brevo, FCM | Open source ou free tier | 0,00 |
 | Pushover | Licença única por plataforma [VALIDAR] | ~0,00 |
 | Reserva variável: SMS, CI macOS para build iOS, imprevistos [PREMISSA] | — | 350,00–650,00 |
 | **Total** | | **~1.500,00–4.000,00** |
@@ -167,7 +167,7 @@ Mais a adesão única de R$ 2.500–3.000. A plataforma pesa 6,5% (R$ 3,90 / R$ 
 | Item | Custo | Regra |
 |---|---|---|
 | Infraestrutura (VMs, disco, backup) | R$ 0 dentro do Always Free | Meta ≤ R$ 0,39/veículo/mês (REQ-NEG-003) |
-| Mapas (MapLibre + OpenFreeMap) | R$ 0 | Proibido provedor com custo por carga sem teto (DEC-11) |
+| Mapas (MapLibre + OpenFreeMap; fallback PMTiles auto-hospedado, DEC-11) | R$ 0 | Proibido provedor com custo por carga de mapa sem teto |
 | Push (FCM) | R$ 0 | Alertas sempre por push |
 | SMS (desbloqueio de fallback, migração) | Por envio [VALIDAR — DEC-01] | SMS de onda de migração é custo único, fora do indicador recorrente |
 | WhatsApp | R$ 0 com deep link (F0/F1); Cloud API cobra por mensagem no F2 [VALIDAR] | Bibliotecas não oficiais são proibidas |
@@ -184,7 +184,7 @@ Mais a adesão única de R$ 2.500–3.000. A plataforma pesa 6,5% (R$ 3,90 / R$ 
 | Teto de infraestrutura (10% da receita) | até R$ 1.170,00 |
 | **Sobra para pró-labore e reinvestimento** | **R$ 4.716,50 a R$ 9.498,00** |
 
-Adesões no ano: ~11 × R$ 2.500–3.000 ≈ R$ 27.500–33.000 (caixa não recorrente). Sensibilidade: cada 10% da base no plano superior soma R$ 600/mês no mês 12 (3.000 × 10% × R$ 2,00).
+Adesões no ano: ~11 operadoras novas × R$ 2.500–3.000 ≈ R$ 27.500–33.000 (caixa não recorrente; a adesão da Lider segue o [Anexo A](../anexos/A-comercial.md)). Sensibilidade: cada 10% da base no plano superior soma R$ 600/mês no mês 12 (3.000 × 10% × R$ 2,00).
 
 ### 6.5 Pontos de equilíbrio
 
@@ -193,7 +193,7 @@ Fórmula (receita bruta, sem imposto, infraestrutura paga = 0): `veículos = ⌈
 | Alvo | Custo fixo R$ 1.500 | Custo fixo R$ 4.000 |
 |---|---|---|
 | Só custos | 385 veículos | 1.026 veículos |
-| Só custos, com imposto de 6% / 15,5% | 410 veículos (6%) | 1.214 veículos (15,5%) |
+| Só custos, com imposto (6% no custo mínimo; 15,5% no máximo) | 410 veículos | 1.214 veículos |
 | Custos + pró-labore R$ 5.000 [PREMISSA] | 1.667 veículos | 2.308 veículos |
 | Custos + pró-labore R$ 10.000 [PREMISSA] | 2.949 veículos | 3.590 veículos |
 | Custos + pró-labore R$ 15.000 [PREMISSA] | 4.231 veículos | 4.872 veículos |
