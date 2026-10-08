@@ -15,7 +15,7 @@
 |---|---|---|
 | Shape e disco | `VM.Standard.A1.Flex`, 2 OCPU, 12 GB, boot volume de 100 GB (DEC-12) | Igual |
 | SO e posição | Ubuntu 24.04 ARM; região `sa-saopaulo-1` ou `sa-vinhedo-1` (DEC-12); `FAULT-DOMAIN-1` | Mesma região; `FAULT-DOMAIN-2` |
-| IPs privados (subnet `10.0.0.0/24`) | `10.0.0.10` (egresso, IP público efêmero) + `10.0.0.11` (secundário) | `10.0.0.20` (egresso) + `10.0.0.21` (secundário, configurado no netplan) |
+| IPs privados (subnet `10.0.0.0/24`) | `10.0.0.10` (egresso, IP público efêmero) + `10.0.0.11` (secundário, configurado no netplan) | `10.0.0.20` (egresso) + `10.0.0.21` (secundário, configurado no netplan) |
 | IP público reservado | `ip-svc` no `10.0.0.11`: destino de `gps.`, `api.`, `app.` | `ip-sby` no `10.0.0.20`: destino de `status.` |
 | Tailscale | `tracksys-p`, `tag:prod` | `tracksys-s`, `tag:standby` |
 | Contêineres | `caddy`, `traccar`, `api`, `worker`, `db` | `db` (réplica), `uptime-kuma`, `caddy` (`status.`), `sre-agent`; `traccar`, `api`, `worker` construídos e parados |
@@ -73,9 +73,9 @@ Nunca rodar `netfilter-persistent reload` com o Docker no ar: apaga as cadeias d
 | `migrate` (perfil `ops`) | `tracksys-api` com `dbmate` | 512 MB | — | Roda só no deploy |
 
 1. `restart: unless-stopped` em todos; `env_file: /run/tracksys/<papel>.env` ([08 §8](08-identidade-e-seguranca.md)); imagens externas por digest do índice multi-arquitetura.
-2. **Autoheal** (`infra/scripts/autoheal.sh`, timer de 30 s): reinicia contêiner `unhealthy` (≤ 90 s do 1º healthcheck falho, REQ-ARQ-005); no máximo 3 reinícios por contêiner em 15 min, depois para e abre a regra A12. Nenhum contêiner monta o socket do Docker.
+2. **Autoheal** (`infra/scripts/autoheal.sh`, timer de 30 s): reinicia contêiner `unhealthy` (≤ 90 s do 1º healthcheck falho, REQ-ARQ-005); no máximo 3 reinícios por contêiner em 15 min, depois para e abre a regra AL-12. Nenhum contêiner monta o socket do Docker.
 3. **Caddy** (`infra/caddy/Caddyfile`): `servers { protocols h1 h2 }` (sem HTTP/3, só TCP); sem log de acesso (o `api` grava `access_log`); em `api.`, `/internal/*` e `/metrics` respondem 404 e o proxy envia `header_up X-Client-Port {http.request.remote.port}`; em `app.`, `file_server` de `/srv/console` com `try_files {path} /index.html`, `version.json` e os headers de [08 §9](08-identidade-e-seguranca.md). `CADDY_ROLE=standby` serve só `status.` (proxy para `uptime-kuma:3001`).
-4. `infra/docker-compose.standby.yml` acrescenta `uptime-kuma` (`louislam/uptime-kuma:2@sha256:…`, 512 MB) e `sre-agent` (imagem do `worker`, entrypoint `node dist/sre-agent/main.js`, 384 MB) e põe o `db` em modo réplica. Após o failover a standby soma 9,6 GB de limites; sobram ~2,4 GB para SO e page cache.
+4. `infra/docker-compose.standby.yml` acrescenta `uptime-kuma` (`louislam/uptime-kuma:2@sha256:…` [VALIDAR versão estável], 512 MB) e `sre-agent` (imagem do `worker`, entrypoint `node dist/sre-agent/main.js`, 384 MB) e põe o `db` em modo réplica. Após o failover a standby soma 9,6 GB de limites; sobram ~2,4 GB para SO e page cache.
 5. `migrate` é o único serviço com a URL do `tracksys_owner` (REQ-ARQ-006).
 
 ## 4. Banco
@@ -111,6 +111,7 @@ host   tracksys     tracksys_ops_ro                                172.30.0.0/24
 host   tracksys     tracksys_ops_ro                                172.30.0.1/32          scram-sha-256
 host   traccar      traccar                                        172.30.0.0/24          scram-sha-256
 host   replication  tracksys_replica                               ${PEER_TAILSCALE_IP}/32 scram-sha-256
+host   tracksys     tracksys_ops_audit                             ${PEER_TAILSCALE_IP}/32 scram-sha-256
 host   all          all                                            0.0.0.0/0              reject
 ```
 
@@ -172,9 +173,9 @@ Segredos em `infra/secrets/prod.env.sops` e `standby.env.sops`, decifrados pelo 
 5. `dc up -d --no-deps --wait --wait-timeout 180 api worker caddy` (`db` e `traccar` só quando a imagem ou a configuração mudou).
 6. Smoke (`infra/scripts/smoke.sh`): `https://api.<domínio>/health/ready` = `{"status":"ok"}`; imagem de `api` e `worker` com `:<tag>`; `/health/ready` do worker 200; `https://app.<domínio>/version.json` com a tag; TCP 5023 aberto; se havia ≥ 1 sessão TCP antes do deploy, última mensagem recebida há < 120 s em até 120 s; 0 respostas 5xx novas no `/metrics` do `api` durante o smoke.
 7. Falha em 5 ou 6 → rollback automático: `TRACKSYS_VERSION=$PREV dc up -d --no-deps --wait api worker caddy`, smoke de novo, page prioridade 1, saída 1 (job vermelho). Falha no smoke do rollback → SEV1.
-8. Sucesso: grava `current-version`, `ops.audit_log` (`ops.deploy`, `actor_type = 'system'`, `actor_id = 'ci:<run_id>'`), remove imagens além das 3 últimas tags.
+8. Sucesso: move o valor antigo para `/etc/tracksys/previous-version` e grava `current-version` (`deploy.sh rollback` sobe `previous-version` sem build nem migration), `ops.audit_log` (`ops.deploy`, `actor_type = 'system'`, `actor_id = 'ci:<run_id>'`), remove imagens além das 3 últimas tags.
 
-**Migrations:** regras SQL de [04](04-dominio-e-dados.md). O deploy roda migrations antes de trocar o código, então toda migration DEVE ser compatível com a versão anterior (expand). Remoção ou mudança destrutiva (`DROP COLUMN`, `DROP TABLE`, `RENAME`, `ALTER COLUMN ... TYPE`, `SET NOT NULL`) só em arquivo `*_contract.sql`, numa release posterior à que parou de usar o objeto; o job de CI `migration-safety` barra PR que traz migration destrutiva sem o sufixo ou junto com mudança em `apps/**` ([14](14-qualidade-e-processo-ia.md)). Produção nunca roda `migrate down`: rollback de código mantém o schema novo.
+**Migrations:** regras SQL e tabela expand/contract de [04 §10](04-dominio-e-dados.md). O deploy roda migrations antes de trocar o código, então toda migration DEVE ser compatível com a versão anterior (expand). Remoção ou mudança destrutiva (`DROP COLUMN`, `DROP TABLE`, `RENAME`, `ALTER COLUMN ... TYPE`, `SET NOT NULL`) só em arquivo `*_contract.sql`, numa release posterior à que parou de usar o objeto; o job de CI `migration-safety` barra PR que traz migration destrutiva sem o sufixo ou junto com mudança em `apps/**` ([14](14-qualidade-e-processo-ia.md)). Produção nunca roda `migrate down`: rollback de código mantém o schema novo.
 
 ## 8. Backups e restore
 
@@ -182,7 +183,7 @@ Segredos em `infra/secrets/prod.env.sops` e `standby.env.sops`, decifrados pelo 
 |---|---|
 | Destino primário | Bucket `tracksys-backup` no Oracle Object Storage da mesma região (`AWS_ENDPOINT=https://<namespace>.compat.objectstorage.<região>.oraclecloud.com`, path style), prefixo `s3://tracksys-backup/pg17`; credencial de um usuário IAM com política só neste bucket |
 | Cifra | No cliente: `WALG_LIBSODIUM_KEY` (32 bytes hex). Chave e chaves age do fundador em 2 cópias offline (gerenciador de senhas + papel lacrado). Sem a chave, o backup não restaura |
-| WAL contínuo | `archive_command` a cada segmento; `archive_timeout` 60 s → RPO ≤ 5 min. Com escrita contínua, cada minuto fecha um segmento de 16 MB: arquivamento parado acumula ~1 GB/h em `pg_wal` (regra A05) |
+| WAL contínuo | `archive_command` a cada segmento; `archive_timeout` 60 s → RPO ≤ 5 min. Com escrita contínua, cada minuto fecha um segmento de 16 MB: arquivamento parado acumula ~1 GB/h em `pg_wal` (regra AL-05) |
 | Base | `tracksys-backup.timer` às 06:00 UTC (03:00 BRT): `dc exec -T -u postgres db wal-g backup-push /var/lib/postgresql/data` (usuário `postgres`: autenticação `peer` pelo socket), compressão zstd; no sucesso grava `tracksys_backup_last_success_timestamp_seconds` e faz push no monitor `backup-base` do Kuma (F1) |
 | Retenção | 7 bases diárias + 4 semanais: aos domingos `wal-g backup-mark <base>` (permanente); `tracksys-backup-retain` às 07:00 UTC roda `wal-g delete retain FULL 7 --confirm` e desmarca permanentes com mais de 28 dias [VALIDAR flags na versão fixada]. PITR cobre os últimos 7 dias; as semanais restauram só o próprio ponto |
 | Cópia fora da Oracle | `tracksys-backup-copy` (de hora em hora, :15; na primária no F0, na standby no F1): `rclone copy` (nunca `sync`) do bucket para a Cloudflare R2 `tracksys-backup-r2`; regra de ciclo de vida da R2 apaga objetos com mais de 35 dias; bucket lock de 14 dias [VALIDAR]. Os objetos já saem cifrados pelo WAL-G. Dados do Uptime Kuma: `tar` semanal cifrado com age, mesma R2 |
@@ -238,7 +239,7 @@ Sem standby, o RTO volta a ≤ 2 h. Em ≤ 24 h o fundador reconstrói a ex-prim
 | Latência | [07 §10](07-alertas-e-tempo-real.md) item 3: (a) e (b) por `ops.slo_latency_bad_minutes`; (c) por `alerts_queue_oldest_age_seconds` no Grafana Cloud | Por minuto |
 
 Job `ops.slo.rollup` (worker, diário às 00:20 UTC; CLI `slo:rollup --day AAAA-MM-DD` reprocessa até 13 dias atrás, dentro da retenção de 14 dias do Grafana Cloud free [VALIDAR]), para cada minuto m do dia UTC:
-1. `probe_bad`: alguma amostra de `monitor_status` (Alloy raspa o Kuma a cada 15 s) em DOWN ou PENDING para `slo-gps-tcp` ou `slo-api-https`. Minuto sem amostra do Kuma → decide o log do UptimeRobot (intervalos `down` [VALIDAR API]); sem as duas fontes → `no_data`.
+1. `probe_bad`: alguma amostra de `monitor_status` [VALIDAR nome e valores na versão fixada] (Alloy raspa o `/metrics` do Kuma a cada 15 s) em DOWN ou PENDING para `slo-gps-tcp` ou `slo-api-https`. Minuto sem amostra do Kuma → decide o log do UptimeRobot (intervalos `down` [VALIDAR API]); sem as duas fontes → `no_data`.
 2. `latency_bad`: (a) ou (b) ou (c) de [07 §10](07-alertas-e-tempo-real.md); (c) sem amostra com a sonda HTTPS verde → `no_data`.
 3. `maintenance`: m dentro de `ops.maintenance_window` com `announced_at ≤ starts_at − 48 h`, até 4 h por mês [PREMISSA]; o que passar de 4 h conta normalmente.
 4. Ruim = (`probe_bad` ou `latency_bad` ou `no_data`) e não `maintenance`. Grava só minutos não bons em `ops.slo_minute` (`minute` PK, flags, `reasons text[]`) e o resumo em `ops.slo_day`, com upsert idempotente. Publica `tracksys_slo_bad_minutes{period="month"}`.
@@ -257,7 +258,7 @@ Manutenção: CLI `ops:maintenance --start <RFC 3339> --end <RFC 3339> --reason 
 | Host | CPU, memória, `node_filesystem_avail_bytes`, IO, `node_timex_offset_seconds` | Alloy `prometheus.exporter.unix` (systemd no host) |
 | Contêiner | Memória vs `mem_limit`, reinícios, `container_oom_events_total` | Alloy `prometheus.exporter.cadvisor` |
 | Banco | Conexões por papel, idade do último WAL arquivado e falhas (`pg_stat_archiver`), lag de réplica, tamanho, transação mais longa, tuplas mortas | Alloy `prometheus.exporter.postgres` como `tracksys_ops_ro` em `172.30.0.5` |
-| Borda | `tracksys_tcp_established{port="5023"}` (`ss`, textfile a cada 15 s); requisições e erros do Caddy | `/var/lib/tracksys/metrics/*.prom`; `:2019/metrics` |
+| Borda | `tracksys_tcp_established{port="5023"}` (`ss` no namespace de rede do contêiner `traccar` via `nsenter`, porque o DNAT do Docker tira as sessões do namespace do host; textfile a cada 15 s); requisições e erros do Caddy | `/var/lib/tracksys/metrics/*.prom`; `:2019/metrics` |
 | Aplicação | `http_requests_total{route,status}`, `http_request_duration_seconds{route}`; as de [05 §17](05-ingestao-e-telemetria.md), [07 §10](07-alertas-e-tempo-real.md), [06](06-comandos-e-bloqueio.md), [11 §4.5](11-onboarding-e-migracao.md) | `/metrics` do `api` (3001) e do `worker` (3002), `prom-client` |
 | Backup | Último sucesso da base, da cópia R2 e do restore de ensaio; tamanho da base | Textfile escrito pelos scripts |
 | Sondas | `monitor_status`, tempo de resposta, `probe_ssl_earliest_cert_expiry` | Kuma `/metrics`; Alloy `prometheus.exporter.blackbox` na standby |
@@ -273,25 +274,25 @@ SEV e notificação: §13 e §14. Regras de ingestão de [05 §17](05-ingestao-e
 
 | ID | Regra | Limiar e janela | SEV | L1 automático |
 |---|---|---|---|---|
-| A01 | Sonda do SLO falhou | `slo-gps-tcp` ou `slo-api-https` DOWN (2 falhas seguidas) | SEV1 | — |
-| A02 | Primária inacessível | Kuma DOWN ≥ 2 min **e** UptimeRobot DOWN | SEV1, emergência imediata | — |
-| A03 | Disco | > 80% por 5 min (SEV1 se > 90%) | SEV2 | `disk-cleanup.sh` a 85%: logs, journal, imagens além das 3 últimas tags |
-| A04 | Backup base | Último sucesso > 26 h (ADR-010 §5 com 2 h de folga para a duração da base) | SEV2, emergência imediata | — |
-| A05 | Arquivamento de WAL | `last_archived_time` > 5 min com escrita, ou `failed_count` subiu | SEV2 | — |
-| A06 | Lag de réplica (F1) | > 60 s por 5 min | SEV2 | — |
-| A07 | Inbox acumulando | `ingest_pending_count` > 500 por 2 min, ou `ingest_pending_oldest_age_seconds` > 300 s ([05 §17](05-ingestao-e-telemetria.md); um caso isolado fica até ~200 s `pending` pelo backoff) | SEV2 | Autoheal do `worker` |
-| A08 | Latência p95 de alerta | > 60 s por 5 min (SEV1 se > 120 s por 5 min) | SEV2 | — |
-| A09 | Certificado TLS | Validade < 14 dias (SEV2 se < 7) | SEV3 | `dc restart caddy` força a renovação |
-| A10 | Sessões TCP do Traccar | Queda > 30% em 5 min vs média dos 30 min anteriores, com ≥ 10 sessões (supressão por > 50%: [07 §4](07-alertas-e-tempo-real.md)) | SEV1 | — |
-| A11 | Erro da API | 5xx > 2% das requisições em 5 min, com ≥ 100 requisições | SEV2 | — |
-| A12 | Reinício em laço ou OOM | > 3 reinícios em 15 min ou 1 OOM | SEV2 | Autoheal para de reiniciar |
-| A13 | Memória do host | > 90% por 10 min | SEV2 | — |
-| A14 | Restore de ensaio | Último sucesso > 35 dias | SEV3 | — |
-| A15 | Relógio | Offset > 1 s | SEV3 | chrony |
-| A16 | Agente SRE sem heartbeat (F1) | > 5 min | SEV2 | — |
-| A17 | Cópia R2 | Último sucesso > 26 h | SEV3 | — |
+| AL-01 | Sonda do SLO falhou | `slo-gps-tcp` ou `slo-api-https` DOWN (2 falhas seguidas) | SEV1 | — |
+| AL-02 | Primária inacessível | Kuma DOWN ≥ 2 min **e** UptimeRobot DOWN | SEV1, emergência imediata | — |
+| AL-03 | Disco | > 80% por 5 min (SEV1 se > 90%) | SEV2 | `disk-cleanup.sh` a 85%: logs, journal, imagens além das 3 últimas tags |
+| AL-04 | Backup base | Último sucesso > 26 h (ADR-010 §5 com 2 h de folga para a duração da base) | SEV2, emergência imediata | — |
+| AL-05 | Arquivamento de WAL | `last_archived_time` > 5 min com escrita, ou `failed_count` subiu | SEV2 | — |
+| AL-06 | Lag de réplica (F1) | > 60 s por 5 min | SEV2 | — |
+| AL-07 | Inbox acumulando | `ingest_pending_count` > 500 por 2 min, ou `ingest_pending_oldest_age_seconds` > 300 s ([05 §17](05-ingestao-e-telemetria.md); um caso isolado fica até ~200 s `pending` pelo backoff) | SEV2 | Autoheal do `worker` |
+| AL-08 | Latência p95 de alerta | > 60 s por 5 min (SEV1 se > 120 s por 5 min) | SEV2 | — |
+| AL-09 | Certificado TLS | Validade < 14 dias (SEV2 se < 7) | SEV3 | `dc restart caddy` força a renovação |
+| AL-10 | Sessões TCP do Traccar | Queda > 30% em 5 min vs média dos 30 min anteriores, com ≥ 10 sessões (supressão por > 50%: [07 §4](07-alertas-e-tempo-real.md)) | SEV1 | — |
+| AL-11 | Erro da API | 5xx > 2% das requisições em 5 min, com ≥ 100 requisições | SEV2 | — |
+| AL-12 | Reinício em laço ou OOM | > 3 reinícios em 15 min ou 1 OOM | SEV2 | Autoheal para de reiniciar |
+| AL-13 | Memória do host | > 90% por 10 min | SEV2 | — |
+| AL-14 | Restore de ensaio | Último sucesso > 35 dias | SEV3 | — |
+| AL-15 | Relógio | Offset > 1 s | SEV3 | chrony |
+| AL-16 | Agente SRE sem heartbeat (F1) | > 5 min | SEV2 | — |
+| AL-17 | Cópia R2 | Último sucesso > 26 h | SEV3 | — |
 
-F0: A01 a A05, A07, A08, A11 e A12 pelo Grafana Cloud e pelo UptimeRobot, direto no Pushover. F1: todas, pelo gateway (§13.2). Toda regra cita o runbook do [Anexo C](../anexos/C-operacional.md) na anotação.
+F0: AL-01 a AL-05, AL-07, AL-08, AL-11 e AL-12 pelo Grafana Cloud e pelo UptimeRobot, direto no Pushover [VALIDAR integração Pushover no plano free do UptimeRobot; senão, e-mail]. F1: todas, pelo gateway (§13.2). Toda regra cita o runbook do [Anexo C](../anexos/C-operacional.md) na anotação.
 
 ## 13. Remediação em camadas e agente SRE
 
@@ -306,7 +307,7 @@ F0: A01 a A05, A07, A08, A11 e A12 pelo Grafana Cloud e pelo UptimeRobot, direto
 | Momento | SEV1 | SEV2 | SEV3 |
 |---|---|---|---|
 | ≤ 2 min da abertura | Prioridade 1 com o diagnóstico do agente (sem ele, se o agente não responder) | Prioridade 0 com diagnóstico | Resumo diário por e-mail |
-| Imediato | Prioridade 2 em A02 e em suspeita de vazamento | Prioridade 2 em A04 (ADR-010 §5) | — |
+| Imediato | Prioridade 2 em AL-02 e em suspeita de vazamento | Prioridade 2 em AL-04 (ADR-010 §5) | — |
 | 10 min sem recuperação | Prioridade 2 (ADR-010 §5) | — | — |
 | Ação fora do cardápio ou limite atingido | Prioridade 2 | Prioridade 1 | — |
 | Piora até o limiar de SEV1 | — | Passa a seguir a coluna SEV1 | — |
@@ -314,10 +315,10 @@ F0: A01 a A05, A07, A08, A11 e A12 pelo Grafana Cloud e pelo UptimeRobot, direto
 ### 13.2 Gateway de incidentes
 
 [NOVA DECISÃO PROPOSTA: `tracksys-sre-gateway`, Cloudflare Worker com D1 no plano gratuito [VALIDAR limites], código em `infra/sre-gateway/`, é o ponto de entrada fora das duas VMs; o `sre-agent` busca incidentes por long-poll, sem porta de entrada na standby.]
-1. `POST /v1/hooks/{source}/{token}` (`kuma`, `uptimerobot`, `grafana`; token de 32 bytes por fonte, comparação em tempo constante) normaliza em `{ruleId, target, status, severity, at}`; chave de incidente `ruleId:target`; evento `resolved` seguido de `firing` em ≤ 10 min reabre o mesmo incidente.
+1. `POST /v1/hooks/{source}/{token}` (`kuma`, `uptimerobot` [VALIDAR webhook no plano free], `grafana`; token de 32 bytes por fonte, comparação em tempo constante) normaliza em `{ruleId, target, status, severity, at}`; chave de incidente `ruleId:target`; evento `resolved` seguido de `firing` em ≤ 10 min reabre o mesmo incidente.
 2. Envia os pages da §13.1 e consulta o recibo do Pushover para saber do ACK.
 3. `GET /v1/incidents/next` (bearer `SRE_GATEWAY_TOKEN`, long-poll de 25 s), `POST /v1/incidents/{id}/notes`, `POST /v1/heartbeat` (60 s).
-4. Cron de 1 min: escalonamentos; heartbeat do agente ausente > 5 min → A16. Não guarda dado pessoal; incidentes por 400 dias [PREMISSA].
+4. Cron de 1 min: escalonamentos; heartbeat do agente ausente > 5 min → AL-16. Não guarda dado pessoal; incidentes por 400 dias [PREMISSA].
 
 ### 13.3 Agente: execução e modelo
 
@@ -341,7 +342,7 @@ F0: A01 a A05, A07, A08, A11 e A12 pelo Grafana Cloud e pelo UptimeRobot, direto
 | `collect_diagnostics all` | A01 | — | Sem limite |
 | `restart_service api` \| `worker` | A02 | Contêiner `unhealthy` ou `/health/ready` 503 há ≥ 2 min | 2 por serviço por hora |
 | `restart_service caddy` | A03 | `slo-api-https` falhando com o `api` saudável | 2 por hora |
-| `restart_service traccar` | A04 | A10 ativa ou `GET /api/server` falhou 2 vezes | 1 por hora |
+| `restart_service traccar` | A04 | AL-10 ativa ou `GET /api/server` falhou 2 vezes | 1 por hora |
 | `rotate_logs host` | A05 | Disco > 80% | 1 por hora |
 | `requeue_pending inbox` | A06 | Inbox `pending` > 0 e `worker` saudável; roda `node dist/cli.js ingest:wake-pending` | 1 a cada 15 min |
 | `pause_retention 2h` | A07 | Disco > 85% ou CPU > 90% por 10 min | 1 por incidente |
@@ -349,7 +350,7 @@ F0: A01 a A05, A07, A08, A11 e A12 pelo Grafana Cloud e pelo UptimeRobot, direto
 
 1. Aceita só `$SSH_ORIGINAL_COMMAND` no formato `^<action> <target> [0-9a-z-]{8,40}$` com par da tabela; o resto → `denied_syntax`. Fase em `/etc/tracksys/sre-phase` (`F1` \| `F2`, dono root, fora do alcance do agente): F1 aceita só `collect_diagnostics`.
 2. Pré-condições lidas localmente pelo script, não da palavra do modelo; contadores em `/var/lib/tracksys/ops-action-state.json`. Timeout de 300 s por ação (900 s no `promote_standby`); saída JSON ≤ 64 KB, já redigida.
-3. Antes e depois de executar: linha no spool `/var/lib/tracksys/ops-audit.jsonl` e no Loki; o spool é enviado a `ops.audit_log` como `tracksys_ops_audit` e reenviado enquanto o banco não aceitar. Linha: `actor_type = 'ai_agent'`, `actor_id = 'sre:<incidentId>'`, `action = 'ops.<action>'`, `target`, `reason`, `result`. O fundador usando os mesmos scripts grava `actor_type = 'user'`, `actor_id = 'founder'`.
+3. Antes e depois de executar: linha no spool `/var/lib/tracksys/ops-audit.jsonl` e no Loki. `infra/scripts/ops-audit-flush.sh` (timer de 1 min) envia o spool a `ops.audit_log` da primária como `tracksys_ops_audit` (pelo socket local na primária; pela Tailscale a partir da standby) e reenvia enquanto o banco não aceitar. Linha: `actor_type = 'ai_agent'`, `actor_id = 'sre:<incidentId>'`, `action = 'ops.<action>'`, `target`, `reason`, `result`. O fundador usando os mesmos scripts grava `actor_type = 'user'`, `actor_id = 'founder'`.
 4. Proibições: as 9 de [ADR-010 §4](../adr/ADR-010-operacao-assistida-por-ia.md), integralmente (INV-11). Na prática: o agente não tem ferramenta que escreva no banco, leia telemetria (`tracksys_ops_ro` não tem USAGE em `app`), envie SMS ou comando físico, altere cobrança, firewall, DNS (fora do `failover`), segredo ou deploy.
 
 ## 14. Incidentes: severidade e comunicação
@@ -420,7 +421,7 @@ Fatias propostas: T-003 → OPS-001 a 005 e 023 (já sobe arquivando WAL); T-013
 ### REQ-OPS-003 — Compose de produção com limites e autoheal
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** —
 **Regra.** `infra/docker-compose.yml` DEVE declarar a tabela da §3; o autoheal DEVE reiniciar contêiner `unhealthy` em ≤ 90 s e parar após 3 reinícios em 15 min.
-**Aceite.** CT-OPS-003 — Dado a stack no ar, Quando `docker inspect` lê os limites, Então `db` = 5368709120 bytes, `traccar` = 1610612736, `api` e `worker` = 1073741824 e `caddy` = 134217728; Quando `dc exec api kill -STOP 1` roda, Então o `api` é reiniciado em ≤ 90 s; Quando isso se repete pela 4ª vez em 15 min, Então o contêiner não é reiniciado e o Pushover recebe 1 page "A12 api".
+**Aceite.** CT-OPS-003 — Dado a stack no ar, Quando `docker inspect` lê os limites, Então `db` = 5368709120 bytes, `traccar` = 1610612736, `api` e `worker` = 1073741824 e `caddy` = 134217728; Quando `dc exec api kill -STOP 1` roda, Então o `api` é reiniciado em ≤ 90 s; Quando isso se repete pela 4ª vez em 15 min, Então o contêiner não é reiniciado e o Pushover recebe 1 page "AL-12 api".
 
 ### REQ-OPS-004 — Postgres de produção sem dado sensível no log
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** INV-07
@@ -490,17 +491,17 @@ Fatias propostas: T-003 → OPS-001 a 005 e 023 (já sobe arquivando WAL); T-013
 ### REQ-OPS-017 — Regras de alerta e paging
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** —
 **Regra.** As regras da §12 DEVEM existir com os limiares exatos e notificar pela §13.1 (subconjunto do F0 na §12).
-**Aceite.** CT-OPS-017 — Dado o disco em 81% por 5 min às 02:00 BRT, Então sai 1 page prioridade 0 com "A03 SEV2"; Dado Kuma DOWN há 2 min e UptimeRobot DOWN, Então sai page prioridade 2 em ≤ 3 min; Dado certificado com 13 dias, Então sai aviso por e-mail e nenhum page; Dado 4% de respostas 5xx em 5 min com 300 requisições, Então sai page "A11".
+**Aceite.** CT-OPS-017 — Dado o disco em 81% por 5 min às 02:00 BRT, Então sai 1 page prioridade 0 com "AL-03 SEV2"; Dado Kuma DOWN há 2 min e UptimeRobot DOWN, Então sai page prioridade 2 em ≤ 3 min; Dado certificado com 13 dias, Então sai aviso por e-mail e nenhum page; Dado 4% de respostas 5xx em 5 min com 300 requisições, Então sai page "AL-11".
 
 ### REQ-OPS-018 — Gateway de incidentes independente das VMs
 **Fase:** F1 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** —
 **Regra.** O gateway DEVE receber as 3 fontes, deduplicar por `ruleId:target`, enviar os pages da §13.1 e funcionar com as duas VMs fora.
-**Aceite.** CT-OPS-018 — Dado as duas VMs paradas, Quando o UptimeRobot envia o webhook de DOWN, Então o Pushover recebe page prioridade 2 em ≤ 2 min; Quando o mesmo webhook chega 5 vezes, Então existe 1 incidente; Dado o `sre-agent` sem heartbeat por 6 min, Então abre A16 com page prioridade 0; Dado um webhook com token errado, Então 401 e nenhum incidente.
+**Aceite.** CT-OPS-018 — Dado as duas VMs paradas, Quando o UptimeRobot envia o webhook de DOWN, Então o Pushover recebe page prioridade 2 em ≤ 2 min; Quando o mesmo webhook chega 5 vezes, Então existe 1 incidente; Dado o `sre-agent` sem heartbeat por 6 min, Então abre AL-16 com page prioridade 0; Dado um webhook com token errado, Então 401 e nenhum incidente.
 
 ### REQ-OPS-019 — Agente SRE do F1: diagnóstico somente leitura
 **Fase:** F1 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** INV-07, INV-11
 **Regra.** O agente DEVE seguir a §13.3, anexar a nota em ≤ 2 min e, no F1, executar só `collect_diagnostics`.
-**Aceite.** CT-OPS-019 — Dado o `api` parado às 03:00:00Z com `SRE_PHASE=F1`, Quando o Kuma abre A01, Então até 03:02:00Z o page contém a nota com `recommendedRunbook` e pelo menos um valor medido; Quando o modelo chama `run_runbook_action` com `restart_service api`, Então o script devolve `denied_phase` e `ops.audit_log` tem 1 linha `result = 'denied'`; Dado o fake da API devolvendo `stop_reason: "refusal"`, Então sai o page "diagnóstico automático recusado".
+**Aceite.** CT-OPS-019 — Dado o `api` parado às 03:00:00Z com `SRE_PHASE=F1`, Quando o Kuma abre AL-01, Então até 03:02:00Z o page contém a nota com `recommendedRunbook` e pelo menos um valor medido; Quando o modelo chama `run_runbook_action` com `restart_service api`, Então o script devolve `denied_phase` e `ops.audit_log` tem 1 linha `result = 'denied'`; Dado o fake da API devolvendo `stop_reason: "refusal"`, Então sai o page "diagnóstico automático recusado".
 
 ### REQ-OPS-020 — Cardápio fechado do F2 por forced-command
 **Fase:** F2 · **Prioridade:** P1 · **Risco:** N0 · **Invariantes:** INV-08, INV-11
