@@ -3,15 +3,15 @@
 | Campo | Valor |
 |---|---|
 | Fase | F0 (semana S1: 07–13/10/2026) |
-| Requisitos | REQ-DAD-002, REQ-DAD-003 (padrões para as 4 tabelas desta tarefa), REQ-DAD-004, REQ-DAD-005 (CAT-01 a CAT-06; a CAT-07 entra na T-005), REQ-QLD-005 (job acceptance-freeze) |
+| Requisitos | REQ-DAD-002, REQ-DAD-003 (padrões para as 4 tabelas desta tarefa), REQ-DAD-004, REQ-DAD-005 (CAT-01 a CAT-06; a CAT-07 entra na T-005 ou na T-006), REQ-QLD-005 (job acceptance-freeze) |
 | Invariantes | INV-07 (isolamento), INV-12 (convenções) |
-| Regras de catálogo | CAT-01 a CAT-06; testes ISO-01 a ISO-09 |
+| Regras de catálogo | CAT-01 a CAT-06; testes ISO-01 a ISO-09 (2 operadoras × 2 clientes) e testes do `withContext` |
 | Risco de revisão | **N0** (migrations e contexto RLS) — revisão cruzada por agente de outro fornecedor + leitura humana linha a linha |
 | Depende de | nenhuma (primeira tarefa do repositório) |
 | Estimativa | 1 sessão de agente |
 | Bloqueado por decisão | nenhuma |
 
-> **Este cartão é autossuficiente.** Tudo o que você precisa para implementar está aqui: arquivos com conteúdo exato, SQL validado e testes de aceite prontos. Os links da seção "Contexto" explicam o porquê, mas não são necessários para executar. **Validação prévia:** este conteúdo foi executado em 07/10/2026 contra PostgreSQL 17: migration, verificador de catálogo, lint, typecheck e os 16 testes passaram.
+> **Este cartão é autossuficiente.** Tudo o que você precisa para implementar está aqui: arquivos com conteúdo exato, SQL validado e testes de aceite prontos. Os links da seção "Contexto" explicam o porquê, mas não são necessários para executar. **Validação prévia:** este conteúdo foi executado em 08/10/2026 contra PostgreSQL 17: migration (up, rollback e up de novo), verificador de catálogo, lint, typecheck e os 23 testes passaram. Cada proteção do `withContext` e do verificador tem um teste que falha quando a proteção é removida (testado por mutação).
 
 ## Objetivo
 
@@ -104,12 +104,13 @@ Não crie `.env` no git (está no `.gitignore`); localmente rode `cp .env.exampl
     "db:down": "docker compose down",
     "db:reset": "docker compose down -v && docker compose up -d --wait db",
     "db:migrate": "dbmate --migrations-dir ./packages/db/migrations --no-dump-schema --wait up",
+    "db:rollback": "dbmate --migrations-dir ./packages/db/migrations --no-dump-schema rollback",
     "db:check": "tsx packages/db/scripts/check-catalog.ts",
     "lint": "biome check .",
     "format": "biome format --write .",
     "typecheck": "pnpm -r run typecheck && tsc -p tests/tsconfig.json",
     "test:acceptance": "vitest run --config tests/vitest.config.ts",
-    "verify": "pnpm lint && pnpm typecheck && pnpm db:migrate && pnpm db:check && pnpm test:acceptance"
+    "verify": "pnpm lint && pnpm typecheck && pnpm db:migrate && pnpm db:rollback && pnpm db:migrate && pnpm db:check && pnpm test:acceptance"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",
@@ -167,8 +168,8 @@ TRACKSYS_OWNER_PASSWORD=owner_dev_pw
 TRACKSYS_APP_PASSWORD=app_dev_pw
 TRACKSYS_INGEST_PASSWORD=ingest_dev_pw
 DATABASE_URL=postgres://tracksys_owner:owner_dev_pw@127.0.0.1:54329/tracksys?sslmode=disable
-APP_DATABASE_URL=postgres://tracksys_app:app_dev_pw@127.0.0.1:54329/tracksys?sslmode=disable
-ADMIN_DATABASE_URL=postgres://postgres:postgres_dev_pw@127.0.0.1:54329/tracksys?sslmode=disable
+DATABASE_URL_APP=postgres://tracksys_app:app_dev_pw@127.0.0.1:54329/tracksys?sslmode=disable
+DATABASE_URL_ADMIN=postgres://postgres:postgres_dev_pw@127.0.0.1:54329/tracksys?sslmode=disable
 ```
 
 `tsconfig.base.json`
@@ -209,7 +210,11 @@ ADMIN_DATABASE_URL=postgres://postgres:postgres_dev_pw@127.0.0.1:54329/tracksys?
   "linter": {
     "enabled": true,
     "rules": {
-      "preset": "recommended"
+      "preset": "recommended",
+      "suspicious": {
+        "noFocusedTests": "error",
+        "noSkippedTests": "error"
+      }
     }
   },
   "javascript": {
@@ -230,6 +235,7 @@ services:
   db:
     build: ./infra/db
     image: tracksys-db:17
+    command: ['postgres', '-c', 'timezone=UTC', '-c', 'log_timezone=UTC']
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_dev_pw}
       TRACKSYS_OWNER_PASSWORD: ${TRACKSYS_OWNER_PASSWORD:-owner_dev_pw}
@@ -286,7 +292,9 @@ Papéis criados: `tracksys_owner` (dono do banco e do schema; usado pelas migrat
 ```sql
 -- migrate:up
 -- T-001 — Fundação do isolamento em 3 níveis (plataforma → operadora → cliente).
--- Requisitos: ADR-004, INV-07, regras de catálogo CAT-01..CAT-05.
+-- Requisitos: ADR-004, INV-07, regras de catálogo CAT-01..CAT-06.
+SET LOCAL lock_timeout = '5s';
+SET LOCAL statement_timeout = '60s';
 
 CREATE SCHEMA app;
 
@@ -311,6 +319,7 @@ CREATE FUNCTION app.current_tenant_ids() RETURNS uuid[]
   AS $$ SELECT coalesce(nullif(current_setting('app.tenant_ids', true), '')::uuid[], '{}'::uuid[]) $$;
 
 -- Operadora (raiz do isolamento).
+-- rls: D
 CREATE TABLE app.operator (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   legal_name text NOT NULL CHECK (length(legal_name) BETWEEN 1 AND 200),
@@ -322,6 +331,7 @@ CREATE TABLE app.operator (
 );
 
 -- Marca dinâmica exibida no app do cliente final.
+-- rls: C
 CREATE TABLE app.operator_brand (
   operator_id uuid PRIMARY KEY REFERENCES app.operator (id),
   display_name text NOT NULL CHECK (length(display_name) BETWEEN 1 AND 120),
@@ -334,6 +344,7 @@ CREATE TABLE app.operator_brand (
 );
 
 -- Cliente final da operadora (pessoa física ou jurídica).
+-- rls: C
 CREATE TABLE app.tenant (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   operator_id uuid NOT NULL REFERENCES app.operator (id),
@@ -348,6 +359,7 @@ CREATE TABLE app.tenant (
 CREATE INDEX tenant_operator_id_idx ON app.tenant (operator_id);
 
 -- Veículo do cliente. FK composta impede apontar para cliente de outra operadora.
+-- rls: A
 CREATE TABLE app.vehicle (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   operator_id uuid NOT NULL,
@@ -430,6 +442,8 @@ Regras que este SQL materializa e que **toda migration futura** deve seguir:
 - Tabela de cliente: `operator_id` e `tenant_id` NOT NULL, FK composta `(operator_id, tenant_id) → app.tenant (operator_id, id)`, política padrão `operator_id = app.current_operator_id() AND (app.current_scope() = 'operator' OR tenant_id = ANY (app.current_tenant_ids()))` em `USING` e `WITH CHECK`.
 - Tabela da operadora: política `FOR ALL` restrita ao escopo `operator` + política `FOR SELECT` para o escopo `tenant` quando o cliente precisar ler (ex.: marca).
 - Sem `GRANT DELETE` para `tracksys_app`: desativação é por `status`/`archived_at`.
+- Toda migration começa com `SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '60s';` (o dbmate roda cada arquivo numa transação) e cada `CREATE TABLE` do schema `app` leva o comentário `-- rls: <tipo>` ([04](../docs/spec/04-dominio-e-dados.md) §4.2).
+- FK composta liga as colunas **na mesma posição**: `(operator_id, tenant_id) → (operator_id, id)` de `app.tenant`; `(operator_id, tenant_id, vehicle_id) → (operator_id, tenant_id, id)` de `app.vehicle`.
 
 ### (4) Pacote `@tracksys/db`
 
@@ -471,6 +485,7 @@ Regras que este SQL materializa e que **toda migration futura** deve seguir:
 {
   "rlsExempt": {},
   "nullableTenantId": {},
+  "withoutOperatorId": {},
   "appendOnly": ["audit_log", "command_event", "access_log"]
 }
 ```
@@ -479,15 +494,15 @@ Regras que este SQL materializa e que **toda migration futura** deve seguir:
 
 | Export | Contrato |
 |---|---|
-| `loadDbEnv(): DbEnv` | Se `DATABASE_URL` não estiver no ambiente e existir `.env` no diretório atual, carrega com `process.loadEnvFile('.env')`. Valida com Zod que `DATABASE_URL`, `APP_DATABASE_URL` e `ADMIN_DATABASE_URL` começam com `postgres://`; lança erro se faltar algum. |
-| `type DbContext` | União discriminada por `scope`: `{ scope: 'operator'; operatorId: string }` ou `{ scope: 'tenant'; operatorId: string; tenantIds: string[] }`. |
-| `withContext<T>(pool: pg.Pool, context: DbContext, fn: (client: pg.PoolClient) => Promise<T>): Promise<T>` | 1) Valida `context` com Zod **antes** de abrir conexão: `operatorId` e cada `tenantIds[i]` são UUID (`z.uuid()`); `tenantIds` tem de 1 a 1000 itens no escopo `tenant`. Entrada inválida → rejeita sem tocar no banco. 2) Pega uma conexão do pool, `BEGIN`, executa `SELECT set_config('app.operator_id', $1, true), set_config('app.scope', $2, true), set_config('app.tenant_ids', $3, true)` com `$3 = '{id1,id2}'` no escopo `tenant` e `''` no escopo `operator`. 3) Chama `fn(client)`; sucesso → `COMMIT` e devolve o resultado; erro → `ROLLBACK` e relança o mesmo erro. 4) Sempre libera a conexão (`finally`). |
-| `CatalogAllowlistSchema` | Zod: `{ rlsExempt: Record<string, string(min 10)>, nullableTenantId: Record<string, string(min 10)>, appendOnly: string[] }`. |
+| `loadDbEnv(): DbEnv` | Se `DATABASE_URL` não estiver no ambiente e existir `.env` no diretório atual, carrega com `process.loadEnvFile('.env')`. Valida com Zod que `DATABASE_URL` (dono), `DATABASE_URL_APP` (aplicação) e `DATABASE_URL_ADMIN` (superusuário local, só testes) são URLs `postgres://` ou `postgresql://`; lança erro se faltar algum. `type DbEnv` é exportado. |
+| `type DbContext` | União discriminada por `scope` de objetos **estritos** (`z.strictObject`): `{ scope: 'operator'; operatorId: string }` ou `{ scope: 'tenant'; operatorId: string; tenantIds: string[] }`. Chave desconhecida (ex.: `tenantIds` no escopo `operator`) é erro, nunca descartada em silêncio. |
+| `withContext<T>(pool: pg.Pool, context: DbContext, fn: (client: pg.PoolClient) => Promise<T>): Promise<T>` | 1) Valida `context` com Zod **antes** de abrir conexão: `operatorId` e cada `tenantIds[i]` são UUID (`z.uuid()`); `tenantIds` tem de 1 a 1000 itens no escopo `tenant`. Entrada inválida → rejeita sem tocar no banco. 2) Pega uma conexão do pool, `BEGIN`, executa `SELECT set_config('app.operator_id', $1, true), set_config('app.scope', $2, true), set_config('app.tenant_ids', $3, true)` com `$3 = '{id1,id2}'` no escopo `tenant` e `''` no escopo `operator`. 3) Chama `fn(client)`; sucesso → `COMMIT` e devolve o resultado; se o `COMMIT` responder `ROLLBACK` (`result.command === 'ROLLBACK'`: erro engolido dentro do callback abortou a transação), lança `Error` com a palavra `abortada`. Erro → `ROLLBACK` e relança o mesmo erro. 4) No `finally`, roda `RESET ALL` (desfaz `set_config(..., false)` feito no callback) e libera a conexão; se o `ROLLBACK` ou o `RESET ALL` falhar, libera com `client.release(erro)`, o que descarta a conexão em vez de devolvê-la ao pool. |
+| `CatalogAllowlistSchema` | Zod `z.strictObject` (chave desconhecida = erro): `{ rlsExempt, nullableTenantId, withoutOperatorId: Record<string, string(min 10)>; appendOnly: string[] }`. A chave `securityDefiner` entra com a CAT-07 (T-005 ou T-006), que estende este schema no mesmo PR. |
 | `type CatalogAllowlist`, `type CatalogRule` (`'CAT-01'` … `'CAT-06'`), `interface CatalogViolation { rule: CatalogRule; object: string; message: string }` | Tipos. |
 | `loadCatalogAllowlist(): CatalogAllowlist` | Lê `packages/db/catalog-allowlist.json` relativo ao módulo (`new URL('../catalog-allowlist.json', import.meta.url)`) e valida com o schema. |
 | `runCatalogChecks(db: Pick<pg.ClientBase, 'query'> \| Pick<pg.Pool, 'query'>, allowlist: CatalogAllowlist): Promise<CatalogViolation[]>` | Executa as consultas abaixo no catálogo e devolve **todas** as violações (lista vazia = OK). Deve funcionar com um `Pool` ou com um `Client` dentro de uma transação aberta (o meta-teste cria tabelas e verifica antes do `ROLLBACK`). |
 
-**Formato de `object` nas violações** (os testes comparam texto): `app.<tabela>` para CAT-01, CAT-02, CAT-03, CAT-05 (tabela) e CAT-06; `app.<tabela>.<nome_da_constraint>` para CAT-04; `tracksys_app` para CAT-05 de papel.
+**Formato de `object` nas violações** (os testes comparam texto): `app.<tabela>` para CAT-01, CAT-02, CAT-03, CAT-05 (tabela) e CAT-06; `app.<tabela>.<nome_da_constraint>` para CAT-04 (uma violação por par de colunas faltante); para CAT-05, `app.<função>()` (função), `schema app` (schema) e `tracksys_app` (atributo do papel ou herança; a mensagem de herança cita o nome do papel herdado).
 
 **Consultas de referência por regra** (schema `app`; `relkind IN ('r','p')`):
 
@@ -495,10 +510,10 @@ Regras que este SQL materializa e que **toda migration futura** deve seguir:
 |---|---|---|
 | CAT-01 | Tabela sem RLS habilitada **e** forçada, fora de `rlsExempt` | `NOT (c.relrowsecurity AND c.relforcerowsecurity)` em `pg_class` (inclui partições) |
 | CAT-02 | Tabela com RLS e sem nenhuma política | `c.relrowsecurity AND NOT c.relispartition AND NOT EXISTS (SELECT 1 FROM pg_policy p WHERE p.polrelid = c.oid)` |
-| CAT-03 | Tabela com coluna `tenant_id` sem `operator_id` NOT NULL; ou com `tenant_id` anulável fora de `nullableTenantId` | `pg_attribute` de `tenant_id` (JOIN) e `operator_id` (LEFT JOIN) olhando `attnotnull`; ignora partições. Uma violação por problema. |
-| CAT-04 | FK (`contype = 'f'`, `conparentid = 0`) cuja tabela referenciada tem a coluna `tenant_id` (ou `operator_id`) e cujas colunas de origem (`conkey`) não incluem a coluna de mesmo nome | `CROSS JOIN (VALUES ('tenant_id'), ('operator_id'))`; exceção: FK para `app.operator`. Uma violação por coluna faltante. |
-| CAT-05 | `tracksys_app` inexistente, superusuário ou `BYPASSRLS`; ou dono de alguma tabela de `app` | `pg_roles` (`rolsuper`, `rolbypassrls`) e `pg_class.relowner` |
-| CAT-06 | Tabela listada em `appendOnly` que existe e em que `tracksys_app` tem `UPDATE` ou `DELETE` | `to_regclass('app.<t>')` e `has_table_privilege('tracksys_app', 'app.<t>', 'UPDATE' / 'DELETE')` |
+| CAT-03 | Tabela sem `operator_id` NOT NULL, exceto `app.operator` e as chaves de `withoutOperatorId`; ou com `tenant_id` anulável fora de `nullableTenantId` | `pg_attribute` de `operator_id` e `tenant_id` (LEFT JOIN) olhando `attnotnull`; ignora partições. Uma violação por problema. |
+| CAT-04 | FK (`contype = 'f'`, `conparentid = 0`), exceto para `app.operator`, que não liga **na mesma posição** `operator_id → operator_id` e `tenant_id → tenant_id` quando a tabela referenciada tem essas colunas; FK para `app.tenant` também precisa de `tenant_id → id` | pares `unnest(con.conkey, con.confkey)` com `pg_attribute` dos dois lados, comparados com o conjunto exigido. Uma violação por par faltante (coluna trocada conta como faltante). |
+| CAT-05 | `tracksys_app` inexistente, superusuário ou `BYPASSRLS`; membro, direto ou herdado, de papel superusuário, com `BYPASSRLS` ou dono de objeto do schema `app`; ou dono de tabela, função ou do próprio schema `app` | `pg_roles`, `pg_has_role('tracksys_app'::name, r.oid, 'MEMBER')`, `pg_class.relowner`, `pg_proc.proowner`, `pg_namespace.nspowner` |
+| CAT-06 | Tabela listada em `appendOnly` que existe e em que `tracksys_app` tem `UPDATE` (inclusive só em uma coluna), `DELETE` ou `TRUNCATE` | `to_regclass('app.<t>')`, `has_any_column_privilege(..., 'UPDATE')` e `has_table_privilege(..., 'DELETE' / 'TRUNCATE')` |
 
 `packages/db/scripts/check-catalog.ts`: conecta com `DATABASE_URL` (via `loadDbEnv()`), roda `runCatalogChecks(client, loadCatalogAllowlist())`, imprime `Catálogo OK: nenhuma violação de CAT-01..CAT-06.` quando vazio; senão imprime uma linha por violação no formato `CAT-0X <object>: <message>` em stderr e termina com código de saída 1. Sempre fecha a conexão.
 
@@ -585,14 +600,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { type SeededOperator, seedOperator } from './world.ts'
 
 const env = loadDbEnv()
-const app = new pg.Pool({ connectionString: env.APP_DATABASE_URL, max: 4 })
+const app = new pg.Pool({ connectionString: env.DATABASE_URL_APP, max: 4 })
 
 let a: SeededOperator
 let b: SeededOperator
 
 beforeAll(async () => {
   a = await seedOperator(app, 'Operadora A', 2)
-  b = await seedOperator(app, 'Operadora B', 1)
+  b = await seedOperator(app, 'Operadora B', 2)
 })
 
 afterAll(async () => {
@@ -625,7 +640,21 @@ describe('T-001 isolamento em 3 níveis (INV-07)', () => {
       c.query<{ id: string }>('SELECT id FROM app.vehicle'),
     )
     expect(ids(res.rows)).toEqual([...a.vehicleIds].sort())
-    expect(ids(res.rows)).not.toContain(b.vehicleIds[0])
+    for (const v of b.vehicleIds) expect(ids(res.rows)).not.toContain(v)
+  })
+
+  it('ISO-02b: escopo operadora B vê os 2 clientes de B e nada de A (2 operadoras × 2 clientes)', async () => {
+    const res = await withContext(app, { scope: 'operator', operatorId: b.operatorId }, (c) =>
+      c.query<{ id: string }>('SELECT id FROM app.tenant'),
+    )
+    expect(ids(res.rows)).toEqual([...b.tenantIds].sort())
+  })
+
+  it('ISO-02c: membro de 2 clientes da mesma operadora vê os veículos dos dois', async () => {
+    const res = await withContext(app, { scope: 'tenant', operatorId: a.operatorId, tenantIds: a.tenantIds }, (c) =>
+      c.query<{ id: string }>('SELECT id FROM app.vehicle'),
+    )
+    expect(ids(res.rows)).toEqual([...a.vehicleIds].sort())
   })
 
   it('ISO-03: sem contexto, nenhuma linha é visível', async () => {
@@ -657,6 +686,14 @@ describe('T-001 isolamento em 3 níveis (INV-07)', () => {
     ).rejects.toMatchObject({ code: '42501' })
   })
 
+  it('ISO-04c: cliente A1 não move o próprio veículo para o cliente A2', async () => {
+    await expect(
+      withContext(app, { scope: 'tenant', operatorId: a.operatorId, tenantIds: [a.tenantIds[0] as string] }, (c) =>
+        c.query('UPDATE app.vehicle SET tenant_id = $1 WHERE id = $2', [a.tenantIds[1], a.vehicleIds[0]]),
+      ),
+    ).rejects.toMatchObject({ code: '42501' })
+  })
+
   it('ISO-05: FK composta impede veículo da operadora A apontar para cliente da B', async () => {
     await expect(
       withContext(app, { scope: 'operator', operatorId: a.operatorId }, (c) =>
@@ -674,6 +711,13 @@ describe('T-001 isolamento em 3 níveis (INV-07)', () => {
     expect(ids(seen.rows)).toEqual([a.tenantIds[0]])
     const upd = await withContext(app, ctx, (c) =>
       c.query("UPDATE app.tenant SET display_name = 'invadido' WHERE id = $1", [a.tenantIds[0]]),
+    )
+    expect(upd.rowCount).toBe(0)
+  })
+
+  it('ISO-07b: operadora A não altera cliente da operadora B', async () => {
+    const upd = await withContext(app, { scope: 'operator', operatorId: a.operatorId }, (c) =>
+      c.query("UPDATE app.tenant SET display_name = 'invadido' WHERE id = ANY($1::uuid[])", [b.tenantIds]),
     )
     expect(upd.rowCount).toBe(0)
   })
@@ -704,7 +748,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { seedOperator } from './world.ts'
 
 const env = loadDbEnv()
-const single = new pg.Pool({ connectionString: env.APP_DATABASE_URL, max: 1 })
+const single = new pg.Pool({ connectionString: env.DATABASE_URL_APP, max: 1 })
 
 afterAll(async () => {
   await single.end()
@@ -719,6 +763,11 @@ describe('T-001 withContext', () => {
 
   it('rejeita operatorId que não é uuid', async () => {
     await expect(withContext(single, { scope: 'operator', operatorId: 'nao-e-uuid' }, async () => 1)).rejects.toThrow()
+  })
+
+  it('rejeita chave desconhecida no contexto (objeto estrito)', async () => {
+    const ctx = { scope: 'operator', operatorId: randomUUID(), tenantIds: [randomUUID()] }
+    await expect(withContext(single, ctx as never, async () => 1)).rejects.toThrow()
   })
 
   it('o contexto não vaza para a próxima transação da mesma conexão', async () => {
@@ -748,6 +797,39 @@ describe('T-001 withContext', () => {
     )
     expect(res.rows[0]?.n).toBe(0)
   })
+
+  it('set_config de sessão feito dentro do callback não vaza para o próximo uso da conexão', async () => {
+    const seeded = await seedOperator(single, 'Operadora Sessão', 1)
+    await withContext(single, { scope: 'operator', operatorId: randomUUID() }, (c) =>
+      c.query("SELECT set_config('app.operator_id', $1, false), set_config('app.scope', 'operator', false)", [
+        seeded.operatorId,
+      ]),
+    )
+    const after = await single.query<{ n: number; op: string | null }>(
+      "SELECT (SELECT count(*)::int FROM app.vehicle) AS n, nullif(current_setting('app.operator_id', true), '') AS op",
+    )
+    expect(after.rows[0]).toEqual({ n: 0, op: null })
+  })
+
+  it('erro engolido dentro do callback não vira sucesso silencioso', async () => {
+    const seeded = await seedOperator(single, 'Operadora Abortada', 1)
+    const ctx = { scope: 'operator' as const, operatorId: seeded.operatorId }
+    await expect(
+      withContext(single, ctx, async (c) => {
+        await c
+          .query("INSERT INTO app.vehicle (operator_id, tenant_id, kind) VALUES ($1, $2, 'invalido')", [
+            seeded.operatorId,
+            seeded.tenantIds[0],
+          ])
+          .catch(() => undefined)
+        return 'ok'
+      }),
+    ).rejects.toThrow('abortada')
+    const res = await withContext(single, ctx, (c) =>
+      c.query<{ n: number }>('SELECT count(*)::int AS n FROM app.vehicle'),
+    )
+    expect(res.rows[0]?.n).toBe(1)
+  })
 })
 ```
 
@@ -758,7 +840,7 @@ import pg from 'pg'
 import { afterAll, describe, expect, it } from 'vitest'
 
 const env = loadDbEnv()
-const admin = new pg.Pool({ connectionString: env.ADMIN_DATABASE_URL, max: 2 })
+const admin = new pg.Pool({ connectionString: env.DATABASE_URL_ADMIN, max: 2 })
 const allowlist = loadCatalogAllowlist()
 
 afterAll(async () => {
@@ -792,24 +874,64 @@ describe('T-001 verificador de catálogo (CAT-01..CAT-06)', () => {
       await client.query('ALTER TABLE app.tmp_fk_ruim ENABLE ROW LEVEL SECURITY')
       await client.query('ALTER TABLE app.tmp_fk_ruim FORCE ROW LEVEL SECURITY')
       await client.query('CREATE POLICY p ON app.tmp_fk_ruim USING (false)')
-      // CAT-05: papel da aplicação dono de tabela.
+      // CAT-03: tabela sem operator_id fora de withoutOperatorId (e a mesma forma, listada, não acusa).
+      for (const name of ['tmp_sem_escopo', 'tmp_plataforma']) {
+        await client.query(`CREATE TABLE app.${name} (id int PRIMARY KEY)`)
+        await client.query(`ALTER TABLE app.${name} ENABLE ROW LEVEL SECURITY`)
+        await client.query(`ALTER TABLE app.${name} FORCE ROW LEVEL SECURITY`)
+        await client.query(`CREATE POLICY p ON app.${name} USING (false)`)
+      }
+      // CAT-04: FK composta com as colunas trocadas (tenant_id → operator_id, operator_id → id).
+      await client.query(
+        'CREATE TABLE app.tmp_fk_trocada (id int PRIMARY KEY, operator_id uuid NOT NULL, tenant_id uuid NOT NULL, CONSTRAINT tmp_fk_trocada_fk FOREIGN KEY (tenant_id, operator_id) REFERENCES app.tenant (operator_id, id))',
+      )
+      // Controle positivo: FK composta correta para app.vehicle não acusa.
+      await client.query(
+        'CREATE TABLE app.tmp_fk_ok (id int PRIMARY KEY, operator_id uuid NOT NULL, tenant_id uuid NOT NULL, vehicle_id uuid NOT NULL, CONSTRAINT tmp_fk_ok_fk FOREIGN KEY (operator_id, tenant_id, vehicle_id) REFERENCES app.vehicle (operator_id, tenant_id, id))',
+      )
+      for (const name of ['tmp_fk_trocada', 'tmp_fk_ok']) {
+        await client.query(`ALTER TABLE app.${name} ENABLE ROW LEVEL SECURITY`)
+        await client.query(`ALTER TABLE app.${name} FORCE ROW LEVEL SECURITY`)
+        await client.query(`CREATE POLICY p ON app.${name} USING (false)`)
+      }
+      // CAT-05: papel da aplicação dono de tabela e membro do papel dono do schema.
       await client.query('ALTER TABLE app.tmp_fk_ruim OWNER TO tracksys_app')
-      // CAT-06: tabela append-only com UPDATE concedido (nome temporário, para não colidir com tabelas futuras).
-      await client.query('CREATE TABLE app.tmp_append_only (id int PRIMARY KEY, operator_id uuid NOT NULL)')
-      await client.query('ALTER TABLE app.tmp_append_only ENABLE ROW LEVEL SECURITY')
-      await client.query('ALTER TABLE app.tmp_append_only FORCE ROW LEVEL SECURITY')
-      await client.query('CREATE POLICY p ON app.tmp_append_only USING (false)')
+      await client.query('GRANT tracksys_owner TO tracksys_app')
+      // CAT-06: tabelas append-only com UPDATE na tabela e UPDATE só em uma coluna
+      // (nomes temporários, para não colidir com tabelas futuras).
+      for (const name of ['tmp_append_only', 'tmp_append_col']) {
+        await client.query(`CREATE TABLE app.${name} (id int PRIMARY KEY, operator_id uuid NOT NULL)`)
+        await client.query(`ALTER TABLE app.${name} ENABLE ROW LEVEL SECURITY`)
+        await client.query(`ALTER TABLE app.${name} FORCE ROW LEVEL SECURITY`)
+        await client.query(`CREATE POLICY p ON app.${name} USING (false)`)
+      }
       await client.query('GRANT SELECT, INSERT, UPDATE ON app.tmp_append_only TO tracksys_app')
+      await client.query('GRANT SELECT, INSERT, UPDATE (operator_id) ON app.tmp_append_col TO tracksys_app')
 
-      const metaAllowlist = { ...allowlist, appendOnly: [...allowlist.appendOnly, 'tmp_append_only'] }
-      const found = (await runCatalogChecks(client, metaAllowlist)).map((v) => `${v.rule} ${v.object}`)
+      const metaAllowlist = {
+        ...allowlist,
+        withoutOperatorId: { ...allowlist.withoutOperatorId, tmp_plataforma: 'tabela de plataforma do meta-teste' },
+        appendOnly: [...allowlist.appendOnly, 'tmp_append_only', 'tmp_append_col'],
+      }
+      const violations = await runCatalogChecks(client, metaAllowlist)
+      const found = violations.map((v) => `${v.rule} ${v.object}`)
       expect(found).toContain('CAT-01 app.tmp_sem_rls')
       expect(found).toContain('CAT-02 app.tmp_sem_politica')
       expect(found).toContain('CAT-03 app.tmp_sem_operator')
+      expect(found).toContain('CAT-03 app.tmp_sem_escopo')
+      expect(found).not.toContain('CAT-03 app.tmp_plataforma')
       expect(found).toContain('CAT-04 app.tmp_fk_ruim.tmp_fk_ruim_vehicle_id_fkey')
-      expect(found).toContain('CAT-05 app.tmp_fk_ruim')
-      expect(found).toContain('CAT-06 app.tmp_append_only')
       expect(found.filter((f) => f.startsWith('CAT-04 app.tmp_fk_ruim'))).toHaveLength(2)
+      expect(found.filter((f) => f === 'CAT-04 app.tmp_fk_trocada.tmp_fk_trocada_fk')).toHaveLength(2)
+      expect(found.filter((f) => f.startsWith('CAT-04 app.tmp_fk_ok'))).toEqual([])
+      expect(found).toContain('CAT-05 app.tmp_fk_ruim')
+      expect(
+        violations.some(
+          (v) => v.rule === 'CAT-05' && v.object === 'tracksys_app' && v.message.includes('tracksys_owner'),
+        ),
+      ).toBe(true)
+      expect(found).toContain('CAT-06 app.tmp_append_only')
+      expect(found).toContain('CAT-06 app.tmp_append_col')
     } finally {
       await client.query('ROLLBACK')
       client.release()
@@ -873,21 +995,19 @@ corepack enable                 # ou: npm i -g pnpm@10.28.0
 pnpm install
 cp .env.example .env
 pnpm db:up                      # build da imagem + Postgres saudável na porta 54329
-pnpm verify                     # lint → typecheck → db:migrate → db:check → test:acceptance
-pnpm exec dbmate --migrations-dir ./packages/db/migrations --no-dump-schema rollback   # down funciona
-pnpm db:migrate                 # e o up de novo
+pnpm verify                     # lint → typecheck → db:migrate → db:rollback → db:migrate → db:check → test:acceptance
 ```
 
-Resultado esperado de `pnpm verify`: Biome sem erros; `tsc` sem erros; `Applied: 20261007120000_fundacao_isolamento.sql`; `Catálogo OK: nenhuma violação de CAT-01..CAT-06.`; **Test Files 3 passed, Tests 16 passed**.
+Resultado esperado de `pnpm verify`: Biome sem erros; `tsc` sem erros; `Applied:`, `Rolled back:` e `Applied:` de novo para `20261007120000_fundacao_isolamento.sql`; `Catálogo OK: nenhuma violação de CAT-01..CAT-06.`; **Test Files 3 passed, Tests 23 passed** (isolamento 14, `withContext` 7, catálogo 2).
 
 ## Definição de pronto
 
 - [ ] Todos os arquivos da lista existem, com o conteúdo exato onde este cartão o fornece.
 - [ ] `pnpm verify` verde localmente e no CI do PR.
-- [ ] Rollback e novo `up` da migration funcionam.
+- [ ] Rollback e novo `up` da migration funcionam (já dentro do `pnpm verify`).
 - [ ] `tests/acceptance/T-001/**` idêntico ao deste cartão.
 - [ ] `pnpm-lock.yaml` commitado.
-- [ ] PR com título `feat(db): fundação do monorepo e isolamento em 3 níveis (T-001)`, descrição citando INV-07, CAT-01..CAT-06 e risco N0, e revisão cruzada registrada (ver [14](../docs/spec/14-qualidade-e-processo-ia.md)).
+- [ ] Branch `t-001-fundacao-monorepo-e-isolamento`; PR com título `feat(db): fundação do monorepo e isolamento em 3 níveis (T-001)`, descrição citando INV-07, CAT-01..CAT-06 e risco N0, e revisão cruzada registrada (ver [14](../docs/spec/14-qualidade-e-processo-ia.md)).
 
 ## Decisões já tomadas (não pergunte, siga)
 
@@ -907,3 +1027,11 @@ Resultado esperado de `pnpm verify`: Biome sem erros; `tsc` sem erros; `Applied:
 | O build da imagem falhou por rede | A imagem precisa do apt do Debian e do PGDG. Em rede restrita, registre no PR e peça liberação. Não troque a imagem nem remova o PostGIS. |
 | Identificadores em inglês ou português? | Código e identificadores em inglês; comentários, mensagens de teste e documentação em PT-BR. |
 | Commit | Conventional Commits, ex.: `feat(db): ...`, `test(db): ...`, `ci: ...`. |
+| Nomes das variáveis de banco? | `DATABASE_URL` (dono: dbmate, `db:check`), `DATABASE_URL_APP` (aplicação e testes), `DATABASE_URL_ADMIN` (superusuário local, só testes e semeadura; nunca em `apps/`). São os nomes canônicos de [03](../docs/spec/03-arquitetura.md) §13; a T-005 acrescenta `DATABASE_URL_INGEST`. |
+| Zod em `packages/db`? | Sim: valida ambiente, contexto e allowlist (regra "Zod em toda fronteira" do `AGENTS.md`). |
+| Por que `RESET ALL` e não `DISCARD ALL`? | `DISCARD ALL` apaga os prepared statements que o driver guarda por conexão e quebraria o próximo uso. `RESET ALL` limpa os parâmetros de sessão (inclusive `app.*`), que é o que importa para o isolamento. |
+| Por que `withoutOperatorId` em vez de deixar passar tabela sem `operator_id`? | Tabela sem coluna de escopo é exceção que precisa de justificativa revisada (N0). As tarefas que criam tabelas de plataforma ou de usuário (ex.: `capability_profile`, `ingest_inbox`, `push_token`) acrescentam a entrada no mesmo PR. |
+| Teste com `.only` ou `.skip`? | Proibido: o Biome (`noFocusedTests`, `noSkippedTests`) falha o lint. |
+| Quem aplica o rótulo `acceptance-change`? | Só o fundador. Nesta tarefa o CI só exige o rótulo; a checagem de quem o aplicou é da T-019. |
+| Conta que abre o PR? | A conta do agente (`versix-agent`, [14](../docs/spec/14-qualidade-e-processo-ia.md)) ou, enquanto ela não existir, a do fundador, registrada na descrição do PR. O merge é sempre do fundador. |
+| Fuso horário? | O Postgres local roda com `timezone=UTC` (INV-12); a aplicação grava `timestamptz`. |
