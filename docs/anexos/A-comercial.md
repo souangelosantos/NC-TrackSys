@@ -103,7 +103,7 @@ O volume real aparece no relatório mensal de indicações desde o F1 ([12 §15.
 | B — Adesão zero com fidelidade | R$ 0 | Igual | Tudo da opção A + fidelidade de 12 meses; saída antecipada paga R$ 2.500 × meses restantes / 12 | Perde a adesão se a Lider cumprir os 12 meses |
 | C — Padrão | R$ 2.500 na assinatura | Igual | Nenhuma | Caixa imediato; menor alinhamento |
 
-A opção A é a [NOVA DECISÃO PROPOSTA] registrada em [01 §5](../spec/01-visao-e-negocio.md): adesão faturada só após o G1, em troca do caso de referência.
+A opção A é a [DECISÃO DO FUNDADOR PENDENTE] registrada em [01 §5](../spec/01-visao-e-negocio.md): adesão faturada só após o G1, em troca do caso de referência.
 
 **O que a Lider recebe além do produto:** canal direto com o fundador, prioridade no backlog de paridade e nome no case.
 

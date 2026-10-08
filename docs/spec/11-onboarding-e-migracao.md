@@ -63,8 +63,8 @@ Cabeçalhos comparados após aparar, minúsculas, sem acento (NFD) e espaços co
 |---|---|---|---|---|
 | `customerName` | Sim | nome, cliente, nome do cliente, razao social | 2–200 caracteres | `tenant.display_name` |
 | `customerDocument` | Sim | cpf, cnpj, cpf/cnpj, documento | Só dígitos; 11 = CPF com DV (`person`); 14 = CNPJ com DV (`company`) | `tenant.document`, `tenant.kind` |
-| `customerPhone` | Não | telefone, celular, whatsapp, fone | Só dígitos; 10–11 → prefixo +55; 12–13 iniciando em 55 → `+`; E.164 | `tenant.contact_phone` [NOVA DECISÃO PROPOSTA] |
-| `customerEmail` | Não | email, e-mail | Minúsculas; `^[^@\s]+@[^@\s]+\.[^@\s]+$`; ≤ 254 | `tenant.contact_email` [NOVA DECISÃO PROPOSTA] e convite do titular |
+| `customerPhone` | Não | telefone, celular, whatsapp, fone | Só dígitos; 10–11 → prefixo +55; 12–13 iniciando em 55 → `+`; E.164 | `tenant.contact_phone` [ADOTADO NA v2.0] |
+| `customerEmail` | Não | email, e-mail | Minúsculas; `^[^@\s]+@[^@\s]+\.[^@\s]+$`; ≤ 254 | `tenant.contact_email` [ADOTADO NA v2.0] e convite do titular |
 | `plate` | Sim | placa | Maiúsculas, sem hífen e espaço; regex de [04](04-dominio-e-dados.md) §3.1 | `vehicle.plate` |
 | `vehicleKind` | Não | tipo, tipo de veiculo, categoria | carro, automovel, auto, passeio → `car`; moto, motocicleta, motoneta → `motorcycle`; caminhao → `truck`; vazio ou outro → `other` | `vehicle.kind` |
 | `make`, `model`, `color` | Não | marca, fabricante / modelo / cor | ≤ 60 / ≤ 60 / ≤ 30 caracteres | `vehicle.*` |
@@ -105,7 +105,7 @@ Erro descarta a linha; aviso importa a linha com o campo afetado vazio.
 
 ### 4.1 Liberação, modo e janela
 
-1. Ondas existem só para operadoras em `MIGRATION_WAVES_OPERATORS` (ids separados por vírgula; padrão vazio), alterada por deploy com revisão N1 [NOVA DECISÃO PROPOSTA]. A Lider entra após G0 aprovado, DEC-10 resolvida e G-CMD aprovado: sem G-CMD, o cliente migrado perde o bloqueio remoto, que é paridade.
+1. Ondas existem só para operadoras em `MIGRATION_WAVES_OPERATORS` (ids separados por vírgula; padrão vazio), alterada por deploy com revisão N1 [ADOTADO NA v2.0]. A Lider entra após G0 aprovado, DEC-10 resolvida e G-CMD aprovado: sem G-CMD, o cliente migrado perde o bloqueio remoto, que é paridade.
 2. `mode = 'api'` exige `EMNIFY_SMS_ENABLED=true` (DEC-01, [06](06-comandos-e-bloqueio.md) §9); sem a flag, só `manual`.
 3. Início de segunda a sexta, 09:00–16:00 BRT [PREMISSA], para 1º contato, rollback e confirmação no sistema de origem caberem no expediente da central. Fora disso: 422 `WAVE_OUTSIDE_WINDOW`.
 4. Criar, iniciar, pausar e abortar: `operator_admin`. Registrar SMS manual e resultado de rollback: `operator_admin` e `operator_agent`. O fundador acompanha; o grant de suporte da Versix é só leitura ([08](08-identidade-e-seguranca.md) §5).
@@ -309,7 +309,7 @@ CREATE TRIGGER migration_item_limit BEFORE INSERT ON app.migration_item FOR EACH
 GRANT SELECT, INSERT, UPDATE ON app.import_job, app.migration_wave, app.migration_item TO tracksys_app;
 ```
 
-**Sonda de quarentena por rastreador** (F0, para o aviso "Comunicando sem vínculo" de [10](10-apps-e-ux.md) C05) [NOVA DECISÃO PROPOSTA: nova função na lista fechada de [04](04-dominio-e-dados.md) §4.4, revisão N0; caminho do IMEI no `payload` da inbox: alinhar com [05](05-ingestao-e-telemetria.md)]:
+**Sonda de quarentena por rastreador** (F0, para o aviso "Comunicando sem vínculo" de [10](10-apps-e-ux.md) C05) [ADOTADO NA v2.0: nova função na lista fechada de [04](04-dominio-e-dados.md) §4.4, revisão N0; caminho do IMEI no `payload` da inbox: alinhar com [05](05-ingestao-e-telemetria.md)]:
 
 ```sql
 CREATE FUNCTION app.device_ingest_probe(p_device_id uuid)

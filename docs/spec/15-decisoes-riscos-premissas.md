@@ -198,42 +198,49 @@ Escalas. Probabilidade em 12 meses: **Baixa** < 10%, **Média** 10–50%, **Alta
 
 ## 5. Propostas de decisão registradas nos capítulos
 
-Toda `[NOVA DECISÃO PROPOSTA: …]` entra aqui no PR que a cria. O fundador aprova, rejeita ou promove a DEC.
+Toda `[NOVA DECISÃO PROPOSTA: …]` entra aqui no PR que a cria. O fundador aprova, rejeita ou promove a DEC. Na consolidação da v2.0 (08/10/2026), as propostas técnicas foram **adotadas como padrão** (marcadas `[ADOTADO NA v2.0]` nos capítulos; o fundador pode reverter por PR), as comerciais e jurídicas ficaram **pendentes** (`[DECISÃO DO FUNDADOR PENDENTE]`) e as de escala ficaram para o F2 (`[ADIADO PARA O F2]`).
 
-| Origem | Proposta | Recomendação | Decidir até |
-|---|---|---|---|
-| [01](01-visao-e-negocio.md) | Parceiro local: Versix 20–30%, operadora 70–80% | Unificar com a de [12] pela regra espelho da DEC-05 (quem fecha fica com 75%) | Antes do 1º parceiro local pago |
-| [01](01-visao-e-negocio.md) | Preço de setup e anuidade do app dedicado até 31/03/2027 | Aprovar o prazo | 31/03/2027 |
-| [01](01-visao-e-negocio.md) | Adesão da Lider faturada só após o G1 | Aprovar (parceira de design) | 31/10/2026 |
-| [02](02-escopo-e-fases.md) | `gps.` em domínio Versix independente da marca | Aprovar | 17/10/2026 (com DEC-04) |
-| [03](03-arquitetura.md) | `COMMAND_DISPATCH_ENABLED=false` após failover ou restore até a reconciliação | Aprovar | Antes do standby (15/11/2026) |
-| [04](04-dominio-e-dados.md) | CAT-07: funções `SECURITY DEFINER` iguais à allowlist, `search_path` fixo, sem PUBLIC | Aprovar | Cartão da T-005 |
-| [04](04-dominio-e-dados.md) | Identidade de dedupe por 14 dias em vez de 90 | Manter 90 dias (número canônico) até medir o disco (REQ-DAD-024) | Antes de 1.500 veículos ativos |
-| [06](06-comandos-e-bloqueio.md) | `COMMAND_BLOCK_SCOPE` = `none` / `pilot:<ids>` / `all`, mudado só por deploy N0 | Aprovar | Antes da bancada |
-| [06](06-comandos-e-bloqueio.md) | `COMMAND_BENCH_OPERATOR_ID` aceita perfil `draft` só na operadora de bancada | Aprovar | Antes da bancada |
-| [06](06-comandos-e-bloqueio.md) | Instalador testa bloqueio só em vínculo aberto por ele há ≤ 2 h, até existir OS formal | Aprovar | Antes do G-CMD |
-| [06](06-comandos-e-bloqueio.md) | `membership.can_command` (padrão `false`), concedido pelo titular | Aprovar | Antes do G-CMD |
-| [06](06-comandos-e-bloqueio.md) | Termo de ciência de titular sem app registrado pela central com anexo | Aprovar com a revisão jurídica (DEC-08) | Antes do G-CMD |
-| [07](07-alertas-e-tempo-real.md) | `ALERT_DELIVERY_ENABLED=false` em restore e na standby antes da promoção | Aprovar | Antes do 1º ensaio de restore (G0-7) |
-| [07](07-alertas-e-tempo-real.md) | Conexão SSE de escopo operadora com até 1.000 veículos acima de 400 veículos ativos | Decidir no F2 | F2 |
-| [08](08-identidade-e-seguranca.md) | `membership.vehicle_ids` (NULL = todos os veículos do cliente) | Aprovar junto com `can_command` | Antes do G-CMD |
-| [08](08-identidade-e-seguranca.md) | 4º parâmetro `{ readOnly: true }` em `withContext`, compatível com a T-001 | Aprovar | Cartão do acesso de suporte (F1) |
-| [09](09-api-e-contratos.md) | `block` com rastreador `offline` (> 1.800 s) recusado com 409 `TELEMETRY_STALE` em vez de ARMED | Aprovar: resposta imediata e honesta | Antes do G-CMD |
-| [10](10-apps-e-ux.md) | `search_team` no navegador usa step-up de console (TOTP + motivo) | Aprovar; alinhar [06 §4.1](06-comandos-e-bloqueio.md) | Antes do G-CMD |
-| [10](10-apps-e-ux.md) | `br.com.versix.tracksys` como `applicationId` e bundle id | Aprovar | 14/10/2026 (antes do 1º envio às lojas) |
-| [10](10-apps-e-ux.md) | Subdomínio `meu.` para o portal web do cliente | Decidir no F2 | F2 |
-| [10](10-apps-e-ux.md) | WebAuthn como step-up do portal | Decidir no F2 | F2 |
-| [11](11-onboarding-e-migracao.md) | Nova função `SECURITY DEFINER` para a sonda de quarentena por rastreador | Aprovar com revisão N0 e CAT-07 | Antes do cartão que a usar (F0) |
-| [12](12-cobranca-e-svas.md) | DEC-05 ampliada ao parceiro local, proposta 50% | Unificar com [01] pela regra espelho | Antes do 1º parceiro local pago |
-| [12](12-cobranca-e-svas.md) | Parte da operadora vira crédito no fechamento; saldo > R$ 100,00 pago por PIX até o dia 10 | Aprovar | Antes do 1º fechamento (dez/2026) |
-| [ADR-005](../adr/ADR-005-infra-oracle-always-free.md) | `gps.` em IP público reservado da OCI, reatribuído à standby no failover | Aprovar se a DEC-12 confirmar a reatribuição entre VMs [VALIDAR] | 10/10/2026 (com DEC-12) |
-| [ADR-010](../adr/ADR-010-operacao-assistida-por-ia.md) | Entrypoint `infra/scripts/ops-action.sh` para as ações do agente SRE | Aprovar | F1 (agente SRE) |
-| [13](13-infra-e-operacao.md) | Ações de operação de plataforma (agente SRE, deploy, failover) auditadas em `ops.audit_log`, fora do schema `app` | Aprovar | Antes da T-013 (deploy) |
-| [13](13-infra-e-operacao.md) | `EXTERNAL_EFFECTS=off` troca FCM, emnify, Asaas, e-mail e comandos do Traccar por adaptadores nulos; obrigatório no restore de ensaio | Aprovar; unificar com `ALERT_DELIVERY_ENABLED` de [07] e `COMMAND_DISPATCH_ENABLED` de [03] numa matriz única | Antes do G0-7 |
-| [13](13-infra-e-operacao.md) | Deploy automático só de segunda a sexta, 08:00–20:00 BRT; fora disso, `workflow_dispatch` com `force: true` | Aprovar; N0 segue a janela mais estreita de [14 §6](14-qualidade-e-processo-ia.md) | Antes da T-013 |
-| [13](13-infra-e-operacao.md) | `tracksys-sre-gateway` em Cloudflare Worker com D1 gratuito como entrada de alertas fora das VMs | Aprovar após confirmar os limites do plano gratuito [VALIDAR] | F1 (agente SRE) |
-| [14](14-qualidade-e-processo-ia.md) | Cartão "Guardas de processo no CI" no S1–S2 do F0 | Aprovar | 13/10/2026 |
-| [14](14-qualidade-e-processo-ia.md) | Todo PR aberto pela conta de máquina `versix-agent`; só o fundador aprova, rotula exceções, cria tags e faz merge | Aprovar | 09/10/2026 (antes do PR da T-001) |
+| Origem | Proposta | Recomendação | Decidir até | Status |
+|---|---|---|---|---|
+| [01](01-visao-e-negocio.md) | Parceiro local: Versix 20–30%, operadora 70–80% | Unificar com a de [12] pela regra espelho da DEC-05 (quem fecha fica com 75%) | Antes do 1º parceiro local pago | **Pendente — fundador** (comercial) |
+| [01](01-visao-e-negocio.md) | Preço de setup e anuidade do app dedicado até 31/03/2027 | Aprovar o prazo | 31/03/2027 | **Pendente — fundador** (comercial) |
+| [01](01-visao-e-negocio.md) | Adesão da Lider faturada só após o G1 | Aprovar (parceira de design) | 31/10/2026 | **Pendente — fundador** (comercial, até 31/10/2026) |
+| [02](02-escopo-e-fases.md) | `gps.` em domínio Versix independente da marca | Aprovar | 17/10/2026 (com DEC-04) | Adotada na v2.0 |
+| [03](03-arquitetura.md) | `COMMAND_DISPATCH_ENABLED=false` após failover ou restore até a reconciliação | Aprovar | Antes do standby (15/11/2026) | Adotada na v2.0 |
+| [04](04-dominio-e-dados.md) | CAT-07: funções `SECURITY DEFINER` iguais à allowlist, `search_path` fixo, sem PUBLIC | Aprovar | Cartão da T-005 | Adotada na v2.0 |
+| [04](04-dominio-e-dados.md) | Identidade de dedupe por 14 dias em vez de 90 | Manter 90 dias (número canônico) até medir o disco (REQ-DAD-024) | Antes de 1.500 veículos ativos | Não adotada (manter 90 dias) |
+| [06](06-comandos-e-bloqueio.md) | `COMMAND_BLOCK_SCOPE` = `none` / `pilot:<ids>` / `all`, mudado só por deploy N0 | Aprovar | Antes da bancada | Adotada na v2.0 |
+| [06](06-comandos-e-bloqueio.md) | `COMMAND_BENCH_OPERATOR_ID` aceita perfil `draft` só na operadora de bancada | Aprovar | Antes da bancada | Adotada na v2.0 |
+| [06](06-comandos-e-bloqueio.md) | Instalador testa bloqueio só em vínculo aberto por ele há ≤ 2 h, até existir OS formal | Aprovar | Antes do G-CMD | Adotada na v2.0 |
+| [06](06-comandos-e-bloqueio.md) | `membership.can_command` (padrão `false`), concedido pelo titular | Aprovar | Antes do G-CMD | Adotada na v2.0 |
+| [06](06-comandos-e-bloqueio.md) | Termo de ciência de titular sem app registrado pela central com anexo | Aprovar com a revisão jurídica (DEC-08) | Antes do G-CMD | **Pendente — fundador + advogado** (DEC-08) |
+| [07](07-alertas-e-tempo-real.md) | `ALERT_DELIVERY_ENABLED=false` em restore e na standby antes da promoção | Aprovar | Antes do 1º ensaio de restore (G0-7) | Adotada na v2.0 |
+| [07](07-alertas-e-tempo-real.md) | Conexão SSE de escopo operadora com até 1.000 veículos acima de 400 veículos ativos | Decidir no F2 | F2 | Adiada para o F2 |
+| [08](08-identidade-e-seguranca.md) | `membership.vehicle_ids` (NULL = todos os veículos do cliente) | Aprovar junto com `can_command` | Antes do G-CMD | Adotada na v2.0 |
+| [08](08-identidade-e-seguranca.md) | 4º parâmetro `{ readOnly: true }` em `withContext`, compatível com a T-001 | Aprovar | Cartão do acesso de suporte (F1) | Adotada na v2.0 |
+| [09](09-api-e-contratos.md) | `block` com rastreador `offline` (> 1.800 s) recusado com 409 `TELEMETRY_STALE` em vez de ARMED | Aprovar: resposta imediata e honesta | Antes do G-CMD | Adotada na v2.0 |
+| [10](10-apps-e-ux.md) | `search_team` no navegador usa step-up de console (TOTP + motivo) | Aprovar; alinhar [06 §4.1](06-comandos-e-bloqueio.md) | Antes do G-CMD | Adotada na v2.0 |
+| [10](10-apps-e-ux.md) | `br.com.versix.tracksys` como `applicationId` e bundle id | Aprovar | 14/10/2026 (antes do 1º envio às lojas) | Adotada na v2.0 |
+| [10](10-apps-e-ux.md) | Subdomínio `meu.` para o portal web do cliente | Decidir no F2 | F2 | Adiada para o F2 |
+| [10](10-apps-e-ux.md) | WebAuthn como step-up do portal | Decidir no F2 | F2 | Adiada para o F2 |
+| [11](11-onboarding-e-migracao.md) | Nova função `SECURITY DEFINER` para a sonda de quarentena por rastreador | Aprovar com revisão N0 e CAT-07 | Antes do cartão que a usar (F0) | Adotada na v2.0 |
+| [12](12-cobranca-e-svas.md) | DEC-05 ampliada ao parceiro local, proposta 50% | Unificar com [01] pela regra espelho | Antes do 1º parceiro local pago | **Pendente — fundador** (comercial) |
+| [12](12-cobranca-e-svas.md) | Parte da operadora vira crédito no fechamento; saldo > R$ 100,00 pago por PIX até o dia 10 | Aprovar | Antes do 1º fechamento (dez/2026) | **Pendente — fundador** (financeiro) |
+| [ADR-005](../adr/ADR-005-infra-oracle-always-free.md) | `gps.` em IP público reservado da OCI, reatribuído à standby no failover | Aprovar se a DEC-12 confirmar a reatribuição entre VMs [VALIDAR] | 10/10/2026 (com DEC-12) | Adotada na v2.0 |
+| [ADR-010](../adr/ADR-010-operacao-assistida-por-ia.md) | Entrypoint `infra/scripts/ops-action.sh` para as ações do agente SRE | Aprovar | F1 (agente SRE) | Adotada na v2.0 |
+| [13](13-infra-e-operacao.md) | Ações de operação de plataforma (agente SRE, deploy, failover) auditadas em `ops.audit_log`, fora do schema `app` | Aprovar | Antes da T-013 (deploy) | Adotada na v2.0 |
+| [13](13-infra-e-operacao.md) | `EXTERNAL_EFFECTS=off` troca FCM, emnify, Asaas, e-mail e comandos do Traccar por adaptadores nulos; obrigatório no restore de ensaio | Aprovar; unificar com `ALERT_DELIVERY_ENABLED` de [07] e `COMMAND_DISPATCH_ENABLED` de [03] numa matriz única | Antes do G0-7 | Adotada na v2.0 |
+| [13](13-infra-e-operacao.md) | Deploy automático só de segunda a sexta, 08:00–20:00 BRT; fora disso, `workflow_dispatch` com `force: true` | Aprovar; N0 segue a janela mais estreita de [14 §6](14-qualidade-e-processo-ia.md) | Antes da T-013 | Adotada na v2.0 |
+| [13](13-infra-e-operacao.md) | `tracksys-sre-gateway` em Cloudflare Worker com D1 gratuito como entrada de alertas fora das VMs | Aprovar após confirmar os limites do plano gratuito [VALIDAR] | F1 (agente SRE) | Adotada na v2.0 |
+| [14](14-qualidade-e-processo-ia.md) | Cartão "Guardas de processo no CI" no S1–S2 do F0 | Aprovar | 13/10/2026 | Adotada na v2.0 |
+| [14](14-qualidade-e-processo-ia.md) | Todo PR aberto pela conta de máquina `versix-agent`; só o fundador aprova, rotula exceções, cria tags e faz merge | Aprovar | 09/10/2026 (antes do PR da T-001) | Adotada na v2.0 |
+| [11](11-onboarding-e-migracao.md) | Colunas `tenant.contact_phone` e `tenant.contact_email` preenchidas pelo importador | Aprovar | Cartão do importador (F1) | Adotada na v2.0 |
+| [11](11-onboarding-e-migracao.md) | `MIGRATION_WAVES_OPERATORS` habilita ondas por operadora, alterada por deploy N1 | Aprovar | Antes da 1ª onda (F1) | Adotada na v2.0 |
+| [Anexo C](../anexos/C-operacional.md) | Console exporta a lista de contingência (PDF e CSV) para o `operator_admin`, com `audit_log` | Aprovar | F1 | Adotada na v2.0 |
+| [Anexo B](../anexos/B-juridico.md) | Aceite dos termos como clickwrap em `consent` (`purpose = 'terms_of_use'`), com versão e SHA-256 do texto | Aprovar | Antes das lojas (F1) | Adotada na v2.0 |
+| [Anexo B](../anexos/B-juridico.md) | `operator_brand.privacy_policy_url` para a política da operadora | Aprovar | F1 | Adotada na v2.0 |
+| [Anexo B](../anexos/B-juridico.md) | `ticket.category = 'authority'` para requisições de autoridades | Aprovar | F1 | Adotada na v2.0 |
+| [Anexo B](../anexos/B-juridico.md) | Retenção de conversas de atendimento por 90 dias | Validar com o advogado | Antes do G1 | **Pendente — fundador + advogado** (DEC-08) |
 
 ## 6. Requisitos
 

@@ -311,7 +311,7 @@ Campos e prazos seguem [06 §14](06-comandos-e-bloqueio.md) (`expiresAt` = cria�
 }
 ```
 
-Nenhuma linha em `command`; `audit_log` `command.request` `denied`. Com presença `online` ou `delayed`, a política de [06 §3](06-comandos-e-bloqueio.md) arma (`awaiting_evidence` ou `awaiting_on_demand_fix`) em vez de recusar. [NOVA DECISÃO PROPOSTA: com presença `offline` (contato há mais de 1.800 s), o pedido de `block` é recusado na hora com 409 `TELEMETRY_STALE` em vez de ficar ARMED 5 min sem chance de evidência; `unblock` segue [06](06-comandos-e-bloqueio.md).]
+Nenhuma linha em `command`; `audit_log` `command.request` `denied`. Com presença `online` ou `delayed`, a política de [06 §3](06-comandos-e-bloqueio.md) arma (`awaiting_evidence` ou `awaiting_on_demand_fix`) em vez de recusar. [ADOTADO NA v2.0: com presença `offline` (contato há mais de 1.800 s), o pedido de `block` é recusado na hora com 409 `TELEMETRY_STALE` em vez de ficar ARMED 5 min sem chance de evidência; `unblock` segue [06](06-comandos-e-bloqueio.md).]
 
 ### 9.4 `GET /api/v1/vehicles/{vehicleId}/history`
 

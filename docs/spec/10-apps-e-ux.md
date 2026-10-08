@@ -215,7 +215,7 @@ Menu por papel (autorização no `api`, [08](08-identidade-e-seguranca.md)): `op
 2. `/busca/:occurrenceId` em layout de celular (≤ 480 px): mapa em tela cheia seguindo o veículo; cartão com placa, modelo, cor, estado e "Última posição válida há X" em fonte ≥ 20 px; trajeto dos últimos 30 min; "Navegar" (links da A08); "Ligar para a central"; "Compartilhar com a polícia" (link de [08](08-identidade-e-seguranca.md)).
 3. Tela ligada com a Screen Wake Lock API enquanto a página está visível.
 4. Ocorrência encerrada: "Ocorrência encerrada" e fim do recebimento de posições em ≤ 5 s.
-5. Pedido de bloqueio pela visão de busca usa o step-up do console (TOTP ≤ 5 min + motivo) [NOVA DECISÃO PROPOSTA: `search_team` no navegador usa step-up de console; [06](06-comandos-e-bloqueio.md) §4.1 prevê chave do aparelho, que não existe na web].
+5. Pedido de bloqueio pela visão de busca usa o step-up do console (TOTP ≤ 5 min + motivo) [ADOTADO NA v2.0: `search_team` no navegador usa step-up de console; [06](06-comandos-e-bloqueio.md) §4.1 prevê chave do aparelho, que não existe na web].
 
 ## 11. Atendimento (`ticket`, módulo `support`)
 
@@ -244,7 +244,7 @@ Rotas ([09](09-api-e-contratos.md) §7): `POST /api/v1/tickets` (`tenantId`, `ve
 |---|---|---|---|
 | Android | Teste fechado do Google Play: ≥ 12 testadores por 14 dias seguidos antes da produção (conta pessoal) [VALIDAR — regra vigente]; início até 27/10/2026 | Produção após os 14 dias | Opção B por operadora |
 | iOS | TestFlight (DEC-03); testadores externos passam pela revisão beta da Apple [VALIDAR prazo] | App Store (G1-5) | Opção B |
-| Identificador | [NOVA DECISÃO PROPOSTA: `br.com.versix.tracksys` como `applicationId` e bundle id, fixado antes do 1º envio (S2) e independente de DEC-04] | — | Opção B: identificador da operadora |
+| Identificador | [ADOTADO NA v2.0: `br.com.versix.tracksys` como `applicationId` e bundle id, fixado antes do 1º envio (S2) e independente de DEC-04] | — | Opção B: identificador da operadora |
 | Versões mínimas | Android 8.0 (API 26) e iOS 15 [PREMISSA] | Idem | Idem |
 | Build | Tag `mobile-vX.Y.Z` → GitHub Actions: `flutter test`, AAB assinado (`versionName` X.Y.Z, `versionCode` = número da execução), envio à faixa de teste, release no Sentry; iOS em runner macOS ou Codemagic [VALIDAR custo] | + envio às lojas | Flavors |
 | Configuração | `--dart-define=API_BASE_URL=https://api.{TRACKSYS_DOMAIN}`; nenhum segredo no binário | Idem | Idem |
@@ -252,7 +252,7 @@ Rotas ([09](09-api-e-contratos.md) §7): `POST /api/v1/tickets` (`tenantId`, `ve
 1. Link único de download: `https://app.{TRACKSYS_DOMAIN}/baixar`, página estática do Caddy que redireciona para a loja pelo sistema do celular (usado nas mensagens de [11](11-onboarding-e-migracao.md) §7).
 2. O app não pede localização do celular, câmera nem contatos; pede só notificações e biometria (`NSFaceIDUsageDescription`: "Usamos o Face ID para confirmar bloqueio e desbloqueio do veículo."). Declarações de privacidade das lojas seguem o [Anexo B](../anexos/B-juridico.md).
 3. **Opção B (F2):** `flutter build --flavor <slug>` com ativos em `apps/mobile/assets/flavors/<slug>/`, operadora fixa (sem tela de escolha), publicado na conta da operadora com a Versix como membro (diretriz 4.2.6). Login de usuário sem membership na operadora do flavor: "Esta conta não pertence à {operadora}".
-4. **Portal web do cliente (F2):** build Flutter Web do mesmo app em `https://meu.{TRACKSYS_DOMAIN}` [NOVA DECISÃO PROPOSTA: subdomínio `meu.`]; mapa, histórico, alertas, faturas e compartilhamento; sem comandos físicos até existir step-up web [NOVA DECISÃO PROPOSTA: WebAuthn como step-up do portal, decisão no F2].
+4. **Portal web do cliente (F2):** build Flutter Web do mesmo app em `https://meu.{TRACKSYS_DOMAIN}` [ADIADO PARA O F2: subdomínio `meu.`]; mapa, histórico, alertas, faturas e compartilhamento; sem comandos físicos até existir step-up web [ADIADO PARA O F2: WebAuthn como step-up do portal, decisão no F2].
 
 ## 13. Requisitos
 

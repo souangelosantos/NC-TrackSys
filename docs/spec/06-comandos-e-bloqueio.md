@@ -27,9 +27,9 @@
 ## 2. Disponibilidade
 
 **Bloqueio** do veículo V está disponível se, e somente se, todas valem (no pedido e de novo antes do despacho):
-1. `COMMAND_DISPATCH_ENABLED=true` ([03](03-arquitetura.md), REQ-ARQ-016) e V dentro de `COMMAND_BLOCK_SCOPE` [NOVA DECISÃO PROPOSTA: variável `COMMAND_BLOCK_SCOPE` = `none` (padrão) | `pilot:<vehicle_id>[,…]` | `all`, alterada só por deploy com revisão N0: `none` até a bancada, `pilot:` no teste supervisionado do G-CMD, `all` após o G-CMD].
+1. `COMMAND_DISPATCH_ENABLED=true` ([03](03-arquitetura.md), REQ-ARQ-016) e V dentro de `COMMAND_BLOCK_SCOPE` [ADOTADO NA v2.0: variável `COMMAND_BLOCK_SCOPE` = `none` (padrão) | `pilot:<vehicle_id>[,…]` | `all`, alterada só por deploy com revisão N0: `none` até a bancada, `pilot:` no teste supervisionado do G-CMD, `all` após o G-CMD].
 2. Vínculo primário aberto de V com `cut_point` NOT NULL.
-3. Rastreador com `capability_profile.status = 'homologated'`, `capabilities.relay = "yes"` e seção `commands` completa (§13.4). Exceção única: a bancada [NOVA DECISÃO PROPOSTA: `COMMAND_BENCH_OPERATOR_ID` aceita perfil `draft` com `relay = "yes"` e seção `commands` completa, exceto `homologation_ref`, só para rastreadores dessa operadora, que não tem cliente real].
+3. Rastreador com `capability_profile.status = 'homologated'`, `capabilities.relay = "yes"` e seção `commands` completa (§13.4). Exceção única: a bancada [ADOTADO NA v2.0: `COMMAND_BENCH_OPERATOR_ID` aceita perfil `draft` com `relay = "yes"` e seção `commands` completa, exceto `homologation_ref`, só para rastreadores dessa operadora, que não tem cliente real].
 4. Termo de ciência aceito pelo titular na versão exigida (§12).
 5. `tenant.status ≠ 'closed'`. `suspended_commercial` não muda nada (INV-09).
 6. Concorrência permitida pela §4.3.
@@ -88,9 +88,9 @@ E = `evidence_max_age_s` da política vigente (≤ 60 s); t = `now()` do banco n
 |---|---|---|---|---|
 | `operator_admin`, `operator_agent` | Sim | Qualquer comando da operadora | Sim | Console: TOTP ≤ 5 min + `reason` ≥ 10 caracteres |
 | `search_team` | Só com ocorrência `open` no veículo | Os próprios | Não | App: chave do aparelho |
-| `installer` | Só `reason_code = 'installation_test'`, em vínculo aberto por ele (`installed_by`) há ≤ 2 h [NOVA DECISÃO PROPOSTA: janela de 2 h substitui a ordem de instalação até existir OS formal] | Os próprios | Não | App |
+| `installer` | Só `reason_code = 'installation_test'`, em vínculo aberto por ele (`installed_by`) há ≤ 2 h [ADOTADO NA v2.0: janela de 2 h substitui a ordem de instalação até existir OS formal] | Os próprios | Não | App |
 | `tenant_owner` | Se `allow_app_block` | Os pedidos de usuários do próprio cliente | Não | App |
-| `tenant_member` | Se `allow_app_block` e o titular permitiu [NOVA DECISÃO PROPOSTA: `membership.can_command boolean NOT NULL DEFAULT false`, alterável só pelo `tenant_owner`] | Os próprios | Não | App |
+| `tenant_member` | Se `allow_app_block` e o titular permitiu [ADOTADO NA v2.0: `membership.can_command boolean NOT NULL DEFAULT false`, alterável só pelo `tenant_owner`] | Os próprios | Não | App |
 | `platform_admin`, suporte com grant, agente de IA, visitante de link | Nunca | Nunca | Nunca | — |
 
 1. A autorização é recalculada no pedido e na transação que leva à 1ª tentativa (membership ativa, papel, ocorrência, janela do instalador). Falha → REJECTED `authorization_revoked`. Retentativas de desbloqueio não reavaliam autorização.
@@ -371,7 +371,7 @@ Com a plataforma fora ou o GPRS falhando, a central envia o SMS pelo portal emni
 1. O bloqueio (app e central) exige `consent` ativo do cliente com `purpose = 'block_terms'` e `text_version = 'block-terms-v{N}/{kmh}kmh'` (ex.: `block-terms-v1/40kmh`), gravado pelo serviço público de `sva` ([12](12-cobranca-e-svas.md)). Aceite válido: `v{N}` igual à versão vigente do texto e `{kmh}` ≥ `max_moving_cut_kmh` vigente.
 2. Quem aceita: `tenant_owner`, no app, vendo o texto do [Anexo B](../anexos/B-juridico.md) com operadora, `cut_point` de cada veículo, teto e TTL. Nova versão do texto ou teto maior exige novo aceite; teto menor não.
 3. Revogado ou ausente: bloqueio indisponível (422 `COMMAND_TERMS_NOT_ACCEPTED`); desbloqueio continua.
-4. [NOVA DECISÃO PROPOSTA: titular sem app pode ter o aceite registrado pela central com anexo (termo assinado ou print do WhatsApp) e `audit_log` `command.block_terms.recorded`, até o portal web do cliente.]
+4. [DECISÃO DO FUNDADOR PENDENTE: titular sem app pode ter o aceite registrado pela central com anexo (termo assinado ou print do WhatsApp) e `audit_log` `command.block_terms.recorded`, até o portal web do cliente.]
 
 ## 13. Homologação do perfil e G-CMD
 

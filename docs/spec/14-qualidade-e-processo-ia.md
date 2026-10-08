@@ -306,13 +306,13 @@ A T-001 implementa `operator`, `operator_brand`, `tenant` e `vehicle` com essas 
 | `acceptance-red` | F1 | Testes novos contra `origin/main` | ≤ 5 min | Se houver testes novos |
 | `e2e-mobile` | F1 | `flutter test integration_test` | ≤ 15 min | Não bloqueia PR; bloqueia publicação |
 
-[NOVA DECISÃO PROPOSTA: cartão "Guardas de processo no CI" no S1–S2 do F0, risco N0, 1 sessão, entregando `risk-label`, `review-record`, `pr-title`, `acceptance-match`, `docs-check` e `tasks:lint`. Até o merge dele, o fundador confere esses itens pelo checklist do template de PR.]
+[ADOTADO NA v2.0: cartão "Guardas de processo no CI" no S1–S2 do F0, risco N0, 1 sessão, entregando `risk-label`, `review-record`, `pr-title`, `acceptance-match`, `docs-check` e `tasks:lint`. Até o merge dele, o fundador confere esses itens pelo checklist do template de PR.]
 
 Regras:
 1. Os jobs correm em paralelo; `verify` é o caminho longo. Meta: p90 do pipeline obrigatório ≤ 10 min, com cache do pnpm (T-001) e cache da imagem do banco no GitHub Actions.
 2. **Noturno** (`nightly.yml`, 06:17 UTC): mutação completa, E2E do console e do app, `test:acceptance` 3 vezes em `main` (detecta instabilidade), `pnpm audit`. **Semanal** (domingo, 07:17 UTC): k6 cenários S e R. Falha abre issue com rótulo `nightly-failure`; não gera page.
 3. **Proteção de `main`:** PR obrigatório; checks obrigatórios da tabela; 1 aprovação de CODEOWNERS (fundador); histórico linear; só squash; sem force push; sem bypass, nem de administrador. Tags `v*` só pelo fundador.
-4. [NOVA DECISÃO PROPOSTA: todo PR é aberto por uma conta de máquina `versix-agent` (ou GitHub App) sem papel de administrador, inclusive quando o fundador escreve o código; só o fundador aprova, aplica rótulos de exceção, cria tags e faz merge. O GitHub não aceita aprovação do próprio autor, e a proteção vale também para administradores.]
+4. [ADOTADO NA v2.0: todo PR é aberto por uma conta de máquina `versix-agent` (ou GitHub App) sem papel de administrador, inclusive quando o fundador escreve o código; só o fundador aprova, aplica rótulos de exceção, cria tags e faz merge. O GitHub não aceita aprovação do próprio autor, e a proteção vale também para administradores.]
 5. Minutos de CI: medir no F0 [VALIDAR — cota do plano GitHub]. Acima de 80% da cota mensal, o noturno vira 3 vezes por semana e o E2E do app roda só em PR que toca `apps/mobile/`.
 
 ## 12. Commits e PRs

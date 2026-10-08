@@ -115,7 +115,7 @@ Um modo ativo por veículo (índice único parcial `watch_mode (vehicle_id) WHER
 
 1. **Destinatários:** usuários com membership ativa no cliente do veículo (`tenant_owner`; `tenant_member` com acesso ao veículo, [08](08-identidade-e-seguranca.md)), preferência ligada para (veículo, tipo) e ≥ 1 `push_token`. Equipe da operadora usa a fila do console (§9); sem push para ela no F0–F1.
 2. **Chave:** `delivery_key = {alertId}:{userId}:push:{open|close}`; `INSERT … ON CONFLICT (delivery_key) DO NOTHING`. Uma `alert_delivery` por usuário; envio para até 5 tokens do usuário (os de `last_seen_at` mais recente, até 60 dias). `sent` quando ≥ 1 token recebe 200; `sent_at` = primeiro 200. Sem token → `no_token`.
-3. **Status:** `pending`, `sent`, `failed`, `expired` (janela do §3 item 6 vencida), `suppressed` (`ALERT_DELIVERY_ENABLED=false`), `no_token`. [NOVA DECISÃO PROPOSTA: variável `ALERT_DELIVERY_ENABLED`, padrão `true`, desligada em ensaio de restore e na standby antes da promoção, simétrica a `COMMAND_DISPATCH_ENABLED` de REQ-ARQ-016.]
+3. **Status:** `pending`, `sent`, `failed`, `expired` (janela do §3 item 6 vencida), `suppressed` (`ALERT_DELIVERY_ENABLED=false`), `no_token`. [ADOTADO NA v2.0: variável `ALERT_DELIVERY_ENABLED`, padrão `true`, desligada em ensaio de restore e na standby antes da promoção, simétrica a `COMMAND_DISPATCH_ENABLED` de REQ-ARQ-016.]
 4. **Retentativa:** até 5 tentativas, esperas de 2, 4, 8 e 16 s × fator em [0,8; 1,2], respeitando `Retry-After` maior; para quando a janela vence (`expired`).
 5. **Colapso:** `collapseId` = 32 primeiros caracteres hex de SHA-256 da `episode_key`; o aviso de encerramento usa o mesmo id e substitui a notificação de abertura. TTL: 3.600 s (`critical`), 1.800 s (`warning`), 600 s (`info`).
 
@@ -186,7 +186,7 @@ WHERE d.status = 'sent' AND d.sent_at >= $1 AND d.sent_at < $2;
 |---|---|
 | Autenticação | Sessão Better Auth por cookie (console) ou `Authorization: Bearer` (app). Token em query string nunca é aceito. Sem sessão → 401 |
 | Escopo | `?vehicleIds=<uuid>,<uuid>` (até 200). Ausente: todo o escopo da membership se ≤ 200 veículos; senão 422 `STREAM_SCOPE_TOO_LARGE` com `maxVehicles: 200`. Qualquer id fora do escopo → 404 para o pedido inteiro |
-| Limites | 200 veículos por conexão; 2 conexões por sessão (a 3ª abre e a mais antiga recebe `close` com `replaced`); vida máxima 60 min (`lifetime`); fila de saída > 500 eventos (`overflow`). Console com mais de 200 veículos divide o escopo em 2 conexões (Lider: ~300). [NOVA DECISÃO PROPOSTA: conexão de escopo operadora com até 1.000 veículos quando uma operadora passar de 400 veículos ativos (F2).] |
+| Limites | 200 veículos por conexão; 2 conexões por sessão (a 3ª abre e a mais antiga recebe `close` com `replaced`); vida máxima 60 min (`lifetime`); fila de saída > 500 eventos (`overflow`). Console com mais de 200 veículos divide o escopo em 2 conexões (Lider: ~300). [ADIADO PARA O F2: conexão de escopo operadora com até 1.000 veículos quando uma operadora passar de 400 veículos ativos (F2).] |
 | Cabeçalhos | `Content-Type: text/event-stream; charset=utf-8`, `Cache-Control: no-cache, no-transform`, `X-Accel-Buffering: no` |
 | Eventos | `vehicle.state` com `id: <revision>`; `alert` sem `id`; `ready` ao fim do snapshot; `close` antes de encerrar |
 | Heartbeat | Comentário `: keep-alive <RFC 3339>` a cada 15 s ([03 §7](03-arquitetura.md)) |

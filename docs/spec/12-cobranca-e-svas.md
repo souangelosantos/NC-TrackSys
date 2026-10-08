@@ -309,7 +309,7 @@ A operadora liga e desliga cada SVA no próprio app: parceiro local por `partner
 | Parceiro | Quem fecha | Quem paga a indicação | Parte da operadora | Situação |
 |---|---|---|---|---|
 | Nacional (`scope = 'platform'`) | Versix | Parceiro → Versix | Proposta 20–30% (`operatorShareBps` 2000–3000) | DEC-05. Parceiro nacional não sai de `draft` antes dela |
-| Local (`scope = 'operator'`) | Operadora | Parceiro → Versix | Proposta 50% (`operatorShareBps` 5000) | [NOVA DECISÃO PROPOSTA: ampliar a DEC-05 para cobrir a divisão de parceiro local, proposta 50%; [01 §5](01-visao-e-negocio.md) registra a alternativa de 70–80% para a operadora] |
+| Local (`scope = 'operator'`) | Operadora | Parceiro → Versix | Proposta 50% (`operatorShareBps` 5000) | [DECISÃO DO FUNDADOR PENDENTE: ampliar a DEC-05 para cobrir a divisão de parceiro local, proposta 50%; [01 §5](01-visao-e-negocio.md) registra a alternativa de 70–80% para a operadora] |
 
 **Conta da repartição** (inteiros, `packages/domain/src/sva/fee.ts`):
 - `fee_cents = feeModel = 'fixed' ? feeFixedCents : floor(converted_value_cents × feeBps / 10000)`;
@@ -370,7 +370,7 @@ stateDiagram-v2
 - rejeitadas, por motivo, por `rejected_at` no mês;
 - Σ `converted_value_cents`, Σ `fee_cents`, Σ parte da operadora, Σ parte da Versix e as marcas de revisão.
 
-A operadora vê só a própria; o `platform_admin` vê o consolidado ([REQ-NEG-004](01-visao-e-negocio.md)). No F1, o fundador cobra o parceiro pelo relatório, à mão. No F2, pela conta Asaas da Versix [PREMISSA]. [NOVA DECISÃO PROPOSTA: a parte da operadora vira `referral_credit_cents` no fechamento do mesmo período (§10.2); o saldo credor acima de R$ 100,00 é transferido por PIX pelo fundador até o dia 10; inadimplência do parceiro é risco da Versix no F1–F2.]
+A operadora vê só a própria; o `platform_admin` vê o consolidado ([REQ-NEG-004](01-visao-e-negocio.md)). No F1, o fundador cobra o parceiro pelo relatório, à mão. No F2, pela conta Asaas da Versix [PREMISSA]. [DECISÃO DO FUNDADOR PENDENTE: a parte da operadora vira `referral_credit_cents` no fechamento do mesmo período (§10.2); o saldo credor acima de R$ 100,00 é transferido por PIX pelo fundador até o dia 10; inadimplência do parceiro é risco da Versix no F1–F2.]
 
 ## 16. Consentimento e transparência
 

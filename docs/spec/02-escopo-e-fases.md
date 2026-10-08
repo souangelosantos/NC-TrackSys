@@ -317,7 +317,7 @@ O registro completo, com dono e prazo, está em [15](15-decisoes-riscos-premissa
 | DEC-09 | F2 | F2 | Plano superior | Só o plano de R$ 3,90 |
 | DEC-05 | Antes do 1º parceiro nacional | F2 | Contrato de SVA | Sem parceiro nacional |
 
-[NOVA DECISÃO PROPOSTA: na resolução de DEC-04, o host `gps.` usa um domínio da Versix que não muda com a marca do app, para que nenhum rastreador precise de novo SMS por troca de marca.]
+[ADOTADO NA v2.0: na resolução de DEC-04, o host `gps.` usa um domínio da Versix que não muda com a marca do app, para que nenhum rastreador precise de novo SMS por troca de marca.]
 
 ## 10. Registro de evidências dos gates
 

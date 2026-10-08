@@ -130,9 +130,9 @@ O preço por veículo fica igual. O argumento é: adesão menor, app muito melho
 3. Inadimplência do cliente final: a tarifa da Versix segue DEC-06 (prazo 31/10/2026). Inadimplência nunca dispara bloqueio (INV-09).
 4. Créditos de SLA: 10% da mensalidade se a disponibilidade do mês ficar abaixo de 99,5%; 25% se ficar abaixo de 99,0% ([13](13-infra-e-operacao.md)).
 5. Indicação remunerada é informada ao cliente final e exige consentimento por parceiro e finalidade ([08](08-identidade-e-seguranca.md), [Anexo B](../anexos/B-juridico.md)).
-6. Parceiro local fechado pela operadora: o ganho é dividido. [NOVA DECISÃO PROPOSTA: em indicação de parceiro local, Versix fica com 20–30% e a operadora com 70–80%, espelhando DEC-05.]
-7. App dedicado (opção B, ADR-007): [NOVA DECISÃO PROPOSTA: preço de setup e anuidade do app dedicado, definido até 31/03/2027, antes da oferta no F2.]
-8. Lider como parceira de design: [NOVA DECISÃO PROPOSTA: adesão da Lider faturada só após o G1, como contrapartida por ser caso de referência.]
+6. Parceiro local fechado pela operadora: o ganho é dividido. [DECISÃO DO FUNDADOR PENDENTE: em indicação de parceiro local, Versix fica com 20–30% e a operadora com 70–80%, espelhando DEC-05.]
+7. App dedicado (opção B, ADR-007): [DECISÃO DO FUNDADOR PENDENTE: preço de setup e anuidade do app dedicado, definido até 31/03/2027, antes da oferta no F2.]
+8. Lider como parceira de design: [DECISÃO DO FUNDADOR PENDENTE: adesão da Lider faturada só após o G1, como contrapartida por ser caso de referência.]
 
 **Candidatos ao plano superior (DEC-09).** Gestão de custos PF, lembrete de revisões, histórico acima de 90 dias sob demanda, cercas múltiplas, mais links de compartilhamento simultâneos. A lista final sai em DEC-09.
 

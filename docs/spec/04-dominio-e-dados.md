@@ -601,7 +601,7 @@ SELECT app.ensure_partitions();
 - `retention_purge('outbox', n)`: apaga até `least(n, 50000)` linhas publicadas com `created_at < now() - interval '3 days'`; `'push_token'`: apaga tokens com `last_seen_at < now() - interval '60 days'` ([07](07-alertas-e-tempo-real.md)); `'access_log'`: `DROP TABLE` das partições `access_log_pAAAAMM` cujo mês terminou há 6 meses ou mais; outro tipo: erro 22023. Devolve a quantidade removida.
 
 
-[NOVA DECISÃO PROPOSTA: regra de catálogo CAT-07 — o conjunto de funções `SECURITY DEFINER` do schema `app` é igual à chave `securityDefiner` de `packages/db/catalog-allowlist.json`, e cada uma tem `search_path` fixo e não é executável por PUBLIC. Materializa o item 9 do [ADR-004](../adr/ADR-004-isolamento-tres-niveis.md).]
+[ADOTADO NA v2.0: regra de catálogo CAT-07 — o conjunto de funções `SECURITY DEFINER` do schema `app` é igual à chave `securityDefiner` de `packages/db/catalog-allowlist.json`, e cada uma tem `search_path` fixo e não é executável por PUBLIC. Materializa o item 9 do [ADR-004](../adr/ADR-004-isolamento-tres-niveis.md).]
 
 ### 4.5 Acesso de suporte da plataforma (F1)
 
@@ -788,7 +788,7 @@ Premissas do briefing: 30 s em movimento, 300 s parado, 8% do tempo em movimento
 | **Total no volume** | | **~68 GB** |
 | Parquet frio (object storage) | 0,82 M × ~365 dias × ~20 B [PREMISSA, medir no 1º export] | ~6 GB |
 
-O orçamento do briefing (~100 B por linha, 27–40 GB/ano) continua válido para posições quentes + frias: ~23 GB. A linha quente real tem 230 B, não 100 B, porque carrega 5 uuids de isolamento e vínculo; a economia vem do frio. O maior item é a identidade da inbox por 90 dias. Com o volume de 100 GB (DEC-12) e ~12 GB de sistema, imagens e WAL [PREMISSA], o gatilho de disco de 70% ([03](03-arquitetura.md), seção 14) dispara perto de 2.550 veículos. [NOVA DECISÃO PROPOSTA: reter a identidade de dedupe da inbox por 14 dias (2 × a retenção do Traccar, que limita qualquer reentrega ou backfill) em vez de 90; economiza ~24 GB no mês 12 e leva o gatilho de disco para ~4.000 veículos. Decidir antes de 1.500 veículos ativos.]
+O orçamento do briefing (~100 B por linha, 27–40 GB/ano) continua válido para posições quentes + frias: ~23 GB. A linha quente real tem 230 B, não 100 B, porque carrega 5 uuids de isolamento e vínculo; a economia vem do frio. O maior item é a identidade da inbox por 90 dias. Com o volume de 100 GB (DEC-12) e ~12 GB de sistema, imagens e WAL [PREMISSA], o gatilho de disco de 70% ([03](03-arquitetura.md), seção 14) dispara perto de 2.550 veículos. [AVALIADO E NÃO ADOTADO (manter 90 dias até medir o disco, REQ-DAD-024): reter a identidade de dedupe da inbox por 14 dias (2 × a retenção do Traccar, que limita qualquer reentrega ou backfill) em vez de 90; economiza ~24 GB no mês 12 e leva o gatilho de disco para ~4.000 veículos. Decidir antes de 1.500 veículos ativos.]
 
 ## 9. Ciclo de vida: transferência e encerramento
 

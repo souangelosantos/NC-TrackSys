@@ -54,7 +54,7 @@ Serve de registro das operações de tratamento (LGPD art. 37 [VALIDAR]). Base l
 | T10 | Atendimento | Ticket, notas, veículo, alerta | Execução de contrato (V) | Até a anonimização do cliente |
 | T11 | Indicação de SVA | Veículo, serviço, localização enviada, valores | Consentimento (I) por parceiro e finalidade | 5 anos como registro financeiro; localização zerada em 90 dias |
 | T12 | Termo de ciência do bloqueio | Versão aceita, data, usuário | Não é consentimento como base legal: é aceite informado ligado ao contrato (V) e prova do dever de informar (CDC art. 6º, III [VALIDAR]) | 5 anos |
-| T13 | Agente de IA de suporte (F2) | Dados no escopo de quem pergunta | Execução de contrato (V) com a operadora | [NOVA DECISÃO PROPOSTA: conversas por 90 dias] |
+| T13 | Agente de IA de suporte (F2) | Dados no escopo de quem pergunta | Execução de contrato (V) com a operadora | [DECISÃO DO FUNDADOR PENDENTE: conversas por 90 dias] |
 | T14 | Cliente encerrado | Cadastro e veículos | — | Anonimização após 12 meses, salvo legal hold ou obrigação legal (DEC-15; [04 §9.2](../spec/04-dominio-e-dados.md)) |
 
 **Fora de escopo:** marketing a clientes finais, venda ou cessão de dados, perfilamento para seguradora. O score de risco (M10, F3) exige nova avaliação, RIPD e base legal própria. Localização não é dado sensível na LGPD (art. 5º, II [VALIDAR]), mas revela rotina: vale a minimização de [08 §11](../spec/08-identidade-e-seguranca.md).
@@ -214,7 +214,7 @@ Minuta simples, 1 página, para assinar até 27/10/2026, antes do SMS de migraç
 
 ## 8. Rascunho 4 — Termos de uso do app
 
-Relação: cliente final ↔ operadora, que presta o serviço. A Versix aparece como fornecedora da tecnologia. Texto versionado `terms-of-use-v{N}` [NOVA DECISÃO PROPOSTA: aceite registrado em `consent` com `purpose = 'terms_of_use'` no 1º login e a cada versão nova, como clickwrap com `text_version` e SHA-256 do texto].
+Relação: cliente final ↔ operadora, que presta o serviço. A Versix aparece como fornecedora da tecnologia. Texto versionado `terms-of-use-v{N}` [ADOTADO NA v2.0: aceite registrado em `consent` com `purpose = 'terms_of_use'` no 1º login e a cada versão nova, como clickwrap com `text_version` e SHA-256 do texto].
 
 | Tópico | Cláusula-chave |
 |---|---|
@@ -240,7 +240,7 @@ Exigida pelas lojas para o app único TrackSys. URL `https://app.<domínio>/priv
 
 ### 9.2 Modelo da operadora (campos)
 
-Exibida no app da marca (A10). [NOVA DECISÃO PROPOSTA: quando `operator_brand.privacy_policy_url` (proposta de [08 §11](../spec/08-identidade-e-seguranca.md)) for NULL, o app abre a página padrão `https://app.<domínio>/privacidade/{operatorId}`, gerada deste modelo com os campos abaixo.]
+Exibida no app da marca (A10). [ADOTADO NA v2.0: quando `operator_brand.privacy_policy_url` (proposta de [08 §11](../spec/08-identidade-e-seguranca.md)) for NULL, o app abre a página padrão `https://app.<domínio>/privacidade/{operatorId}`, gerada deste modelo com os campos abaixo.]
 
 | Campo | Origem | Exemplo |
 |---|---|---|
@@ -302,7 +302,7 @@ Regra prática: **histórico de localização só com autorização do titular (
 | Período anterior à migração | Fora da TrackSys | Lider, pelo tracker-net ou arquivo exportado ([11 §8](../spec/11-onboarding-e-migracao.md)) | — |
 | Período com mais de 12 meses | Dado eliminado pela retenção, salvo legal hold | — | Responder "inexistente pela política de retenção" |
 
-1. **Registrar** em atendimento [NOVA DECISÃO PROPOSTA: `ticket.category = 'authority'`, junto da proposta de `ticket.category` de [08 §11](../spec/08-identidade-e-seguranca.md)]: data e hora de recebimento, órgão, autoridade, número do ofício ou processo, canal, dados pedidos, veículo, período, prazo, decisão, base e SHA-256 entregue.
+1. **Registrar** em atendimento [ADOTADO NA v2.0: `ticket.category = 'authority'`, junto da proposta de `ticket.category` de [08 §11](../spec/08-identidade-e-seguranca.md)]: data e hora de recebimento, órgão, autoridade, número do ofício ou processo, canal, dados pedidos, veículo, período, prazo, decisão, base e SHA-256 entregue.
 2. **Autenticar:** confirmar pelo telefone oficial do órgão (nunca o do próprio ofício) ou e-mail institucional; ordem judicial conferida no sistema do tribunal [VALIDAR].
 3. **Preservar:** criar `legal_hold` já no recebimento ([REQ-SEG-027](../spec/08-identidade-e-seguranca.md), [REQ-DAD-015](../spec/04-dominio-e-dados.md)). Preservar não é entregar. Hold sem ordem judicial nem autorização do titular é revisto em 60 dias, por analogia ao Marco Civil art. 15, §2º [VALIDAR — Q-12], e liberado com registro se nada chegar.
 4. **Decidir** pela tabela; em dúvida, advogado. Registrar base e decisão.

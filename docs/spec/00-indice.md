@@ -65,7 +65,7 @@
 | `INV-NN` | Invariante: propriedade que nenhuma mudança pode violar | Nesta página, seção "Invariantes" |
 | `DEC-NN` | Decisão pendente com dono e prazo | [15](15-decisoes-riscos-premissas.md) |
 | `ADR-NNN` | Decisão de arquitetura aceita | [docs/adr/](../adr/) |
-| `CAT-NN` / `ISO-NN` | Regra do verificador de catálogo / teste de isolamento | [04 §5](04-dominio-e-dados.md) |
+| `CAT-NN` / `ISO-NN` | Regra do verificador de catálogo (CAT-01 a CAT-07) / teste de isolamento (ISO-01 a ISO-09) | [04 §5](04-dominio-e-dados.md) |
 | `T-NNN` | Cartão de tarefa | [tasks/](../../tasks/) |
 | `F0`–`F3` | Fases | [02](02-escopo-e-fases.md) |
 | `G0`, `G-CMD`, `G1`, `G2` | Gates de saída e de liberação do bloqueio | [02](02-escopo-e-fases.md) |
@@ -73,6 +73,10 @@
 | `N0` / `N1` / `N2` | Nível de risco de revisão | [14](14-qualidade-e-processo-ia.md) |
 | `[PREMISSA]` | Premissa assumida; validação listada em [15](15-decisoes-riscos-premissas.md) | No texto |
 | `[VALIDAR — DEC-02]` | Comportamento a confirmar no spike do J16; o texto diz o padrão seguro até lá | No texto |
+| `[VALIDAR]` | Fato externo (API de terceiro, norma, limite de plano gratuito) a confirmar antes de depender dele | No texto |
+| `[ADOTADO NA v2.0]` | Detalhe técnico decidido na consolidação da v2.0; o fundador pode reverter por PR | No texto; lista em [15 §5](15-decisoes-riscos-premissas.md) |
+| `[DECISÃO DO FUNDADOR PENDENTE]` | Escolha comercial ou jurídica aguardando o fundador; o texto traz a recomendação | No texto; lista em [15 §5](15-decisoes-riscos-premissas.md) |
+| `[ADIADO PARA O F2]` | Fora do escopo até o F2 | No texto |
 
 **Regras de escrita:**
 - Unidades: velocidade em km/h, distância em metros, duração em segundos, tempo em UTC (RFC 3339) no sistema e BRT só na interface, dinheiro em centavos inteiros (BRL).

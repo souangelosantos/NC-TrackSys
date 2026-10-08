@@ -12,7 +12,7 @@
 
 1. **Camadas:** (a) automação determinística primeiro — restart policy, healthcheck, reinício de contêiner `unhealthy`, rotação de log, alarmes de disco, memória e backup ([13](../spec/13-infra-e-operacao.md)); (b) agente SRE com cardápio fechado; (c) fundador.
 2. **Agente SRE** roda na VM standby, fora da primária, como processo iniciado da imagem do `worker` com entrypoint próprio (`apps/worker/src/sre-agent/main.ts`). É acionado por webhook do Uptime Kuma e por alertas do Grafana Cloud. Lê métricas da réplica com o papel `tracksys_ops_ro`. F1: só A01 e A09. F2: cardápio completo.
-3. **Execução:** cada ação é uma ferramenta do modelo que roda, via SSH pela Tailscale, um forced-command no host [NOVA DECISÃO PROPOSTA: entrypoint `infra/scripts/ops-action.sh`] que aceita só `<ação> <argumento da lista>`. Toda execução gera registro imutável no log de operação (Grafana Cloud) e entra no resumo do incidente.
+3. **Execução:** cada ação é uma ferramenta do modelo que roda, via SSH pela Tailscale, um forced-command no host [ADOTADO NA v2.0: entrypoint `infra/scripts/ops-action.sh`] que aceita só `<ação> <argumento da lista>`. Toda execução gera registro imutável no log de operação (Grafana Cloud) e entra no resumo do incidente.
 
 | ID | Ação | Fase | Limite |
 |---|---|---|---|

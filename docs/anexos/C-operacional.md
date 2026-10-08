@@ -54,7 +54,7 @@ Nunca bloqueie por falta de pagamento (INV-09). Roubo com a vítima dentro do ve
 
 Nunca escreva a senha do rastreador na anotação nem no painel.
 
-**Na central, sempre:** lista de contingência impressa, atualizada toda semana e guardada trancada (placa, titular, telefone, 3 últimos dígitos do CPF, linha do chip, modelo do rastreador, corte); cartão de SMS com a senha em poder do responsável da operadora; usuário próprio do plantonista no portal emnify/Meta Telecom. [NOVA DECISÃO PROPOSTA: o console exporta a lista de contingência (PDF e CSV) para o `operator_admin` no F1, com `audit_log` `export.create`.]
+**Na central, sempre:** lista de contingência impressa, atualizada toda semana e guardada trancada (placa, titular, telefone, 3 últimos dígitos do CPF, linha do chip, modelo do rastreador, corte); cartão de SMS com a senha em poder do responsável da operadora; usuário próprio do plantonista no portal emnify/Meta Telecom. [ADOTADO NA v2.0: o console exporta a lista de contingência (PDF e CSV) para o `operator_admin` no F1, com `audit_log` `export.create`.]
 
 ## 2. Runbooks técnicos
 

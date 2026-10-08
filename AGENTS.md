@@ -25,7 +25,7 @@ Especificação completa: [docs/spec/00-indice.md](docs/spec/00-indice.md). Deci
 | `cp .env.example .env` | Variáveis locais de desenvolvimento |
 | `pnpm db:up` / `pnpm db:down` / `pnpm db:reset` | Sobe, para e recria o Postgres local (porta 54329) |
 | `pnpm db:migrate` | Aplica as migrations (dbmate, SQL puro) |
-| `pnpm db:check` | Verificador de catálogo CAT-01..CAT-06 (isolamento) |
+| `pnpm db:check` | Verificador de catálogo CAT-01..CAT-07 (isolamento; a T-001 entrega CAT-01..06 e a CAT-07 entra com a primeira função `SECURITY DEFINER`) |
 | `pnpm test:acceptance` | Testes de aceite congelados (`tests/acceptance/`) |
 | `pnpm lint` / `pnpm format` / `pnpm typecheck` | Biome e TypeScript |
 | `pnpm verify` | Tudo acima, na ordem do CI |
@@ -58,7 +58,7 @@ Texto completo: [docs/spec/00-indice.md](docs/spec/00-indice.md#invariantes).
 - **Banco:**
   - migrations em `packages/db/migrations`, SQL puro (`-- migrate:up` / `-- migrate:down`), padrão expand/contract;
   - **nunca edite uma migration já aplicada em `main`**;
-  - toda tabela nova no schema `app` nasce com `ENABLE` + `FORCE ROW LEVEL SECURITY`, pelo menos uma política e FK composta para tabelas de cliente/operadora. O `pnpm db:check` barra o contrário;
+  - toda tabela nova no schema `app` nasce com `ENABLE` + `FORCE ROW LEVEL SECURITY`, pelo menos uma política e FK composta para tabelas de cliente/operadora. O `pnpm db:check` barra o contrário. Função `SECURITY DEFINER` só entra na lista fechada de `packages/db/catalog-allowlist.json` (CAT-07), com revisão N0;
   - acesso a dados sempre dentro de `withContext(...)`. Nunca use o papel dono nem o superusuário na aplicação.
 - **Segredos:** nunca no código, em fixtures ou em logs. Nada de IMEI completo, token, senha ou coordenada em log de nível info.
 - **Dependências:** não adicione bibliotecas fora do cartão sem justificar no PR. Não troque versões major.

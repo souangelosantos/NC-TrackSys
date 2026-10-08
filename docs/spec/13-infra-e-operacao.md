@@ -127,7 +127,7 @@ Papéis criados por `infra/db/initdb/10-ops-roles.sh` (volume novo) e por `infra
 | `tracksys_ops_audit` | LOGIN; só `INSERT` e `SELECT (id)` em `ops.audit_log` | `ops-action.sh`, `deploy.sh`, `failover` |
 
 Schema `ops` (migration em `packages/db/migrations`, dono `tracksys_owner`, fora do verificador de catálogo porque não guarda dado de operadora ou cliente):
-- `ops.audit_log` (append-only, 5 anos): `id uuid PK` (gerado pelo script, reenvio idempotente com `ON CONFLICT DO NOTHING`), `actor_type` (`user`, `system`, `ai_agent`), `actor_id`, `action` (`^ops\.[a-z_]+$`), `target`, `reason` (≤ 500), `result` (`success`, `denied`, `error`), `incident_id`, `host`, `at`, `detail jsonb`. [NOVA DECISÃO PROPOSTA: ações de operação de plataforma (agente SRE, deploy, failover) são auditadas em `ops.audit_log`, porque `app.audit_log.operator_id` é NOT NULL e essas ações não pertencem a uma operadora; CAT-06 passa a cobrir `ops.audit_log`.]
+- `ops.audit_log` (append-only, 5 anos): `id uuid PK` (gerado pelo script, reenvio idempotente com `ON CONFLICT DO NOTHING`), `actor_type` (`user`, `system`, `ai_agent`), `actor_id`, `action` (`^ops\.[a-z_]+$`), `target`, `reason` (≤ 500), `result` (`success`, `denied`, `error`), `incident_id`, `host`, `at`, `detail jsonb`. [ADOTADO NA v2.0: ações de operação de plataforma (agente SRE, deploy, failover) são auditadas em `ops.audit_log`, porque `app.audit_log.operator_id` é NOT NULL e essas ações não pertencem a uma operadora; CAT-06 passa a cobrir `ops.audit_log`.]
 - `ops.maintenance_window`, `ops.slo_minute`, `ops.slo_day` (§10); `tracksys_app` tem `INSERT, UPDATE` nas duas últimas e `SELECT` na primeira.
 - Funções `SECURITY DEFINER` só de agregados, `EXECUTE` só para `tracksys_ops_ro`, cabeçalho de [04 §4.4](04-dominio-e-dados.md), revisão N0: `ops.health_snapshot()` (jsonb com os números do `collect_diagnostics`), `ops.inbox_stats()` (status, contagem, idade da mais antiga, código de erro antes do `:`), `ops.queue_stats()` (fila pg-boss, criados, ativos, idade do mais antigo), `ops.outbox_lag()`, `ops.alert_latency(p_from, p_to)` (contagem, p50, p95, máximo), `ops.slo_latency_bad_minutes(p_from, p_to)` ([07 §10](07-alertas-e-tempo-real.md) itens a e b), `ops.device_contact_stats()` (dispositivos ativos, com contato em 5 e 30 min), `ops.replication_status()`, `ops.storage_stats()` (tamanho do banco e 10 maiores relações), `ops.command_stats(p_minutes)` (contagem por estado, sem ids).
 
@@ -151,7 +151,7 @@ Segredos em `infra/secrets/prod.env.sops` e `standby.env.sops`, decifrados pelo 
 | Variável | Onde | Regra |
 |---|---|---|
 | `COMMAND_DISPATCH_ENABLED`, `EMNIFY_SMS_ENABLED` | worker | `false` em restore e failover até a reconciliação (REQ-ARQ-016; [11](11-onboarding-e-migracao.md)) |
-| `EXTERNAL_EFFECTS` | worker | `on` \| `off`. [NOVA DECISÃO PROPOSTA: `off` troca os adaptadores de FCM, emnify, Asaas, e-mail e comandos do Traccar por adaptadores nulos que só registram; obrigatório no restore de ensaio (INV-05).] |
+| `EXTERNAL_EFFECTS` | worker | `on` \| `off`. [ADOTADO NA v2.0: `off` troca os adaptadores de FCM, emnify, Asaas, e-mail e comandos do Traccar por adaptadores nulos que só registram; obrigatório no restore de ensaio (INV-05).] |
 | `TAILSCALE_IPV4`, `PEER_TAILSCALE_IP`, `CADDY_ROLE` | Compose | IPs `100.x.y.z`; `primary` \| `standby` |
 | `WALG_S3_PREFIX`, `AWS_ENDPOINT`, `AWS_REGION`, `AWS_S3_FORCE_PATH_STYLE`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `WALG_LIBSODIUM_KEY`, `WALG_LIBSODIUM_KEY_TRANSFORM`, `WALG_COMPRESSION_METHOD` | db | §8 |
 | `TRACCAR_DB_PASSWORD`, `REPLICA_PASSWORD`, `OPS_RO_PASSWORD`, `OPS_AUDIT_PASSWORD` | db, traccar, scripts | ≥ 32 caracteres |
@@ -163,7 +163,7 @@ Segredos em `infra/secrets/prod.env.sops` e `standby.env.sops`, decifrados pelo 
 `.github/workflows/deploy.yml`: dispara em tag `v*.*.*` (e `workflow_dispatch` com `tag`); `concurrency: deploy-production`; ambiente `production` restrito a tags.
 1. Job `verify`: repete os passos do `ci.yml` da T-001 sobre a tag.
 2. Job `deploy`: entra na Tailscale com OAuth client e `tag:ci` (`tailscale/github-action`), chave SSH em `DEPLOY_SSH_KEY`, host key fixada em `DEPLOY_KNOWN_HOSTS`; roda `ssh deploy@tracksys-p v1.2.3` e, no F1, `ssh deploy@tracksys-s build-only v1.2.3`. O forced-command só aceita `^(build-only )?v[0-9]+\.[0-9]+\.[0-9]+$` ou `rollback`. Timeout de 30 min.
-3. [NOVA DECISÃO PROPOSTA: deploy automático só de segunda a sexta, 08:00–20:00 BRT; fora disso, `workflow_dispatch` com `force: true`.]
+3. [ADOTADO NA v2.0: deploy automático só de segunda a sexta, 08:00–20:00 BRT; fora disso, `workflow_dispatch` com `force: true`.]
 
 `infra/scripts/deploy.sh <tag>` na VM (`flock /run/tracksys/deploy.lock`; `PREV` = `/etc/tracksys/current-version`):
 1. `git fetch --tags --force` e `git checkout --detach <tag>`; recusa tag fora de `origin/main` (`git merge-base --is-ancestor`).
@@ -314,7 +314,7 @@ F0: AL-01 a AL-05, AL-07, AL-08, AL-11 e AL-12 pelo Grafana Cloud e pelo UptimeR
 
 ### 13.2 Gateway de incidentes
 
-[NOVA DECISÃO PROPOSTA: `tracksys-sre-gateway`, Cloudflare Worker com D1 no plano gratuito [VALIDAR limites], código em `infra/sre-gateway/`, é o ponto de entrada fora das duas VMs; o `sre-agent` busca incidentes por long-poll, sem porta de entrada na standby.]
+[ADOTADO NA v2.0: `tracksys-sre-gateway`, Cloudflare Worker com D1 no plano gratuito [VALIDAR limites], código em `infra/sre-gateway/`, é o ponto de entrada fora das duas VMs; o `sre-agent` busca incidentes por long-poll, sem porta de entrada na standby.]
 1. `POST /v1/hooks/{source}/{token}` (`kuma`, `uptimerobot` [VALIDAR webhook no plano free], `grafana`; token de 32 bytes por fonte, comparação em tempo constante) normaliza em `{ruleId, target, status, severity, at}`; chave de incidente `ruleId:target`; evento `resolved` seguido de `firing` em ≤ 10 min reabre o mesmo incidente.
 2. Envia os pages da §13.1 e consulta o recibo do Pushover para saber do ACK.
 3. `GET /v1/incidents/next` (bearer `SRE_GATEWAY_TOKEN`, long-poll de 25 s), `POST /v1/incidents/{id}/notes`, `POST /v1/heartbeat` (60 s).
