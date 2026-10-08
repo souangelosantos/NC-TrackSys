@@ -29,14 +29,14 @@
 | REQ-NEG-003 | Custo de infraestrutura por veículo | [01](01-visao-e-negocio.md) | F1 | P1 | N2 | INV-12 | CT-NEG-004, CT-NEG-005 | T-031 |
 | REQ-NEG-004 | Relatório mensal de unidade econômica | [01](01-visao-e-negocio.md) | F1 | P1 | N1 | INV-07, INV-12 | CT-NEG-006 | T-031 |
 | REQ-NEG-005 | Tempo de onboarding de operadora | [01](01-visao-e-negocio.md) | F2 | P1 | N1 | — | CT-NEG-007, CT-NEG-008 | — |
-| REQ-NEG-010 | Gate G0 | [02](02-escopo-e-fases.md) | F0 | P0 | N0 | INV-01, INV-05, INV-07 | CT-NEG-010, CT-NEG-011 | — |
+| REQ-NEG-010 | Gate G0 | [02](02-escopo-e-fases.md) | F0 | P0 | N0 | INV-01, INV-05, INV-07 | CT-NEG-010, CT-NEG-011 | T-013, T-014, T-015 |
 | REQ-NEG-011 | Gate G-CMD trava o bloqueio real | [02](02-escopo-e-fases.md) | F1 | P0 | N0 | INV-08, INV-10, INV-11 | CT-NEG-012, CT-NEG-013 | T-022 |
-| REQ-NEG-012 | Gate G1 | [02](02-escopo-e-fases.md) | F1 | P0 | N0 | INV-10 | CT-NEG-014, CT-NEG-015 | — |
+| REQ-NEG-012 | Gate G1 | [02](02-escopo-e-fases.md) | F1 | P0 | N0 | INV-10 | CT-NEG-014, CT-NEG-015 | T-028 |
 | REQ-NEG-013 | Gate G2 | [02](02-escopo-e-fases.md) | F2 | P1 | N1 | — | CT-NEG-016 | — |
 | REQ-NEG-014 | Primeira fatia vertical | [02](02-escopo-e-fases.md) | F0 | P0 | N0 | INV-01, INV-02, INV-04, INV-05, INV-07 | CT-NEG-017 | T-005, T-008 |
 | REQ-NEG-015 | Veículo com bloqueio só migra em onda após o G-CMD | [02](02-escopo-e-fases.md) | F1 | P0 | N0 | INV-03, INV-10 | CT-NEG-018 | T-022 |
-| REQ-NEG-016 | Registro de evidências dos gates | [02](02-escopo-e-fases.md) | F0 | P1 | N2 | — | CT-NEG-019 | — |
-| REQ-NEG-017 | Plano de corte do F0 | [02](02-escopo-e-fases.md) | F0 | P1 | N2 | — | CT-NEG-020 | — |
+| REQ-NEG-016 | Registro de evidências dos gates | [02](02-escopo-e-fases.md) | F0 | P1 | N2 | — | CT-NEG-019 | T-015 |
+| REQ-NEG-017 | Plano de corte do F0 | [02](02-escopo-e-fases.md) | F0 | P1 | N2 | — | CT-NEG-020 | T-015 |
 | REQ-ARQ-001 | Dois processos do mesmo artefato | [03](03-arquitetura.md) | F0 | P0 | N1 | — | CT-ARQ-001 | T-004 |
 | REQ-ARQ-002 | Rotas internas fora da borda pública | [03](03-arquitetura.md) | F0 | P0 | N0 | INV-07 | CT-ARQ-002 | T-004 |
 | REQ-ARQ-003 | Superfície pública mínima | [03](03-arquitetura.md) | F0 | P0 | N0 | — | CT-ARQ-003 | T-003 |
@@ -50,14 +50,14 @@
 | REQ-ARQ-011 | SSE com filtro de escopo | [03](03-arquitetura.md) | F0 | P0 | N1 | INV-04, INV-07 | CT-ARQ-011 | — |
 | REQ-ARQ-012 | Limites de recurso e carga de pior caso | [03](03-arquitetura.md) | F0 | P1 | N1 | — | CT-ARQ-012 | — |
 | REQ-ARQ-013 | Identidade da instância de origem | [03](03-arquitetura.md) | F0 | P1 | N1 | INV-01 | CT-ARQ-013 | — |
-| REQ-ARQ-014 | Logs estruturados e correlação | [03](03-arquitetura.md) | F0 | P1 | N1 | — | CT-ARQ-014 | T-004 |
+| REQ-ARQ-014 | Logs estruturados e correlação | [03](03-arquitetura.md) | F0 | P1 | N1 | — | CT-ARQ-014 | T-004, T-013 |
 | REQ-ARQ-015 | Gatilhos de evolução medidos | [03](03-arquitetura.md) | F1 | P1 | N1 | — | CT-ARQ-015 | T-028 |
 | REQ-ARQ-016 | Promoção ou restore sem reenvio físico | [03](03-arquitetura.md) | F1 | P0 | N0 | INV-05, INV-08 | CT-ARQ-016 | T-020 |
 | REQ-DAD-001 | Colunas de escopo obrigatórias e imutáveis | [04](04-dominio-e-dados.md) | F0 | P0 | N0 | INV-06, INV-07 | CT-DAD-001 | T-005, T-006, T-017 |
-| REQ-DAD-002 | Contexto RLS por transação, fechado por padrão | [04](04-dominio-e-dados.md) | F0 | P0 | N0 | INV-07 | CT-DAD-002 | — |
-| REQ-DAD-003 | Políticas por tipo de tabela | [04](04-dominio-e-dados.md) | F0 | P0 | N0 | INV-07 | CT-DAD-003 | T-006, T-017 |
-| REQ-DAD-004 | Papéis de banco e privilégios mínimos | [04](04-dominio-e-dados.md) | F0 | P0 | N0 | INV-07, INV-11 | CT-DAD-004 | T-005 |
-| REQ-DAD-005 | Verificador de catálogo no CI | [04](04-dominio-e-dados.md) | F0 | P0 | N0 | INV-07 | CT-DAD-005 | T-005 |
+| REQ-DAD-002 | Contexto RLS por transação, fechado por padrão | [04](04-dominio-e-dados.md) | F0 | P0 | N0 | INV-07 | CT-DAD-002 | T-001 |
+| REQ-DAD-003 | Políticas por tipo de tabela | [04](04-dominio-e-dados.md) | F0 | P0 | N0 | INV-07 | CT-DAD-003 | T-001, T-006, T-017 |
+| REQ-DAD-004 | Papéis de banco e privilégios mínimos | [04](04-dominio-e-dados.md) | F0 | P0 | N0 | INV-07, INV-11 | CT-DAD-004 | T-001, T-005 |
+| REQ-DAD-005 | Verificador de catálogo no CI | [04](04-dominio-e-dados.md) | F0 | P0 | N0 | INV-07 | CT-DAD-005 | T-001, T-005 |
 | REQ-DAD-006 | Funções `SECURITY DEFINER` em lista fechada | [04](04-dominio-e-dados.md) | F0 | P0 | N0 | INV-07 | CT-DAD-006 | T-005, T-006, T-012 |
 | REQ-DAD-007 | Vínculo temporal sem sobreposição | [04](04-dominio-e-dados.md) | F0 | P0 | N1 | INV-06, INV-10 | CT-DAD-007 | T-005, T-007 |
 | REQ-DAD-008 | Posição compacta, particionada e append-only | [04](04-dominio-e-dados.md) | F0 | P0 | N1 | INV-03, INV-06, INV-12 | CT-DAD-008 | T-005 |
@@ -134,7 +134,7 @@
 | REQ-ALR-012 | Retentativa e token inválido | [07](07-alertas-e-tempo-real.md) | F0 | P0 | N1 | INV-01 | CT-ALR-012 | T-012 |
 | REQ-ALR-013 | Preferências por usuário | [07](07-alertas-e-tempo-real.md) | F0 | P1 | N1 | INV-07 | CT-ALR-013 | T-012 |
 | REQ-ALR-014 | Fila de alertas e reconhecimento | [07](07-alertas-e-tempo-real.md) | F0 | P1 | N1 | INV-07 | CT-ALR-014 | T-011 |
-| REQ-ALR-015 | Latência medida por etapa | [07](07-alertas-e-tempo-real.md) | F0 | P0 | N1 | — | CT-ALR-015 | T-011, T-012 |
+| REQ-ALR-015 | Latência medida por etapa | [07](07-alertas-e-tempo-real.md) | F0 | P0 | N1 | — | CT-ALR-015 | T-011, T-012, T-015 |
 | REQ-ALR-016 | SSE: autenticação e escopo | [07](07-alertas-e-tempo-real.md) | F0 | P0 | N0 | INV-07 | CT-ALR-016 | T-008 |
 | REQ-ALR-017 | SSE: limites de veículos e conexões | [07](07-alertas-e-tempo-real.md) | F0 | P1 | N1 | INV-07 | CT-ALR-017 | T-008 |
 | REQ-ALR-018 | SSE: revisão, snapshot e heartbeat | [07](07-alertas-e-tempo-real.md) | F0 | P0 | N1 | INV-04 | CT-ALR-018 | T-008 |
@@ -229,15 +229,15 @@
 | REQ-ONB-005 | Prévia e relatório de erros | [11](11-onboarding-e-migracao.md) | F1 | P0 | N1 | — | CT-ONB-005 | T-024 |
 | REQ-ONB-006 | Commit idempotente por linha | [11](11-onboarding-e-migracao.md) | F1 | P0 | N1 | INV-06, INV-07 | CT-ONB-006 | T-024 |
 | REQ-ONB-007 | Isolamento do importador | [11](11-onboarding-e-migracao.md) | F1 | P0 | N0 | INV-07 | CT-ONB-007 | T-024 |
-| REQ-ONB-008 | Migração manual do piloto | [11](11-onboarding-e-migracao.md) | F0 | P0 | N1 | INV-06 | CT-ONB-008 | — |
-| REQ-ONB-009 | Rollback testado antes do piloto | [11](11-onboarding-e-migracao.md) | F0 | P0 | N1 | — | CT-ONB-009 | — |
+| REQ-ONB-008 | Migração manual do piloto | [11](11-onboarding-e-migracao.md) | F0 | P0 | N1 | INV-06 | CT-ONB-008 | T-014 |
+| REQ-ONB-009 | Rollback testado antes do piloto | [11](11-onboarding-e-migracao.md) | F0 | P0 | N1 | — | CT-ONB-009 | T-014 |
 | REQ-ONB-010 | Criação de onda e pré-checagem | [11](11-onboarding-e-migracao.md) | F1 | P0 | N1 | INV-07 | CT-ONB-010 | T-024 |
 | REQ-ONB-011 | Envio de SMS e segredo da senha | [11](11-onboarding-e-migracao.md) | F1 | P0 | N0 | INV-05 | CT-ONB-011 | T-024 |
 | REQ-ONB-012 | 1º contato em 10 min e rollback automático | [11](11-onboarding-e-migracao.md) | F1 | P0 | N1 | INV-05 | CT-ONB-012 | T-024 |
 | REQ-ONB-013 | Disjuntor da onda | [11](11-onboarding-e-migracao.md) | F1 | P1 | N1 | — | CT-ONB-013 | T-024 |
 | REQ-ONB-014 | Liberação por operadora e janela | [11](11-onboarding-e-migracao.md) | F1 | P0 | N1 | — | CT-ONB-014 | T-024 |
-| REQ-ONB-015 | Modelos de SMS versionados por perfil | [11](11-onboarding-e-migracao.md) | F0 | P0 | N1 | — | CT-ONB-015 | — |
-| REQ-ONB-016 | Domínio e plano B | [11](11-onboarding-e-migracao.md) | F0 | P0 | N1 | — | CT-ONB-016 | — |
+| REQ-ONB-015 | Modelos de SMS versionados por perfil | [11](11-onboarding-e-migracao.md) | F0 | P0 | N1 | — | CT-ONB-015 | T-014 |
+| REQ-ONB-016 | Domínio e plano B | [11](11-onboarding-e-migracao.md) | F0 | P0 | N1 | — | CT-ONB-016 | T-014 |
 | REQ-ONB-017 | Métricas de migração | [11](11-onboarding-e-migracao.md) | F1 | P1 | N2 | — | CT-ONB-017 | T-024 |
 | REQ-ONB-018 | Avisos aos clientes | [11](11-onboarding-e-migracao.md) | F1 | P1 | N2 | — | CT-ONB-018 | T-024 |
 | REQ-ONB-019 | Rastreador comunicando sem vínculo | [11](11-onboarding-e-migracao.md) | F0 | P1 | N0 | INV-07 | CT-ONB-019 | — |
@@ -276,18 +276,18 @@
 | REQ-OPS-003 | Compose de produção com limites e autoheal | [13](13-infra-e-operacao.md) | F0 | P0 | N1 | — | CT-OPS-003 | T-003 |
 | REQ-OPS-004 | Postgres de produção sem dado sensível no log | [13](13-infra-e-operacao.md) | F0 | P0 | N1 | INV-07 | CT-OPS-004 | T-003 |
 | REQ-OPS-005 | Imagem do banco multi-arquitetura com WAL-G | [13](13-infra-e-operacao.md) | F0 | P0 | N1 | — | CT-OPS-005 | T-003 |
-| REQ-OPS-006 | Deploy por tag com rollback automático | [13](13-infra-e-operacao.md) | F0 | P0 | N1 | — | CT-OPS-006 | — |
-| REQ-OPS-007 | Migrations expand/contract no deploy | [13](13-infra-e-operacao.md) | F0 | P0 | N0 | INV-07 | CT-OPS-007 | — |
-| REQ-OPS-008 | Backup contínuo cifrado com cópia fora da Oracle | [13](13-infra-e-operacao.md) | F0 | P0 | N1 | — | CT-OPS-008 | — |
-| REQ-OPS-009 | Restore ensaiado sem efeito externo | [13](13-infra-e-operacao.md) | F0 | P0 | N1 | INV-05 | CT-OPS-009 | — |
+| REQ-OPS-006 | Deploy por tag com rollback automático | [13](13-infra-e-operacao.md) | F0 | P0 | N1 | — | CT-OPS-006 | T-013 |
+| REQ-OPS-007 | Migrations expand/contract no deploy | [13](13-infra-e-operacao.md) | F0 | P0 | N0 | INV-07 | CT-OPS-007 | T-013 |
+| REQ-OPS-008 | Backup contínuo cifrado com cópia fora da Oracle | [13](13-infra-e-operacao.md) | F0 | P0 | N1 | — | CT-OPS-008 | T-013 |
+| REQ-OPS-009 | Restore ensaiado sem efeito externo | [13](13-infra-e-operacao.md) | F0 | P0 | N1 | INV-05 | CT-OPS-009 | T-013 |
 | REQ-OPS-010 | Standby por streaming com WAL limitado | [13](13-infra-e-operacao.md) | F1 | P0 | N0 | — | CT-OPS-010 | T-028 |
 | REQ-OPS-011 | Failover com fencing antes da promoção | [13](13-infra-e-operacao.md) | F1 | P0 | N0 | INV-05, INV-08 | CT-OPS-011 | T-028 |
 | REQ-OPS-012 | Ex-primária não sobe como primária | [13](13-infra-e-operacao.md) | F1 | P0 | N0 | — | CT-OPS-012 | T-028 |
 | REQ-OPS-013 | SLO por minuto ruim | [13](13-infra-e-operacao.md) | F1 | P0 | N1 | INV-03 | CT-OPS-013 | T-028 |
 | REQ-OPS-014 | Manutenção anunciada e créditos | [13](13-infra-e-operacao.md) | F1 | P1 | N1 | INV-12 | CT-OPS-014 | T-028 |
 | REQ-OPS-015 | Status page pública | [13](13-infra-e-operacao.md) | F1 | P0 | N2 | — | CT-OPS-015 | T-028 |
-| REQ-OPS-016 | Observabilidade sem dado pessoal | [13](13-infra-e-operacao.md) | F0 | P1 | N1 | — | CT-OPS-016 | — |
-| REQ-OPS-017 | Regras de alerta e paging | [13](13-infra-e-operacao.md) | F0 | P0 | N1 | — | CT-OPS-017 | — |
+| REQ-OPS-016 | Observabilidade sem dado pessoal | [13](13-infra-e-operacao.md) | F0 | P1 | N1 | — | CT-OPS-016 | T-013 |
+| REQ-OPS-017 | Regras de alerta e paging | [13](13-infra-e-operacao.md) | F0 | P0 | N1 | — | CT-OPS-017 | T-013 |
 | REQ-OPS-018 | Gateway de incidentes independente das VMs | [13](13-infra-e-operacao.md) | F1 | P1 | N1 | — | CT-OPS-018 | T-028 |
 | REQ-OPS-019 | Agente SRE do F1: diagnóstico somente leitura | [13](13-infra-e-operacao.md) | F1 | P1 | N1 | INV-07, INV-11 | CT-OPS-019 | T-028 |
 | REQ-OPS-020 | Cardápio fechado do F2 por forced-command | [13](13-infra-e-operacao.md) | F2 | P1 | N0 | INV-08, INV-11 | CT-OPS-020 | — |
@@ -299,7 +299,7 @@
 | REQ-QLD-002 | Cartão no template canônico com DoR verificável | [14](14-qualidade-e-processo-ia.md) | F0 | P0 | N2 | — | CT-QLD-002 | — |
 | REQ-QLD-003 | Nível de risco calculado pelo caminho | [14](14-qualidade-e-processo-ia.md) | F0 | P0 | N0 | INV-07, INV-08 | CT-QLD-003 | — |
 | REQ-QLD-004 | Testes do cartão copiados sem alteração | [14](14-qualidade-e-processo-ia.md) | F0 | P1 | N0 | — | CT-QLD-004 | — |
-| REQ-QLD-005 | Testes existentes protegidos | [14](14-qualidade-e-processo-ia.md) | F0 | P0 | N0 | INV-07 | CT-QLD-005 | — |
+| REQ-QLD-005 | Testes existentes protegidos | [14](14-qualidade-e-processo-ia.md) | F0 | P0 | N0 | INV-07 | CT-QLD-005 | T-001 |
 | REQ-QLD-006 | Rótulos de exceção só pelo fundador | [14](14-qualidade-e-processo-ia.md) | F1 | P1 | N0 | — | CT-QLD-006 | — |
 | REQ-QLD-007 | Revisão adversarial por outro fornecedor registrada | [14](14-qualidade-e-processo-ia.md) | F0 | P0 | N0 | INV-07, INV-08, INV-11 | CT-QLD-007 | — |
 | REQ-QLD-008 | Merge só pelo fundador, com `main` protegida | [14](14-qualidade-e-processo-ia.md) | F0 | P0 | N0 | — | CT-QLD-008 | — |
@@ -338,7 +338,7 @@
 
 | Tarefa | Fase | Risco | Requisitos |
 |---|---|---|---|
-| [T-001 — Fundação: monorepo, Postgres local e isolamento em 3 níveis](../../tasks/T-001-fundacao-monorepo-e-isolamento.md) | F0 | N0 | — |
+| [T-001 — Fundação: monorepo, Postgres local e isolamento em 3 níveis](../../tasks/T-001-fundacao-monorepo-e-isolamento.md) | F0 | N0 | REQ-DAD-002, REQ-DAD-003, REQ-DAD-004, REQ-DAD-005, REQ-QLD-005 |
 | [T-002 — Spike J16 em bancada: capturas, `capability_profile` draft](../../tasks/T-002-spike-j16-bancada.md) | F0 | N1 | REQ-ING-019 |
 | [T-003 — VM primária, Docker Compose, firewall e DNS](../../tasks/T-003-vm-primaria-compose-firewall-dns.md) | F0 | N1 | REQ-OPS-001, REQ-OPS-002, REQ-OPS-003, REQ-OPS-004, REQ-OPS-005, REQ-OPS-023, REQ-ARQ-003, REQ-ARQ-004, REQ-ING-001, REQ-DAD-017, REQ-SEG-019, REQ-SEG-024 |
 | [T-004 — Contratos iniciais (Zod → OpenAPI 3.1 → clientes TS e Dart) e esqueleto de `api` e `worker`](../../tasks/T-004-contratos-e-esqueleto-api-worker.md) | F0 | N1 | REQ-API-001, REQ-API-002, REQ-API-003, REQ-API-004, REQ-API-005, REQ-API-007, REQ-API-019, REQ-ARQ-001, REQ-ARQ-002, REQ-ARQ-005, REQ-ARQ-006, REQ-ARQ-007, REQ-ARQ-014, REQ-SEG-021, REQ-SEG-025 |
@@ -350,6 +350,9 @@
 | [T-010 — App: histórico do dia e deep links (WhatsApp da central e navegação)](../../tasks/T-010-app-historico-e-deep-links.md) | F0 | N2 | REQ-UX-008, REQ-UX-011, REQ-UX-030 |
 | [T-011 — Motor de alertas do F0](../../tasks/T-011-motor-de-alertas-f0.md) | F0 | N1 | REQ-ALR-001, REQ-ALR-010, REQ-ALR-014, REQ-ALR-015, REQ-ALR-002, REQ-ALR-003, REQ-ALR-004, REQ-ALR-005, REQ-ALR-006, REQ-ALR-007, REQ-ALR-008, REQ-ALR-009 |
 | [T-012 — Push FCM: tokens, `alert_delivery`, recebimento no app](../../tasks/T-012-push-fcm-tokens-e-entregas.md) | F0 | N1 | REQ-ALR-011, REQ-ALR-012, REQ-ALR-013, REQ-ALR-002, REQ-ALR-005, REQ-ALR-006, REQ-ALR-007, REQ-ALR-009, REQ-ALR-010, REQ-ALR-001, REQ-ALR-015, REQ-DAD-006 |
+| [T-013 — Deploy, backup WAL-G, restore testado e sondas](../../tasks/T-013-deploy-backup-restore-sondas.md) | F0 | N1 | REQ-OPS-006, REQ-OPS-007, REQ-OPS-008, REQ-OPS-009, REQ-OPS-016, REQ-OPS-017, REQ-ARQ-014, REQ-NEG-010 |
+| [T-014 — Migração manual por SMS e rollback](../../tasks/T-014-migracao-manual-sms-e-rollback.md) | F0 | N1 | REQ-ONB-008, REQ-ONB-009, REQ-ONB-015, REQ-ONB-016, REQ-NEG-010 |
+| [T-015 — Consultas do G0 e relatório de evidências](../../tasks/T-015-consultas-g0-e-relatorio-de-evidencias.md) | F0 | N2 | REQ-NEG-010, REQ-NEG-016, REQ-ALR-015, REQ-NEG-017 |
 | [T-016 — Domínio de comandos puro: avaliador, máquina de estados e textos](../../tasks/T-016-dominio-de-comandos.md) | F1 | N0 | REQ-CMD-002, REQ-CMD-003, REQ-CMD-005, REQ-CMD-009, REQ-CMD-012, REQ-CMD-015, REQ-CMD-018, REQ-CMD-021, REQ-QLD-010 |
 | [T-017 — Migration do F1 de comandos, chave do aparelho, consentimento e segredos da operadora](../../tasks/T-017-migration-f1-comandos.md) | F1 | N0 | REQ-CMD-004, REQ-CMD-009, REQ-CMD-010, REQ-CMD-020, REQ-CMD-022, REQ-DAD-001, REQ-DAD-003, REQ-SEG-020, REQ-QLD-011 |
 | [T-018 — API de comandos com step-up, chave do aparelho e termo de ciência](../../tasks/T-018-api-de-comandos-e-step-up.md) | F1 | N0 | REQ-CMD-001, REQ-CMD-004, REQ-CMD-006, REQ-CMD-007, REQ-CMD-008, REQ-CMD-010, REQ-CMD-016, REQ-CMD-017, REQ-CMD-019, REQ-SEG-012, REQ-SEG-013, REQ-SEG-014, REQ-SEG-015, REQ-SEG-016, REQ-SEG-029, REQ-API-014 |
@@ -361,22 +364,17 @@
 | [T-025 — Modo ocorrência, visão da equipe de busca e compartilhamento temporário](../../tasks/T-025-ocorrencia-busca-e-compartilhamento.md) | F1 | N0 | REQ-UX-020, REQ-UX-023, REQ-UX-029, REQ-SEG-017, REQ-SEG-018, REQ-API-013 |
 | [T-026 — Guincho parceiro: botão no app, indicação, consentimento e relatório mensal](../../tasks/T-026-guincho-parceiro-e-indicacoes.md) | F1 | N0 | REQ-SVA-001, REQ-SVA-009, REQ-UX-022, REQ-SVA-002, REQ-SVA-003, REQ-SVA-004, REQ-SVA-005, REQ-SVA-006, REQ-SVA-007, REQ-SVA-008 |
 | [T-027 — Auditoria, acesso de suporte, legal hold e retenção quente/frio](../../tasks/T-027-auditoria-suporte-legal-hold-e-retencao.md) | F1 | N0 | REQ-DAD-014, REQ-DAD-015, REQ-DAD-016, REQ-DAD-019, REQ-DAD-023, REQ-SEG-011, REQ-SEG-027 |
-| [T-028 — Standby, failover com fencing, SLO, status page e agente SRE de diagnóstico](../../tasks/T-028-standby-failover-slo-e-agente-sre.md) | F1 | N0 | REQ-OPS-010, REQ-OPS-015, REQ-OPS-018, REQ-OPS-019, REQ-OPS-021, REQ-OPS-022, REQ-OPS-024, REQ-SEG-028, REQ-QLD-017, REQ-ARQ-015, REQ-OPS-011, REQ-OPS-012, REQ-OPS-013, REQ-OPS-014 |
+| [T-028 — Standby, failover com fencing, SLO, status page e agente SRE de diagnóstico](../../tasks/T-028-standby-failover-slo-e-agente-sre.md) | F1 | N0 | REQ-NEG-012, REQ-OPS-010, REQ-OPS-015, REQ-OPS-018, REQ-OPS-019, REQ-OPS-021, REQ-OPS-022, REQ-OPS-024, REQ-SEG-028, REQ-QLD-017, REQ-ARQ-015, REQ-OPS-011, REQ-OPS-012, REQ-OPS-013, REQ-OPS-014 |
 | [T-029 — Console do F1: carteira completa, atendimento, marca, cercas e alertas novos](../../tasks/T-029-console-f1-carteira-atendimento-e-alertas.md) | F1 | N1 | REQ-UX-024, REQ-UX-027, REQ-UX-028, REQ-ALR-020, REQ-ALR-021, REQ-ALR-022, REQ-ALR-023 |
 | [T-030 — Publicação nas lojas, versão mínima do app, E2E e carga](../../tasks/T-030-lojas-qualidade-e-versao-minima.md) | F1 | N1 | REQ-UX-014, REQ-API-016, REQ-API-017, REQ-QLD-012, REQ-QLD-013 |
 | [T-031 — Relatório de unidade econômica e conta de armazenamento](../../tasks/T-031-unidade-economica-e-custos.md) | F1 | N1 | REQ-NEG-003, REQ-NEG-004, REQ-DAD-024, REQ-QLD-019 |
 
 ## Lacunas (F0/F1 sem tarefa)
 
-- REQ-NEG-010 — Gate G0 (F0)
-- REQ-NEG-012 — Gate G1 (F1)
-- REQ-NEG-016 — Registro de evidências dos gates (F0)
-- REQ-NEG-017 — Plano de corte do F0 (F0)
 - REQ-ARQ-009 — Outbox transacional e relay com varredura (F0)
 - REQ-ARQ-011 — SSE com filtro de escopo (F0)
 - REQ-ARQ-012 — Limites de recurso e carga de pior caso (F0)
 - REQ-ARQ-013 — Identidade da instância de origem (F0)
-- REQ-DAD-002 — Contexto RLS por transação, fechado por padrão (F0)
 - REQ-DAD-012 — Índices por consulta prevista (F0)
 - REQ-DAD-013 — Retenção da inbox, outbox e filas (F0)
 - REQ-DAD-018 — Transferência sem mover histórico (F0)
@@ -389,22 +387,11 @@
 - REQ-UX-009 — Alerta a partir do push em até 2 toques (F0)
 - REQ-UX-010 — Modo vigilância no app (F0)
 - REQ-UX-012 — Notificações (F0)
-- REQ-ONB-008 — Migração manual do piloto (F0)
-- REQ-ONB-009 — Rollback testado antes do piloto (F0)
-- REQ-ONB-015 — Modelos de SMS versionados por perfil (F0)
-- REQ-ONB-016 — Domínio e plano B (F0)
 - REQ-ONB-019 — Rastreador comunicando sem vínculo (F0)
-- REQ-OPS-006 — Deploy por tag com rollback automático (F0)
-- REQ-OPS-007 — Migrations expand/contract no deploy (F0)
-- REQ-OPS-008 — Backup contínuo cifrado com cópia fora da Oracle (F0)
-- REQ-OPS-009 — Restore ensaiado sem efeito externo (F0)
-- REQ-OPS-016 — Observabilidade sem dado pessoal (F0)
-- REQ-OPS-017 — Regras de alerta e paging (F0)
 - REQ-QLD-001 — `AGENTS.md` como regra única e links verificados (F0)
 - REQ-QLD-002 — Cartão no template canônico com DoR verificável (F0)
 - REQ-QLD-003 — Nível de risco calculado pelo caminho (F0)
 - REQ-QLD-004 — Testes do cartão copiados sem alteração (F0)
-- REQ-QLD-005 — Testes existentes protegidos (F0)
 - REQ-QLD-006 — Rótulos de exceção só pelo fundador (F1)
 - REQ-QLD-007 — Revisão adversarial por outro fornecedor registrada (F0)
 - REQ-QLD-008 — Merge só pelo fundador, com `main` protegida (F0)
