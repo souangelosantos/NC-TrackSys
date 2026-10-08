@@ -872,7 +872,7 @@ A T-001 cumpre REQ-DAD-002, REQ-DAD-003 e REQ-DAD-005 e a parte de REQ-DAD-001 e
 ### REQ-DAD-005 — Verificador de catálogo no CI
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-07
 **Regra.** O CI DEVE rodar `pnpm db:check` (CAT-01 a CAT-06) depois das migrations em todo PR e falhar com qualquer violação. Exceção só pela allowlist, com justificativa ≥ 10 caracteres e revisão N0.
-**Aceite.** CT-DAD-005 — Dado o schema migrado do F0 com a allowlist da seção 5.1, Quando `pnpm db:check` roda, Então imprime `Catálogo OK` e sai com 0; Dado o meta-teste ISO-06, Então as violações `CAT-01 app.tmp_sem_rls` a `CAT-06 app.audit_log` são reportadas.
+**Aceite.** CT-DAD-005 — Dado o schema migrado do F0 com a allowlist da seção 5.1, Quando `pnpm db:check` roda, Então imprime `Catálogo OK` e sai com 0; Dado o meta-teste ISO-06, Então as violações `CAT-01 app.tmp_sem_rls` a `CAT-06 app.tmp_append_only` são reportadas.
 
 ### REQ-DAD-006 — Funções `SECURITY DEFINER` em lista fechada
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-07

@@ -3,7 +3,7 @@
 | Campo | Valor |
 |---|---|
 | Fase | F0 (semana S1: 07–13/10/2026) |
-| Requisitos | a preencher após capítulos |
+| Requisitos | REQ-DAD-002, REQ-DAD-003 (padrões para as 4 tabelas desta tarefa), REQ-DAD-004, REQ-DAD-005 (CAT-01 a CAT-06; a CAT-07 entra na T-005), REQ-QLD-005 (job acceptance-freeze) |
 | Invariantes | INV-07 (isolamento), INV-12 (convenções) |
 | Regras de catálogo | CAT-01 a CAT-06; testes ISO-01 a ISO-09 |
 | Risco de revisão | **N0** (migrations e contexto RLS) — revisão cruzada por agente de outro fornecedor + leitura humana linha a linha |
@@ -19,7 +19,7 @@ Criar o esqueleto do monorepo e a primeira migration com o modelo de isolamento 
 
 ## Contexto (por quê)
 
-- [ADR-004 — Isolamento em 3 níveis](../docs/adr/) e [04 — Domínio e dados](../docs/spec/04-dominio-e-dados.md): modelo RLS, papéis de banco, funções de contexto.
+- [ADR-004 — Isolamento em 3 níveis](../docs/adr/ADR-004-isolamento-tres-niveis.md) e [04 — Domínio e dados](../docs/spec/04-dominio-e-dados.md): modelo RLS, papéis de banco, funções de contexto.
 - [14 — Qualidade e processo com IA](../docs/spec/14-qualidade-e-processo-ia.md): testes congelados, níveis de risco, CI.
 - [AGENTS.md](../AGENTS.md): regras gerais para agentes.
 
@@ -794,20 +794,21 @@ describe('T-001 verificador de catálogo (CAT-01..CAT-06)', () => {
       await client.query('CREATE POLICY p ON app.tmp_fk_ruim USING (false)')
       // CAT-05: papel da aplicação dono de tabela.
       await client.query('ALTER TABLE app.tmp_fk_ruim OWNER TO tracksys_app')
-      // CAT-06: tabela append-only com UPDATE concedido.
-      await client.query('CREATE TABLE app.audit_log (id int PRIMARY KEY, operator_id uuid NOT NULL)')
-      await client.query('ALTER TABLE app.audit_log ENABLE ROW LEVEL SECURITY')
-      await client.query('ALTER TABLE app.audit_log FORCE ROW LEVEL SECURITY')
-      await client.query('CREATE POLICY p ON app.audit_log USING (false)')
-      await client.query('GRANT SELECT, INSERT, UPDATE ON app.audit_log TO tracksys_app')
+      // CAT-06: tabela append-only com UPDATE concedido (nome temporário, para não colidir com tabelas futuras).
+      await client.query('CREATE TABLE app.tmp_append_only (id int PRIMARY KEY, operator_id uuid NOT NULL)')
+      await client.query('ALTER TABLE app.tmp_append_only ENABLE ROW LEVEL SECURITY')
+      await client.query('ALTER TABLE app.tmp_append_only FORCE ROW LEVEL SECURITY')
+      await client.query('CREATE POLICY p ON app.tmp_append_only USING (false)')
+      await client.query('GRANT SELECT, INSERT, UPDATE ON app.tmp_append_only TO tracksys_app')
 
-      const found = (await runCatalogChecks(client, allowlist)).map((v) => `${v.rule} ${v.object}`)
+      const metaAllowlist = { ...allowlist, appendOnly: [...allowlist.appendOnly, 'tmp_append_only'] }
+      const found = (await runCatalogChecks(client, metaAllowlist)).map((v) => `${v.rule} ${v.object}`)
       expect(found).toContain('CAT-01 app.tmp_sem_rls')
       expect(found).toContain('CAT-02 app.tmp_sem_politica')
       expect(found).toContain('CAT-03 app.tmp_sem_operator')
       expect(found).toContain('CAT-04 app.tmp_fk_ruim.tmp_fk_ruim_vehicle_id_fkey')
       expect(found).toContain('CAT-05 app.tmp_fk_ruim')
-      expect(found).toContain('CAT-06 app.audit_log')
+      expect(found).toContain('CAT-06 app.tmp_append_only')
       expect(found.filter((f) => f.startsWith('CAT-04 app.tmp_fk_ruim'))).toHaveLength(2)
     } finally {
       await client.query('ROLLBACK')

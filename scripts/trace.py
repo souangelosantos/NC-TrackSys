@@ -20,6 +20,18 @@ META = re.compile(r'\*\*Fase:\*\*\s*([^·]+?)\s*·\s*\*\*Prioridade:\*\*\s*([^·
 CT = re.compile(r'\bCT-[A-Z]+-\d{3}\b')
 INV = re.compile(r'\bINV-\d{2}\b')
 REQ_ANY = re.compile(r'\bREQ-[A-Z]+-\d{3}\b')
+RANGE = re.compile(r'\b(REQ-[A-Z]+)-(\d{3})\s+(?:a|até)\s+(REQ-[A-Z]+)-(\d{3})\b')
+
+
+def reqs_in(text):
+    """IDs citados, expandindo faixas como 'REQ-ING-002 a REQ-ING-015'."""
+    found = list(REQ_ANY.findall(text))
+    for m in RANGE.finditer(text):
+        if m.group(1) == m.group(3):
+            a, b = int(m.group(2)), int(m.group(4))
+            found += [f'{m.group(1)}-{n:03d}' for n in range(min(a, b), max(a, b) + 1)]
+    return list(dict.fromkeys(found))
+
 
 reqs = {}
 order = []
@@ -70,7 +82,7 @@ for t in sorted(tasks_dir.glob('T-[0-9][0-9][0-9]-*.md')):
     title_m = re.search(r'^#\s+T-\d{3}\s+[—-]\s+(.+)$', text, re.M)
     title = title_m.group(1).strip() if title_m else t.stem
     row = re.search(r'^\|\s*Requisitos\s*\|\s*(.+?)\s*\|\s*$', text, re.M)
-    rlist = REQ_ANY.findall(row.group(1)) if row else []
+    rlist = reqs_in(row.group(1)) if row else []
     phase_m = re.search(r'^\|\s*Fase\s*\|\s*(F\d)', text, re.M)
     risk_m = re.search(r'^\|\s*Risco de revisão\s*\|\s*\**(N\d)', text, re.M)
     task_rows.append((tid, t.name, title, phase_m.group(1) if phase_m else '?', risk_m.group(1) if risk_m else '?', rlist))

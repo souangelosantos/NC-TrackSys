@@ -1,0 +1,40 @@
+# T-026 — Guincho parceiro: botão no app, indicação, consentimento e relatório mensal
+
+> **Cartão resumido.** Escopo, requisitos e dependências já estão fixados; a especificação detalhada, os testes congelados e as "Decisões já tomadas" são escritos até o início da quinzena indicada, quando o cartão passa pelo DoR ([tasks/README.md](README.md)). Até lá, **não implemente** a partir deste cartão.
+
+| Campo | Valor |
+|---|---|
+| Fase | F1 (quinzena 16–30/11/2026) |
+| Requisitos | REQ-SVA-001 a REQ-SVA-009, REQ-UX-022 |
+| Invariantes | INV-05, INV-07, INV-11, INV-12 |
+| Risco de revisão | N0 |
+| Depende de | T-009, T-023 |
+| Estimativa | 2 sessões de agente |
+| Bloqueado por decisão | DEC-05 (repartição; enquanto aberta, vale a proposta do capítulo 12) |
+| Status | Resumido — DoR pendente |
+
+## Objetivo
+
+Validar o modelo de receita com o parceiro que a Lider já tem: botão "Chamar guincho" que abre o WhatsApp ou o telefone do parceiro com localização e placa, registro da indicação só por ação humana, consentimento por parceiro e finalidade, transparência de indicação remunerada, antifraude, conversão confirmada manualmente e relatório mensal com repartição congelada em snapshot.
+
+## Contexto obrigatório
+
+[12 — Cobrança e SVAs](../docs/spec/12-cobranca-e-svas.md) (parte de SVA); [Anexo B §11](../docs/anexos/B-juridico.md) (consentimento)
+
+## Escopo — fazer
+
+1. Tabelas `partner`, `referral` e `consent` (se ainda não existir).
+2. Botão no app que nunca bloqueia o contato, mesmo com a API fora do ar.
+3. Relatório mensal por operadora e consolidado para a Versix.
+
+## Fora do escopo
+
+- Portal ou API do parceiro (F2).
+- Assistência 24h, revisões e gestão de custos (F2).
+
+## Para completar o DoR
+
+1. Especificação detalhada (tabelas com SQL, rotas, jobs e textos) a partir dos capítulos citados.
+2. Testes de aceite com Dado/Quando/Então e arquivos em `tests/acceptance/T-026/`, congelados antes da implementação (risco N0: revisão adversarial por agente de outro fornecedor e leitura humana linha a linha).
+3. Comandos de verificação e seção "Decisões já tomadas" com pelo menos 6 respostas.
+4. Conferir se os requisitos listados ainda batem com os capítulos ([16 — Rastreabilidade](../docs/spec/16-rastreabilidade.md)).
