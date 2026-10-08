@@ -258,9 +258,9 @@ Critérios G0-1 a G0-9: [02 §2.5](../spec/02-escopo-e-fases.md). Evidências em
 
 - [ ] VM primária pelo `provision.sh`; CT-OPS-001, CT-OPS-002 e CT-OPS-023 (região brasileira) verdes.
 - [ ] `gps.`, `api.` e `app.` com TTL 60 s, sem proxy, no `ip-svc`; TLS válido em `api.` e `app.`.
-- [ ] Deploy por tag com 1 rollback automático provado (CT-OPS-006) e migration barrada pelo verificador (CT-OPS-007).
+- [ ] Deploy por tag com 1 rollback automático provado (CT-OPS-006, `DEPLOY_FAULT=smoke` como root na VM) e deploy barrado pelo verificador (CT-OPS-007, `DEPLOY_FAULT=catalog`), sem release quebrada em `main` ([13 §7](../spec/13-infra-e-operacao.md)).
 - [ ] WAL arquivando há ≥ 48 h sem falha; 2 bases noturnas seguidas; cópia R2 em dia (CT-OPS-008).
-- [ ] Restore ensaiado (G0-7, CT-OPS-009): ≤ 2 h, perda ≤ 5 min, relatório em `docs/runbooks/restore/`.
+- [ ] Restore ensaiado (G0-7, CT-OPS-009) na primária, no projeto isolado `tracksys-drill` ([13 §8](../spec/13-infra-e-operacao.md)): ≤ 2 h, perda ≤ 5 min, relatório em `docs/runbooks/restore/`.
 - [ ] Chave do WAL-G e chave age do fundador em 2 cópias offline, testadas (decifrar `prod.env.sops` num notebook limpo).
 - [ ] UptimeRobot sondando `gps.` (TCP) e `api.` (HTTPS) a cada 5 min; Pushover de emergência testado às 03:00 BRT e reconhecido.
 - [ ] Regras do F0 ([13 §12](../spec/13-infra-e-operacao.md)) disparadas uma vez cada em teste; Sentry com erro de teste sem PII (CT-OPS-016).

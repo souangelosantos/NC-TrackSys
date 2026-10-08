@@ -19,7 +19,7 @@
 | Atendimento | WhatsApp por deep link `https://wa.me/<número E.164 sem +>?text=<mensagem>` | Mensagem com placa e link da última posição para `operator_brand.support_whatsapp` | F0 | Telefone da central |
 | Navegação | Deep link | `https://www.google.com/maps/dir/?api=1&destination=<lat>,<lon>` e `https://waze.com/ul?ll=<lat>,<lon>&navigate=yes` | F0 | Coordenadas copiáveis |
 | Mapas | MapLibre + OpenFreeMap (DEC-11) | Tiles carregados direto pelo app e pelo console | F0 | PMTiles do Brasil auto-hospedado |
-| E-mail | Resend ou Brevo (free tier) | `worker` envia | F0 | O outro provedor, pela mesma interface |
+| E-mail | Resend (free tier) [PREMISSA], escolhido na T-006 | `worker` envia | F0 | Brevo, pela mesma interface (`EmailSender`) |
 | WhatsApp ativo | WhatsApp Cloud API oficial | Cobrança e avisos | F2 | — |
 
 Regras:

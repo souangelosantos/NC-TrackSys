@@ -198,7 +198,7 @@ Escalas. Probabilidade em 12 meses: **Baixa** < 10%, **Média** 10–50%, **Alta
 
 ## 5. Propostas de decisão registradas nos capítulos
 
-Toda `[NOVA DECISÃO PROPOSTA: …]` entra aqui no PR que a cria. O fundador aprova, rejeita ou promove a DEC. Na consolidação da v2.0 (08/10/2026), as propostas técnicas foram **adotadas como padrão** (marcadas `[ADOTADO NA v2.0]` nos capítulos; o fundador pode reverter por PR), as comerciais e jurídicas ficaram **pendentes** (`[DECISÃO DO FUNDADOR PENDENTE]`) e as de escala ficaram para o F2 (`[ADIADO PARA O F2]`).
+Toda `[NOVA DECISÃO PROPOSTA: …]` entra aqui no PR que a cria. O fundador aprova, rejeita ou promove a DEC. Na consolidação da v2.0 (08/10/2026), as propostas técnicas foram **adotadas como padrão** (marcadas `[ADOTADO NA v2.0]` nos capítulos; o fundador pode reverter por PR), as comerciais e jurídicas ficaram **pendentes** (`[DECISÃO DO FUNDADOR PENDENTE]`) e as de escala ficaram para o F2 (`[ADIADO PARA O F2]`). As escolhas reversíveis que os cartões do F0 fizeram (T-NNN na coluna Origem) também entram aqui, adotadas como padrão até o fundador confirmar ou reverter por PR.
 
 | Origem | Proposta | Recomendação | Decidir até | Status |
 |---|---|---|---|---|
@@ -232,7 +232,7 @@ Toda `[NOVA DECISÃO PROPOSTA: …]` entra aqui no PR que a cria. O fundador apr
 | [13](13-infra-e-operacao.md) | `EXTERNAL_EFFECTS=off` troca FCM, emnify, Asaas, e-mail e comandos do Traccar por adaptadores nulos; obrigatório no restore de ensaio | Aprovar; unificar com `ALERT_DELIVERY_ENABLED` de [07] e `COMMAND_DISPATCH_ENABLED` de [03] numa matriz única | Antes do G0-7 | Adotada na v2.0 |
 | [13](13-infra-e-operacao.md) | Deploy automático só de segunda a sexta, 08:00–20:00 BRT; fora disso, `workflow_dispatch` com `force: true` | Aprovar; N0 segue a janela mais estreita de [14 §6](14-qualidade-e-processo-ia.md) | Antes da T-013 | Adotada na v2.0 |
 | [13](13-infra-e-operacao.md) | `tracksys-sre-gateway` em Cloudflare Worker com D1 gratuito como entrada de alertas fora das VMs | Aprovar após confirmar os limites do plano gratuito [VALIDAR] | F1 (agente SRE) | Adotada na v2.0 |
-| [14](14-qualidade-e-processo-ia.md) | Cartão "Guardas de processo no CI" no S1–S2 do F0 | Aprovar | 13/10/2026 | Adotada na v2.0 |
+| [14](14-qualidade-e-processo-ia.md) | Cartão T-019 "Guardas de processo no CI" no S1–S2 do F0 | Aprovar | 13/10/2026 | Adotada na v2.0 |
 | [14](14-qualidade-e-processo-ia.md) | Todo PR aberto pela conta de máquina `versix-agent`; só o fundador aprova, rotula exceções, cria tags e faz merge | Aprovar | 09/10/2026 (antes do PR da T-001) | Adotada na v2.0 |
 | [11](11-onboarding-e-migracao.md) | Colunas `tenant.contact_phone` e `tenant.contact_email` preenchidas pelo importador | Aprovar | Cartão do importador (F1) | Adotada na v2.0 |
 | [11](11-onboarding-e-migracao.md) | `MIGRATION_WAVES_OPERATORS` habilita ondas por operadora, alterada por deploy N1 | Aprovar | Antes da 1ª onda (F1) | Adotada na v2.0 |
@@ -241,6 +241,24 @@ Toda `[NOVA DECISÃO PROPOSTA: …]` entra aqui no PR que a cria. O fundador apr
 | [Anexo B](../anexos/B-juridico.md) | `operator_brand.privacy_policy_url` para a política da operadora | Aprovar | F1 | Adotada na v2.0 |
 | [Anexo B](../anexos/B-juridico.md) | `ticket.category = 'authority'` para requisições de autoridades | Aprovar | F1 | Adotada na v2.0 |
 | [Anexo B](../anexos/B-juridico.md) | Retenção de conversas de atendimento por 90 dias | Validar com o advogado | Antes do G1 | **Pendente — fundador + advogado** (DEC-08) |
+| [07 §7](07-alertas-e-tempo-real.md) · T-012 | Push do F0 só para `tenant_owner`; `tenant_member` recebe quando existir o acesso por veículo (`membership.vehicle_ids`, F1) | Confirmar: não vaza alerta de veículo sem acesso | Antes do G0 (31/10/2026) | Adotada na v2.0 |
+| [07 §9](07-alertas-e-tempo-real.md) · [08 §3](08-identidade-e-seguranca.md) · T-011 | Reconhecimento de alerta só pela equipe da operadora no F0 (cliente → 403) | Confirmar: a central trata o SOS | Antes do G0 | Adotada na v2.0 |
+| [07 §8](07-alertas-e-tempo-real.md) · T-012 | Preferências de alerta fechadas (403) para a equipe da operadora, que não recebe push no F0–F1 | Confirmar | Antes do G0 | Adotada na v2.0 |
+| [07 §4](07-alertas-e-tempo-real.md) · T-011 | Fórmulas computáveis das condições (b) e (c) do incidente de plataforma | Confirmar após 48 h de piloto | G0 | Adotada na v2.0 |
+| [07 §11](07-alertas-e-tempo-real.md) · [10 §5](10-apps-e-ux.md) · T-008 | Limiares de presença inclusivos (`≥`) e selo `gps_stale` comparando o fix com o último contato | Confirmar | Antes do G0 | Adotada na v2.0 |
+| [08 §2](08-identidade-e-seguranca.md) · T-006 | Convite e redefinição por tabela própria `auth.email_token` (só SHA-256; token gerado no `worker`); último passo TOTP em `auth.totp_last_step` | Confirmar | PR da T-006 | Adotada na v2.0 |
+| [08 §2](08-identidade-e-seguranca.md) · T-006 | No F0, login no app de usuário com 2FA ativo recusado com 403 `two_factor_app_unsupported` | Confirmar; rever no F1 para `installer` e `search_team` | F1 | Adotada na v2.0 |
+| [08 §4](08-identidade-e-seguranca.md) · T-008 | `GET /api/v1/stream` sem membership ativa responde 401 (CT-ALR-019), não 404 | Confirmar | PR da T-008 | Adotada na v2.0 |
+| [13 §6](13-infra-e-operacao.md) · T-006 | Resend como provedor de e-mail (`EMAIL_DRIVER=resend`; a stack admitia Resend ou Brevo) [PREMISSA: plano gratuito basta ao piloto] | Confirmar | Antes do 1º convite real | Adotada na v2.0 |
+| [13 §6](13-infra-e-operacao.md) · T-006 | `TRUSTED_PROXY_CIDRS=172.30.0.2/32` (só o `caddy`) em produção | Confirmar | PR da T-013 | Adotada na v2.0 |
+| [13 §8](13-infra-e-operacao.md) · T-013 | Ensaio de restore do F0 (G0-7) na primária, no projeto isolado `tracksys-drill`, com `archive_mode=off`; o mensal volta à standby no F1 | Confirmar: a standby não roda contêiner no F0 (T-003) | Antes do G0-7 | Adotada na v2.0 |
+| [13 §7](13-infra-e-operacao.md) · T-013 | `DEPLOY_FAULT=smoke\|catalog`, só para root direto e auditado, para ensaiar rollback na VM sem release quebrada em `main` | Confirmar | PR da T-013 | Adotada na v2.0 |
+| [13 §4.4](13-infra-e-operacao.md) · T-013 · T-015 | Exceção do F0: consultas do G0 e contagens do restore como `postgres` pelo socket, `READ ONLY`, só agregados | Confirmar; no F1 trocar pelas funções `ops.*` (N0) | F1 | Adotada na v2.0 |
+| [13 §6](13-infra-e-operacao.md) · T-013 | `EXTERNAL_EFFECTS=off` cobre também as leituras do Traccar; variável obrigatória, sem padrão | Confirmar | Antes do G0-7 | Adotada na v2.0 |
+| [11 §4.6](11-onboarding-e-migracao.md) · T-014 · T-015 | `G0.md` sem placa nem nome: IMEI mascarado e código do titular; correspondência no cofre do fundador | Confirmar (REQ-QLD-016) | Antes da 1ª migração do piloto | Adotada na v2.0 |
+| [11 §5](11-onboarding-e-migracao.md) · T-014 | Host do SMS limitado a 60 caracteres (`SMS_HOST_TOO_LONG`) | Confirmar | Antes da 1ª migração do piloto | Adotada na v2.0 |
+| [14 §9](14-qualidade-e-processo-ia.md) · T-008 · T-011 · T-012 | Datas dos CTs deslocadas para o dia UTC corrente nos testes congelados | Confirmar | — | Adotada na v2.0 |
+| [10 §6](10-apps-e-ux.md) · T-009 · T-012 | A05 (detalhe do alerta, REQ-UX-009) e A06 (vigilância, REQ-UX-010) são F0 sem cartão; a T-012 abre o mapa do veículo ao tocar o push | Cartão pequeno no S3; se não couber até 27/10/2026, corte registrado em [02 §2.4](02-escopo-e-fases.md) e REQ-UX-009/010 no F1 | 13/10/2026 | **Pendente — fundador** (escopo do F0) |
 
 ## 6. Requisitos
 

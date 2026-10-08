@@ -74,7 +74,7 @@ Contrastes medidos (WCAG 2.2): `onStatus` sobre moving 7,56:1, idle 8,93:1, park
 
 ## 5. Estados honestos
 
-Entradas: `vehicle.state` do SSE ([07](07-alertas-e-tempo-real.md) §11) e, por veículo, `presenceThresholds` de `GET /api/v1/vehicles` (`delayedAfterS` = `stopped_interval_s` + 60 — J16: 360; `offlineAfterS` 1.800; `lostMovingAfterS` 180) [alinhar com 09]. `presence` é recalculada no cliente a cada 10 s com a tabela de [07](07-alertas-e-tempo-real.md) §11. Primeira linha que casa:
+Entradas: `vehicle.state` do SSE ([07](07-alertas-e-tempo-real.md) §11) e, por veículo, `presenceThresholds` de `GET /api/v1/vehicles` ([09](09-api-e-contratos.md) §9.1: `delayedAfterS` = `stopped_interval_s` + 60 — J16: 360; `offlineAfterS` 1.800; `lostMovingAfterS` = `max(180, 3 × moving_interval_s)` — J16: 180; perfil não legível no escopo do cliente → padrão 360/1.800/180). `presence` é recalculada no cliente a cada 10 s com a tabela de [07](07-alertas-e-tempo-real.md) §11, limiares inclusivos (`≥`). Primeira linha que casa:
 
 | Estado | Condição | Texto principal | Cor | Ícone (Flutter / lucide) |
 |---|---|---|---|---|
@@ -91,7 +91,7 @@ Entradas: `vehicle.state` do SSE ([07](07-alertas-e-tempo-real.md) §11) e, por 
 
 **Selos** (somam ao estado, não o trocam):
 - `delayed` (`presence = delayed`): `schedule`, "Última informação há {idade}".
-- `gps_stale` (presença `online`/`delayed` e `lastFixAt` < agora − `delayedAfterS`): `location_disabled`, "GPS sem sinal desde {hora}".
+- `gps_stale` (presença `online`/`delayed`, `lastFixAt` não nulo e `lastContactAt − lastFixAt > delayedAfterS`): `location_disabled`, "GPS sem sinal desde {hora}". O fix é comparado com o **último contato**, não com agora: rastreador que não comunica já tem o selo `delayed` ou o estado `offline` (vetores 5 e 12) [ADOTADO NA v2.0: T-008].
 - `alert`: alerta `critical` aberto do veículo → anel danger no marcador e faixa com o título do alerta.
 - `relay` (F1): "Relé: bloqueado · observado há {idade}", "Relé: desbloqueado · observado há {idade}" ou "Relé: estado desconhecido".
 - Global: "Sem internet no celular · dados de {hora}"; SSE caído há > 10 s: "Reconectando…".
@@ -141,6 +141,8 @@ Entradas: `vehicle.state` do SSE ([07](07-alertas-e-tempo-real.md) §11) e, por 
 | A18 | Familiares | F1 (P2) | Titular convida e revoga `tenant_member` e define `can_command` | [06](06-comandos-e-bloqueio.md) §4.1, [08](08-identidade-e-seguranca.md) |
 | A19 | Serviços (SVA) | F2 | Catálogo habilitado pela operadora: assistência 24h, revisões, custos | [12](12-cobranca-e-svas.md) |
 
+[DECISÃO DO FUNDADOR PENDENTE: A05 (REQ-UX-009, P0) e A06 (REQ-UX-010, P1) são F0 nesta tabela, mas nenhum cartão do F0 as entrega, e a T-012 abre o mapa ao vivo do veículo ao tocar o push, tratando o detalhe do alerta como F1. Recomendação: cartão pequeno no S3 com o detalhe mínimo do alerta (A05, só a partir do push) e o interruptor da vigilância (A06), sobre as rotas da T-011; se não couber até 27/10/2026, registrar o corte no plano de [02](02-escopo-e-fases.md) §2.4, com o comportamento da T-012 valendo no G0 e REQ-UX-009/010 passando para o F1. Registro em [15](15-decisoes-riscos-premissas.md) §5.]
+
 Rotas internas do app: `/inicio`, `/veiculos/:id`, `/veiculos/:id/historico?dia=AAAA-MM-DD`, `/alertas`, `/alertas/:id`, `/conta`. O link do push `tracksys://alerts/{id}` ([07](07-alertas-e-tempo-real.md) §7) abre `/alertas/:id` com o app encerrado, em segundo plano ou aberto; sessão expirada passa pelo login e volta ao alerta.
 
 ## 7. UX de comando (F1)
@@ -188,10 +190,10 @@ F0: as medidas de cold start e mapa são informativas e vão para o PR da versã
 |---|---|---|---|
 | C01 | `/login` | F0 | E-mail + senha; TOTP obrigatório para a equipe da operadora no F1 ([08](08-identidade-e-seguranca.md)) |
 | C02 | `/mapa` | F0 | Todos os veículos da operadora; mesma derivação de estado (§5); filtros por estado ("Sem comunicação" = `offline` + `lost_moving`); busca por placa, apelido ou cliente; lista virtualizada; acima de 200 veículos, conexões SSE de até 200 cada ([07](07-alertas-e-tempo-real.md) §11) |
-| C03 | `/clientes`, `/clientes/:id` | F0 | Nome, CPF/CNPJ com dígito verificador, telefone E.164 e e-mail de contato (`tenant.contact_phone`/`contact_email`, [11](11-onboarding-e-migracao.md) §3.2), convite do titular ([08](08-identidade-e-seguranca.md)); veículos do cliente |
+| C03 | `/clientes`, `/clientes/:id` | F0 | Nome, CPF/CNPJ com dígito verificador, convite do titular ([08](08-identidade-e-seguranca.md)); veículos do cliente. Telefone E.164 e e-mail de contato (`tenant.contact_phone`/`contact_email`, [11](11-onboarding-e-migracao.md) §3.2) entram no F1 com o importador: as colunas não existem no F0 ([04](04-dominio-e-dados.md) §3.1, `POST /api/v1/tenants` de [09](09-api-e-contratos.md) §6); no F0 o contato do titular é o e-mail do convite |
 | C04 | `/veiculos/:id` | F0 | Placa normalizada (maiúsculas, sem hífen; regex de [04](04-dominio-e-dados.md) §3.1), tipo, marca, modelo, cor, ano, apelido; vínculo atual e anteriores |
 | C05 | `/rastreadores`, `/rastreadores/:id` | F0 | IMEI (15 dígitos), modelo, perfil e status do perfil, ICCID e MSISDN, status, "Último contato: nunca / há X", vínculo atual; aviso "Comunicando sem vínculo" ([11](11-onboarding-e-migracao.md) REQ-ONB-019) |
-| C06 | `/veiculos/:id/vinculo` | F0 | Rastreador em estoque; "Relé de bloqueio instalado?" Sim/Não sem padrão; Sim → ponto de corte obrigatório (bomba de combustível, ignição pós-chave, motor de arranque) com o texto de efeito de [06](06-comandos-e-bloqueio.md) §15; Não → "Sem bloqueio instalado". `POST /api/v1/device-assignments` exige a chave `cutPoint` (valor ou `null` explícito, [09](09-api-e-contratos.md) §6); ausente → 422 `VALIDATION_FAILED` com `errors[0].path = "cutPoint"`. Encerrar vínculo devolve o rastreador a `stock` ou `maintenance` |
+| C06 | `/veiculos/:id/vinculo` | F0 | Rastreador em estoque; "Relé de bloqueio instalado?" Sim/Não sem padrão; Sim → ponto de corte obrigatório (bomba de combustível, ignição pós-chave, motor de arranque) com o texto de efeito de [06](06-comandos-e-bloqueio.md) §15 (se `packages/domain/src/commands/texts.ts` ainda não existir no F0, mostra só o nome do ponto de corte; nenhum texto de segurança é escrito fora de 06 [ADOTADO NA v2.0: T-007]); Não → "Sem bloqueio instalado". `POST /api/v1/device-assignments` exige a chave `cutPoint` (valor ou `null` explícito, [09](09-api-e-contratos.md) §6); ausente → 422 `VALIDATION_FAILED` com `errors[0].path = "cutPoint"`. Encerrar vínculo devolve o rastreador a `stock` ou `maintenance` (campo `deviceStatus` de `POST /api/v1/device-assignments/{assignmentId}/close`, [09](09-api-e-contratos.md) §6) |
 | C07 | `/veiculos/:id/historico?dia=` | F0 | Regras da A04 + tabela de pontos (hora BRT, velocidade, ignição, válido) |
 | C08 | `/alertas` | F1 | Fila de [07](07-alertas-e-tempo-real.md) §9 |
 | C09 | `/comandos` e painel no veículo | F1 | Pedido com TOTP ≤ 5 min + motivo ≥ 10 caracteres; mesmos textos da §7; registro de contingência ([06](06-comandos-e-bloqueio.md) §10) |
@@ -247,7 +249,7 @@ Rotas ([09](09-api-e-contratos.md) §7): `POST /api/v1/tickets` (`tenantId`, `ve
 | Identificador | [ADOTADO NA v2.0: `br.com.versix.tracksys` como `applicationId` e bundle id, fixado antes do 1º envio (S2) e independente de DEC-04] | — | Opção B: identificador da operadora |
 | Versões mínimas | Android 8.0 (API 26) e iOS 15 [PREMISSA] | Idem | Idem |
 | Build | Tag `mobile-vX.Y.Z` → GitHub Actions: `flutter test`, AAB assinado (`versionName` X.Y.Z, `versionCode` = número da execução), envio à faixa de teste, release no Sentry; iOS em runner macOS ou Codemagic [VALIDAR custo] | + envio às lojas | Flavors |
-| Configuração | `--dart-define=API_BASE_URL=https://api.{TRACKSYS_DOMAIN}`; nenhum segredo no binário | Idem | Idem |
+| Configuração | `--dart-define=API_BASE_URL=https://api.{TRACKSYS_DOMAIN}`, mais os `--dart-define=FIREBASE_*` públicos do cliente FCM quando a T-012 entrar; nenhum segredo no binário. Workflow `mobile-release.yml` entregue pela T-010 | Idem | Idem |
 
 1. Link único de download: `https://app.{TRACKSYS_DOMAIN}/baixar`, página estática do Caddy que redireciona para a loja pelo sistema do celular (usado nas mensagens de [11](11-onboarding-e-migracao.md) §7).
 2. O app não pede localização do celular, câmera nem contatos; pede só notificações e biometria (`NSFaceIDUsageDescription`: "Usamos o Face ID para confirmar bloqueio e desbloqueio do veículo."). Declarações de privacidade das lojas seguem o [Anexo B](../anexos/B-juridico.md).
@@ -339,7 +341,7 @@ Rotas ([09](09-api-e-contratos.md) §7): `POST /api/v1/tickets` (`tenantId`, `ve
 ### REQ-UX-017 — Disponibilidade e confirmação do comando
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-08, INV-10
 **Regra.** A11 DEVE seguir a §7 itens 1–4: botão só com `available = true`, `effectText` literal, deslizar até 90% e biometria com chave do aparelho.
-**Aceite.** CT-UX-017 — Dado `block.available = false` com `COMMAND_CUT_POINT_MISSING`, Então o detalhe não tem "Bloquear" e mostra "Bloqueio pelo app indisponível neste veículo. Fale com a central."; Dado `available = true`, Então a confirmação mostra o `effectText` recebido sem alteração; Quando solta a alça a 80%, Então nenhuma requisição; Quando desliza até o fim e cancela a biometria, Então 0 requisições a `/commands` e "Bloqueio não enviado"; Quando confirma, Então 1 POST com `Idempotency-Key` e `stepUp.kind = "device_key"`.
+**Aceite.** CT-UX-017 — Dado `block.available = false` com `CUT_POINT_MISSING` (código de [09](09-api-e-contratos.md) §3), Então o detalhe não tem "Bloquear" e mostra "Bloqueio pelo app indisponível neste veículo. Fale com a central."; Dado `available = true`, Então a confirmação mostra o `effectText` recebido sem alteração; Quando solta a alça a 80%, Então nenhuma requisição; Quando desliza até o fim e cancela a biometria, Então 0 requisições a `/commands` e "Bloqueio não enviado"; Quando confirma, Então 1 POST com `Idempotency-Key` e `stepUp.kind = "device_key"`.
 
 ### REQ-UX-018 — Estados do comando com textos distintos
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-03, INV-08

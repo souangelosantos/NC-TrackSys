@@ -63,7 +63,7 @@ Cabeçalhos comparados após aparar, minúsculas, sem acento (NFD) e espaços co
 |---|---|---|---|---|
 | `customerName` | Sim | nome, cliente, nome do cliente, razao social | 2–200 caracteres | `tenant.display_name` |
 | `customerDocument` | Sim | cpf, cnpj, cpf/cnpj, documento | Só dígitos; 11 = CPF com DV (`person`); 14 = CNPJ com DV (`company`) | `tenant.document`, `tenant.kind` |
-| `customerPhone` | Não | telefone, celular, whatsapp, fone | Só dígitos; 10–11 → prefixo +55; 12–13 iniciando em 55 → `+`; E.164 | `tenant.contact_phone` [ADOTADO NA v2.0] |
+| `customerPhone` | Não | telefone, celular, whatsapp, fone | Só dígitos; 10–11 → prefixo +55; 12–13 iniciando em 55 → `+`; E.164 | `tenant.contact_phone` [ADOTADO NA v2.0; coluna nova do F1, criada com o importador: não existe no F0 nem em `POST /api/v1/tenants`] |
 | `customerEmail` | Não | email, e-mail | Minúsculas; `^[^@\s]+@[^@\s]+\.[^@\s]+$`; ≤ 254 | `tenant.contact_email` [ADOTADO NA v2.0] e convite do titular |
 | `plate` | Sim | placa | Maiúsculas, sem hífen e espaço; regex de [04](04-dominio-e-dados.md) §3.1 | `vehicle.plate` |
 | `vehicleKind` | Não | tipo, tipo de veiculo, categoria | carro, automovel, auto, passeio → `car`; moto, motocicleta, motoneta → `motorcycle`; caminhao → `truck`; vazio ou outro → `other` | `vehicle.kind` |
@@ -166,7 +166,7 @@ Job `onboarding.wave.tick` a cada 30 s por onda `running` (`singletonKey` = id d
 
 ### 4.6 Procedimento manual do piloto (F0, T-014)
 
-Sem tabelas de onda (são F1). Uma linha por veículo em `docs/runbooks/gates/G0.md`: placa, 4 últimos dígitos do IMEI, hora do SMS, hora do 1º contato ou do rollback, resultado.
+Sem tabelas de onda (são F1). Uma linha por envio em `docs/runbooks/gates/G0.md`: veículo pelo IMEI mascarado (`***0017`), tipo (`migrar` ou `rollback`), hora do SMS, hora do 1º contato ou da confirmação do rollback, resultado e duração. Placa, nome e CPF ficam fora do repositório, porque agentes leem o repositório (REQ-QLD-016): o titular aparece por código (`T01`…`T10`) e a correspondência com placa e nome fica no cofre do fundador [ADOTADO NA v2.0: T-014, T-015].
 
 1. **Antes:** termo de participação assinado (G0-9); cliente, veículo, rastreador, chip e vínculo com `cut_point` no console ([10](10-apps-e-ux.md) C03–C06); `traccar_device_id` preenchido; DEC-04 resolvida e `gps.` resolvendo para a VM com sonda TCP verde; alvo de rollback anotado (§7 passo 2).
 2. Enviar `set_server_domain` pelo portal emnify/Meta Telecom (ou API, com DEC-01) e anotar a hora.
@@ -189,7 +189,7 @@ Hipóteses da família GT06, todas [VALIDAR — DEC-02, cenário S11 de [05](05-
 
 1. Modelos em `sms-templates.ts` sob a chave `sms_templates_ref` do perfil (ex.: `j16/v1`), com `status: 'draft' | 'validated'` e `evidenceRef` (prints das respostas do S11 em `packages/testkit/fixtures/j16/sms/`). Onda e procedimento manual só usam `validated`.
 2. Se o firmware exigir senha, o modelo leva `{password}` na posição que o S11 provar [VALIDAR — DEC-02].
-3. Texto renderizado ≤ 160 caracteres GSM-7; o teste unitário renderiza cada modelo com host de 40 caracteres.
+3. Texto renderizado ≤ 160 caracteres GSM-7; o teste unitário renderiza cada modelo com host de 40 caracteres. O renderizador recusa host com mais de 60 caracteres (`SMS_HOST_TOO_LONG`), o que dá folga para senha e porta dentro dos 160; por isso host de 61 caracteres falha no CT-ONB-015 [ADOTADO NA v2.0: T-014].
 4. **Senha:** segredo por operadora em `app.operator_secret` com `kind = 'sms_password'` (cifra de [08](08-identidade-e-seguranca.md) §8 item 4) [alinhar com 08: incluir o `kind`; senha por rastreador, ameaça 2 de [08](08-identidade-e-seguranca.md) §10, exige segredo por rastreador]. Substituída só na memória do worker no envio; nunca em banco, log, Sentry, resposta de API ou tela. `migration_item` guarda o modelo com `{password}` e o SHA-256 do texto enviado.
 5. **Modo manual:** o console mostra o texto com `{senha}` literal; quem envia digita a senha que a operadora já conhece.
 
@@ -422,7 +422,7 @@ Rastreador de outra operadora ou escopo `tenant` → 1 linha com `quarantined_24
 ### REQ-ONB-015 — Modelos de SMS versionados por perfil
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** —
 **Regra.** Modelos DEVEM seguir a §5 itens 1–3; modelo `draft` NÃO DEVE ser usado em onda nem no piloto.
-**Aceite.** CT-ONB-015 — Dado `j16/v1` `draft`, Quando uma onda é pré-checada, Então itens `blocked` `sms_templates_missing`; Dado `j16/v1` `validated` com host `gps.tracksys.com.br` e porta 5023, Então `set_server_domain` renderiza ≤ 160 caracteres GSM-7; Dado host de 61 caracteres, Então o teste unitário falha.
+**Aceite.** CT-ONB-015 — Dado `j16/v1` `draft`, Quando uma onda é pré-checada, Então itens `blocked` `sms_templates_missing`; Dado `j16/v1` `validated` com host `gps.tracksys.com.br` e porta 5023, Então `set_server_domain` renderiza ≤ 160 caracteres GSM-7; Dado host de 61 caracteres, Então o renderizador recusa com `SMS_HOST_TOO_LONG` (limite de 60, §5 item 3).
 
 ### REQ-ONB-016 — Domínio e plano B
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** —

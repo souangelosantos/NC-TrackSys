@@ -44,7 +44,7 @@
 2. Relógio: chrony com `server 169.254.169.254 iburst`; fuso do host UTC. Swap de 2 GB com `vm.swappiness=1`; journald `SystemMaxUse=500M`.
 3. `/etc/docker/daemon.json`: `{"log-driver":"json-file","log-opts":{"max-size":"10m","max-file":"5"},"live-restore":true}`.
 4. Drop-in do `docker.service`: `After=` e `Wants=` `tailscaled.service network-online.target` (a 5432 é publicada no IP Tailscale) e `ExecStartPre=/opt/tracksys/infra/scripts/role-guard.sh` (§9.3).
-5. Usuários sem shell: `deploy` (CI) e `opsagent` (agente SRE), com `authorized_keys` `restrict,command="sudo -n /opt/tracksys/infra/scripts/deploy.sh"` e `...ops-action.sh`, e sudoers só para esses scripts. `sshd`: `PasswordAuthentication no`, `PermitRootLogin no`. Break-glass: console serial da OCI com o usuário local `breakglass`, senha guardada offline.
+5. Usuários sem shell: `deploy` (CI) e `opsagent` (agente SRE), com `authorized_keys` `restrict,command="sudo -n /opt/tracksys/infra/scripts/deploy.sh"` e `...ops-action.sh`, e sudoers só para esses scripts. O `sudo` limpa o ambiente, então o forced-command só recebe a tag porque `/etc/sudoers.d/tracksys-deploy` contém exatamente `Defaults:deploy env_keep += "SSH_ORIGINAL_COMMAND"` e `deploy ALL=(root) NOPASSWD: /opt/tracksys/infra/scripts/deploy.sh`, validado com `visudo -cf` (`opsagent` segue o mesmo padrão no F1) [ADOTADO NA v2.0: T-013]. `sshd`: `PasswordAuthentication no`, `PermitRootLogin no`. Break-glass: console serial da OCI com o usuário local `breakglass`, senha guardada offline.
 6. Repositório em `/opt/tracksys` (deploy key somente leitura gerada em `/root/.ssh/github_deploy`, chave pública impressa para cadastro); chave age em `/etc/tracksys/age.key` (`0400`, chave pública impressa para o `.sops.yaml`, [08 §8](08-identidade-e-seguranca.md)); `/etc/tracksys/role` com o papel.
 7. `/etc/profile.d/tracksys.sh` com os atalhos usados no Anexo C: `dc` (`docker compose -f /opt/tracksys/infra/docker-compose.yml [-f infra/docker-compose.standby.yml] --env-file /run/tracksys/<papel>.env`) e `opsql "<SQL>"` (psql como `tracksys_ops_ro`).
 8. Units e timers systemd (§3, §8, §11): `tracksys-secrets` (no boot, `sops -d` dos `.sops` para `/run/tracksys/`, que é tmpfs), `tracksys-firewall`, `tracksys-autoheal` (30 s), `tracksys-metrics` (15 s), `tracksys-disk-cleanup` (05:00 UTC), `tracksys-backup` (06:00 UTC), `tracksys-backup-retain` (07:00 UTC), `tracksys-backup-copy` (de hora em hora, :15), `tracksys-restore-drill` (mensal, standby).
@@ -61,16 +61,16 @@ Nunca rodar `netfilter-persistent reload` com o Docker no ar: apaga as cadeias d
 
 ## 3. Docker Compose
 
-`infra/docker-compose.yml` (primária e, após o failover, standby). Rede `tracksys` (bridge `172.30.0.0/24`, IPs fixos usados pelo Alloy e pelo `pg_hba`). Limites de [03 §11](03-arquitetura.md):
+`infra/docker-compose.yml` (primária e, após o failover, standby). O `docker-compose.yml` da raiz é só de desenvolvimento (T-001; `api` e `worker` sob o perfil `app`, T-004). Rede `tracksys` (bridge `172.30.0.0/24`, IPs fixos usados pelo Alloy e pelo `pg_hba`). Limites de [03 §11](03-arquitetura.md). [ADOTADO NA v2.0: imagem única `tracksys-app` de `infra/app/Dockerfile` (T-004) para `api` e `worker`, alvo `migrate` no mesmo Dockerfile (T-013); a T-003 deve seguir esta tabela.]
 
 | Serviço | Imagem | `mem_limit` / `cpus` | Portas no host | Healthcheck (10 s, timeout 3 s, 3 falhas) |
 |---|---|---|---|---|
 | `db` (`172.30.0.5`) | `tracksys-db:17` (`infra/db/Dockerfile`) | 5 GB / — ; `shm_size: 1g`, `oom_score_adj: -500`, `stop_grace_period: 120s` | `${TAILSCALE_IPV4}:5432` | `pg_isready -U postgres -d tracksys` |
 | `traccar` (`.6`) | `traccar/traccar:6.x@sha256:…` (fixada no spike) | 1,5 GB / — | `5023` | `GET http://127.0.0.1:8082/api/server` → 200 [VALIDAR — DEC-02] |
-| `api` (`.10`) | `tracksys-api:${TRACKSYS_VERSION}` (`apps/api/Dockerfile`) | 1 GB / 1,5 | — | `GET /health/ready` na 3000 |
-| `worker` (`.11`) | `tracksys-worker:${TRACKSYS_VERSION}` (`apps/worker/Dockerfile`) | 1 GB / 1,0 | — | `GET /health/ready` na 3002 |
+| `api` (`.10`) | `tracksys-app:${TRACKSYS_VERSION}` (`infra/app/Dockerfile`, alvo `app`) | 1 GB / 1,5 | — | `GET /health/ready` na 3001 (interna, com `checks`); a 3000 responde só `{"status"}` ao público e é a usada pelo smoke e pelas sondas (§7, §10) |
+| `worker` (`.11`) | `tracksys-app:${TRACKSYS_VERSION}` (mesma imagem, `command` do processo worker) | 1 GB / 1,0 | — | `GET /health/ready` na 3002 |
 | `caddy` (`.2`) | `tracksys-caddy:${TRACKSYS_VERSION}` (`infra/caddy/Dockerfile`, com o build de `apps/console`) | 128 MB / 0,5 | `80`, `443` | `GET http://127.0.0.1:2019/config/` |
-| `migrate` (perfil `ops`) | `tracksys-api` com `dbmate` | 512 MB | — | Roda só no deploy |
+| `migrate` (perfil `ops`) | `tracksys-migrate:${TRACKSYS_VERSION}` (`infra/app/Dockerfile`, alvo `migrate`: `dbmate` + verificador de catálogo; `migrate up` e `migrate check`) | 512 MB | — | Roda só no deploy |
 
 1. `restart: unless-stopped` em todos; `env_file: /run/tracksys/<papel>.env` ([08 §8](08-identidade-e-seguranca.md)); imagens externas por digest do índice multi-arquitetura.
 2. **Autoheal** (`infra/scripts/autoheal.sh`, timer de 30 s): reinicia contêiner `unhealthy` (≤ 90 s do 1º healthcheck falho, REQ-ARQ-005); no máximo 3 reinícios por contêiner em 15 min, depois para e abre a regra AL-12. Nenhum contêiner monta o socket do Docker.
@@ -115,6 +115,8 @@ host   tracksys     tracksys_ops_audit                             ${PEER_TAILSC
 host   all          all                                            0.0.0.0/0              reject
 ```
 
+A linha de `tracksys_ops_audit` serve aos scripts que rodam na **outra** VM (failover, F1). Na própria VM, `deploy.sh` (e `ops-action.sh`) grava `ops.audit_log` como `postgres` pelo socket local (`peer`), seguido de `SET ROLE tracksys_ops_audit`, sem senha nem rede [ADOTADO NA v2.0: T-013].
+
 ### 4.4 Papéis e schema `ops`
 
 Papéis criados por `infra/db/initdb/10-ops-roles.sh` (volume novo) e por `infra/db/roles.sql` (idempotente, padrão `SELECT format(...) WHERE NOT EXISTS ... \gexec`, aplicado pelo deploy como `postgres` pelo socket local antes das migrations), conforme a regra de [04 §4.3](04-dominio-e-dados.md):
@@ -129,7 +131,8 @@ Papéis criados por `infra/db/initdb/10-ops-roles.sh` (volume novo) e por `infra
 Schema `ops` (migration em `packages/db/migrations`, dono `tracksys_owner`, fora do verificador de catálogo porque não guarda dado de operadora ou cliente):
 - `ops.audit_log` (append-only, 5 anos): `id uuid PK` (gerado pelo script, reenvio idempotente com `ON CONFLICT DO NOTHING`), `actor_type` (`user`, `system`, `ai_agent`), `actor_id`, `action` (`^ops\.[a-z_]+$`), `target`, `reason` (≤ 500), `result` (`success`, `denied`, `error`), `incident_id`, `host`, `at`, `detail jsonb`. [ADOTADO NA v2.0: ações de operação de plataforma (agente SRE, deploy, failover) são auditadas em `ops.audit_log`, porque `app.audit_log.operator_id` é NOT NULL e essas ações não pertencem a uma operadora; CAT-06 passa a cobrir `ops.audit_log`.]
 - `ops.maintenance_window`, `ops.slo_minute`, `ops.slo_day` (§10); `tracksys_app` tem `INSERT, UPDATE` nas duas últimas e `SELECT` na primeira.
-- Funções `SECURITY DEFINER` só de agregados, `EXECUTE` só para `tracksys_ops_ro`, cabeçalho de [04 §4.4](04-dominio-e-dados.md), revisão N0: `ops.health_snapshot()` (jsonb com os números do `collect_diagnostics`), `ops.inbox_stats()` (status, contagem, idade da mais antiga, código de erro antes do `:`), `ops.queue_stats()` (fila pg-boss, criados, ativos, idade do mais antigo), `ops.outbox_lag()`, `ops.alert_latency(p_from, p_to)` (contagem, p50, p95, máximo), `ops.slo_latency_bad_minutes(p_from, p_to)` ([07 §10](07-alertas-e-tempo-real.md) itens a e b), `ops.device_contact_stats()` (dispositivos ativos, com contato em 5 e 30 min), `ops.replication_status()`, `ops.storage_stats()` (tamanho do banco e 10 maiores relações), `ops.command_stats(p_minutes)` (contagem por estado, sem ids).
+- Funções `SECURITY DEFINER` só de agregados, `EXECUTE` só para `tracksys_ops_ro`, cabeçalho de [04 §4.4](04-dominio-e-dados.md), revisão N0: `ops.health_snapshot()` (jsonb com os números do `collect_diagnostics`), `ops.inbox_stats()` (status, contagem, idade da mais antiga, código de erro antes do `:`), `ops.queue_stats()` (fila pg-boss, criados, ativos, idade do mais antigo), `ops.outbox_lag()`, `ops.alert_latency(p_from, p_to)` (contagem, p50, p95, máximo), `ops.slo_latency_bad_minutes(p_from, p_to)` ([07 §10](07-alertas-e-tempo-real.md) itens a e b), `ops.device_contact_stats()` (dispositivos ativos, com contato em 5 e 30 min), `ops.replication_status()`, `ops.storage_stats()` (tamanho do banco e 10 maiores relações), `ops.command_stats(p_minutes)` (contagem por estado, sem ids). Essas funções são do F1 (T-013 entrega só `ops.audit_log`).
+- **Exceção do F0** [ADOTADO NA v2.0: T-013, T-015]: sem as funções `ops.*` e com `tracksys_ops_ro` sem USAGE em `app`, as consultas do G0 (T-015) e as contagens de produção do restore de ensaio (§8) rodam como `postgres` pelo socket local, em transação `READ ONLY`, só com agregados (`count`, `max`, percentis), sem linha individual na saída — o mesmo caminho do `pg_create_restore_point` do deploy. No F1 passam para as funções `ops.*` com revisão N0.
 
 ## 5. Traccar operacional
 
@@ -146,12 +149,14 @@ Forward, porta e registro de desconhecidos: [05 §2](05-ingestao-e-telemetria.md
 
 ## 6. Configuração e segredos
 
-Segredos em `infra/secrets/prod.env.sops` e `standby.env.sops`, decifrados pelo deploy para `/run/tracksys/` ([08 §8](08-identidade-e-seguranca.md)). Variáveis que este capítulo acrescenta a [03 §13](03-arquitetura.md):
+Segredos em `infra/secrets/prod.env.sops` e `standby.env.sops`, decifrados pelo deploy para `/run/tracksys/` ([08 §8](08-identidade-e-seguranca.md)). Variáveis que este capítulo acrescenta a [03 §13](03-arquitetura.md), ou cujo uso em produção ele fixa:
 
 | Variável | Onde | Regra |
 |---|---|---|
 | `COMMAND_DISPATCH_ENABLED`, `EMNIFY_SMS_ENABLED` | worker | `false` em restore e failover até a reconciliação (REQ-ARQ-016; [11](11-onboarding-e-migracao.md)) |
-| `EXTERNAL_EFFECTS` | worker | `on` \| `off`. [ADOTADO NA v2.0: `off` troca os adaptadores de FCM, emnify, Asaas, e-mail e comandos do Traccar por adaptadores nulos que só registram; obrigatório no restore de ensaio (INV-05).] |
+| `EXTERNAL_EFFECTS` | worker | `on` \| `off`, obrigatória e sem padrão (ausente ou outro valor → saída 78). [ADOTADO NA v2.0: `off` troca os adaptadores de FCM, emnify, Asaas, e-mail e todo o cliente do Traccar (comandos e também leituras, como `GET /api/server`, que passa a `unknown`) por adaptadores nulos que só registram (`external_effects_suppressed_total{adapter}`); entrega de push fica `suppressed` com `error = 'external_effects_off'`; obrigatório no restore de ensaio (INV-05, T-013).] |
+| `EMAIL_DRIVER`, `EMAIL_FROM`, `RESEND_API_KEY`, `EMAIL_FILE_DIR` | worker | E-mails de convite, redefinição de senha e aviso de bloqueio de login ([08 §2](08-identidade-e-seguranca.md)). `EMAIL_DRIVER` = `resend` \| `file`; `file` grava em `EMAIL_FILE_DIR` (padrão `.tmp/emails`) e é proibido com `NODE_ENV=production` (saída 78); `RESEND_API_KEY` obrigatória com `resend`, no SOPS. [ADOTADO NA v2.0: Resend como provedor de e-mail (T-006; [15 §5](15-decisoes-riscos-premissas.md)).] |
+| `TRUSTED_PROXY_CIDRS` | api | CIDRs separados por vírgula de onde `X-Forwarded-For` e `X-Client-Port` são aceitos ([08 §4](08-identidade-e-seguranca.md) item 6); padrão vazio (nenhum proxy confiável). Produção: `172.30.0.2/32` (IP fixo do `caddy`, §3) [ADOTADO NA v2.0: T-006] |
 | `TAILSCALE_IPV4`, `PEER_TAILSCALE_IP`, `CADDY_ROLE` | Compose | IPs `100.x.y.z`; `primary` \| `standby` |
 | `WALG_S3_PREFIX`, `AWS_ENDPOINT`, `AWS_REGION`, `AWS_S3_FORCE_PATH_STYLE`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `WALG_LIBSODIUM_KEY`, `WALG_LIBSODIUM_KEY_TRANSFORM`, `WALG_COMPRESSION_METHOD` | db | §8 |
 | `TRACCAR_DB_PASSWORD`, `REPLICA_PASSWORD`, `OPS_RO_PASSWORD`, `OPS_AUDIT_PASSWORD` | db, traccar, scripts | ≥ 32 caracteres |
@@ -168,12 +173,14 @@ Segredos em `infra/secrets/prod.env.sops` e `standby.env.sops`, decifrados pelo 
 `infra/scripts/deploy.sh <tag>` na VM (`flock /run/tracksys/deploy.lock`; `PREV` = `/etc/tracksys/current-version`):
 1. `git fetch --tags --force` e `git checkout --detach <tag>`; recusa tag fora de `origin/main` (`git merge-base --is-ancestor`).
 2. `sops -d` para `/run/tracksys/<papel>.env` (`0600`, root); renderiza `pg_hba.conf` e `traccar.xml`.
-3. `TRACKSYS_VERSION=<tag> dc build api worker caddy` (no host ARM; ~8 min [PREMISSA]). `build-only` para aqui.
-4. Como `postgres` pelo socket: `SELECT pg_create_restore_point('deploy-<tag>')`; aplica `infra/db/roles.sql`; `dc run --rm migrate` (dbmate `up`); verificador de catálogo (`pnpm db:check` compilado). Falha → aborta antes de trocar o código; a versão anterior continua servindo.
+3. `TRACKSYS_VERSION=<tag> dc build` das imagens `tracksys-app`, `tracksys-migrate` e `tracksys-caddy` (no host ARM; ~8 min [PREMISSA]). `build-only` para aqui.
+4. Como `postgres` pelo socket: `SELECT pg_create_restore_point('deploy-<tag>')`; aplica `infra/db/roles.sql`; `dc run --rm migrate up` (dbmate); verificador de catálogo (`dc run --rm migrate check`). Falha → aborta antes de trocar o código; a versão anterior continua servindo.
 5. `dc up -d --no-deps --wait --wait-timeout 180 api worker caddy` (`db` e `traccar` só quando a imagem ou a configuração mudou).
 6. Smoke (`infra/scripts/smoke.sh`): `https://api.<domínio>/health/ready` = `{"status":"ok"}`; imagem de `api` e `worker` com `:<tag>`; `/health/ready` do worker 200; `https://app.<domínio>/version.json` com a tag; TCP 5023 aberto; se havia ≥ 1 sessão TCP antes do deploy, última mensagem recebida há < 120 s em até 120 s; 0 respostas 5xx novas no `/metrics` do `api` durante o smoke.
 7. Falha em 5 ou 6 → rollback automático: `TRACKSYS_VERSION=$PREV dc up -d --no-deps --wait api worker caddy`, smoke de novo, page prioridade 1, saída 1 (job vermelho). Falha no smoke do rollback → SEV1.
 8. Sucesso: move o valor antigo para `/etc/tracksys/previous-version` e grava `current-version` (`deploy.sh rollback` sobe `previous-version` sem build nem migration), `ops.audit_log` (`ops.deploy`, `actor_type = 'system'`, `actor_id = 'ci:<run_id>'`), remove imagens além das 3 últimas tags.
+
+**Falha simulada para ensaio** [ADOTADO NA v2.0: T-013]: `DEPLOY_FAULT=smoke|catalog` faz `deploy.sh` falhar de propósito na etapa 6 (smoke) ou na verificação de catálogo da etapa 4, e grava `detail.fault` no `ops.audit_log`. Só vale quando o processo é root sem `SUDO_USER` (execução manual do fundador na VM); pelo usuário `deploy`, o `sudo` limpa o ambiente e a variável é ignorada. Assim CT-OPS-006 e CT-OPS-007 rodam na VM sem publicar release quebrada em `main` (proibido pelo [AGENTS.md](../../AGENTS.md)); os caminhos de falha também são testados no CI com fakes de `docker`, `curl` e `psql`.
 
 **Migrations:** regras SQL e tabela expand/contract de [04 §10](04-dominio-e-dados.md). O deploy roda migrations antes de trocar o código, então toda migration DEVE ser compatível com a versão anterior (expand). Remoção ou mudança destrutiva (`DROP COLUMN`, `DROP TABLE`, `RENAME`, `ALTER COLUMN ... TYPE`, `SET NOT NULL`) só em arquivo `*_contract.sql`, numa release posterior à que parou de usar o objeto; o job de CI `migration-safety` barra PR que traz migration destrutiva sem o sufixo ou junto com mudança em `apps/**` ([14](14-qualidade-e-processo-ia.md)). Produção nunca roda `migrate down`: rollback de código mantém o schema novo.
 
@@ -187,9 +194,9 @@ Segredos em `infra/secrets/prod.env.sops` e `standby.env.sops`, decifrados pelo 
 | Base | `tracksys-backup.timer` às 06:00 UTC (03:00 BRT): `dc exec -T -u postgres db wal-g backup-push /var/lib/postgresql/data` (usuário `postgres`: autenticação `peer` pelo socket), compressão zstd; no sucesso grava `tracksys_backup_last_success_timestamp_seconds` e faz push no monitor `backup-base` do Kuma (F1) |
 | Retenção | 7 bases diárias + 4 semanais: aos domingos `wal-g backup-mark <base>` (permanente); `tracksys-backup-retain` às 07:00 UTC roda `wal-g delete retain FULL 7 --confirm` e desmarca permanentes com mais de 28 dias [VALIDAR flags na versão fixada]. PITR cobre os últimos 7 dias; as semanais restauram só o próprio ponto |
 | Cópia fora da Oracle | `tracksys-backup-copy` (de hora em hora, :15; na primária no F0, na standby no F1): `rclone copy` (nunca `sync`) do bucket para a Cloudflare R2 `tracksys-backup-r2`; regra de ciclo de vida da R2 apaga objetos com mais de 35 dias; bucket lock de 14 dias [VALIDAR]. Os objetos já saem cifrados pelo WAL-G. Dados do Uptime Kuma: `tar` semanal cifrado com age, mesma R2 |
-| Restore de ensaio | `infra/scripts/backup/restore-drill.sh`: antes do G0 (G0-7) e mensal (1ª terça, 13:00 UTC, na standby enquanto o banco tiver ≤ 40 GB; acima disso numa VM temporária) |
+| Restore de ensaio | `infra/scripts/backup/restore-drill.sh`: antes do G0 (G0-7) e mensal (1ª terça, 13:00 UTC, na standby enquanto o banco tiver ≤ 40 GB; acima disso numa VM temporária). [ADOTADO NA v2.0: no F0 a standby não roda contêiner (T-003), então o ensaio do G0 roda **na primária**, manual, no projeto Compose isolado `tracksys-drill` (`infra/docker-compose.drill.yml`, ~2 GB de limites somados); o ensaio mensal volta para a standby no F1 (T-013; [15 §5](15-decisoes-riscos-premissas.md)).] |
 
-Restore de ensaio, em ordem: (1) projeto Compose `tracksys-drill` em rede `internal: true` (sem saída para a internet, salvo o object storage pelo host); (2) `wal-g backup-fetch ... LATEST` num volume vazio; (3) `recovery.signal` com `recovery_target_time` = início − 10 min (T) e `recovery_target_action = 'promote'`; (4) mede do início até o banco aceitar conexões; (5) confere: `max(received_at)` de `app.ingest_inbox` ≥ T − 5 min; contagens de `app.position` (por `received_at`) e `app.audit_log` (por `at`) em [T − 24 h, T − 5 min] iguais às da produção; verificador de catálogo verde; (6) sobe o `worker` com `EXTERNAL_EFFECTS=off` e `COMMAND_DISPATCH_ENABLED=false` por 10 min: 0 chamadas externas; (7) grava `docs/runbooks/restore/AAAA-MM-DD.md` (base usada, T, duração, perda, checagens) e `tracksys_restore_drill_last_success_timestamp_seconds`. Restore real e reaplicação de revogações perdidas: [Anexo C R8](../anexos/C-operacional.md).
+Restore de ensaio, em ordem: (1) projeto Compose `tracksys-drill` em rede `internal: true` (sem saída para a internet, salvo o object storage pelo host; só o `db` do ensaio alcança o bucket), com o `db` restaurado em `archive_mode=off` para não empurrar uma nova timeline ao bucket de produção; antes de começar, as contagens de produção do item 5 são lidas como `postgres` pelo socket em `READ ONLY` (§4.4); (2) `wal-g backup-fetch ... LATEST` num volume vazio; (3) `recovery.signal` com `recovery_target_time` = início − 10 min (T) e `recovery_target_action = 'promote'`; (4) mede do início até o banco aceitar conexões; (5) confere: `max(received_at)` de `app.ingest_inbox` ≥ T − 5 min; contagens de `app.position` (por `received_at`) e `app.audit_log` (por `at`) em [T − 24 h, T − 5 min] iguais às da produção; verificador de catálogo verde; (6) sobe o `worker` com `EXTERNAL_EFFECTS=off`, `COMMAND_DISPATCH_ENABLED=false`, `EMNIFY_SMS_ENABLED=false`, `SENTRY_DSN` vazio e as URLs de FCM e Traccar apontando para um coletor local (`sink`) por 10 min: 0 chamadas externas, inclusive leituras do Traccar (§6); (7) grava `docs/runbooks/restore/AAAA-MM-DD.md` (base usada, T, duração, perda, checagens) e `tracksys_restore_drill_last_success_timestamp_seconds`. Restore real e reaplicação de revogações perdidas: [Anexo C R8](../anexos/C-operacional.md).
 
 ## 9. Standby e failover
 
@@ -265,7 +272,7 @@ Manutenção: CLI `ops:maintenance --start <RFC 3339> --end <RFC 3339> --reason 
 
 1. Rótulos proibidos: `vehicle_id`, `device_id`, `user_id`, `imei`, `ip`. `operator_id` só em métricas de ingestão e migração. Orçamento: ≤ 5.000 séries ativas (limite free de 10.000 [VALIDAR]).
 2. **Logs:** JSON no stdout (REQ-ARQ-014), rotação local do Docker (50 MB por contêiner); Alloy `loki.source.docker` envia ao Grafana Cloud Loki com um estágio `loki.process` de redação (sequências de 15 dígitos viram `***` + 4 últimos; pares decimais de latitude/longitude e `Bearer …` são removidos) como segunda linha de defesa. Traccar só em `info` sem dump; Caddy sem log de acesso; Postgres sem parâmetros (§4.2).
-3. **Sentry** (`api`, `worker`, console): `sendDefaultPii: false`; `beforeSend` remove corpo, query string e headers `authorization`, `cookie`, `x-ingest-token`, `asaas-access-token`; `release = TRACKSYS_VERSION`; amostragem de traces 5%.
+3. **Sentry** (`api`, `worker`, console; no F0 a T-013 liga só `api` e `worker`; o SDK do console ainda não tem cartão dono e, até ter, o console não envia erros; quem o ligar acrescenta o host de ingestão ao CSP de [08 §9](08-identidade-e-seguranca.md)): `sendDefaultPii: false`; `beforeSend` remove corpo, query string e headers `authorization`, `cookie`, `x-ingest-token`, `asaas-access-token`; `release = TRACKSYS_VERSION`; amostragem de traces 5%.
 4. **Painéis** versionados em `infra/grafana/dashboards/`: "SLO" (minutos ruins do mês, orçamento restante, p95 de alerta, sondas), "Ingestão", "Banco" (conexões, lag, WAL, disco, autovacuum) e "Host e contêineres".
 
 ## 12. Regras de alerta
@@ -292,7 +299,7 @@ SEV e notificação: §13 e §14. Regras de ingestão de [05 §17](05-ingestao-e
 | AL-16 | Agente SRE sem heartbeat (F1) | > 5 min | SEV2 | — |
 | AL-17 | Cópia R2 | Último sucesso > 26 h | SEV3 | — |
 
-F0: AL-01 a AL-05, AL-07, AL-08, AL-11 e AL-12 pelo Grafana Cloud e pelo UptimeRobot, direto no Pushover [VALIDAR integração Pushover no plano free do UptimeRobot; senão, e-mail]. F1: todas, pelo gateway (§13.2). Toda regra cita o runbook do [Anexo C](../anexos/C-operacional.md) na anotação.
+F0: AL-01 a AL-05, AL-07, AL-08, AL-11 e AL-12 pelo Grafana Cloud e pelo UptimeRobot, direto no Pushover [VALIDAR integração Pushover no plano free do UptimeRobot; senão, e-mail] [VALIDAR — Alertmanager gerenciado do Grafana Cloud free com `pushover_configs`; senão, contact point Pushover do Grafana com o mesmo mapeamento (T-013)] [VALIDAR — nomes `pg_stat_archiver_*` do exportador de Postgres do Alloy na versão fixada, usados na AL-05]. F1: todas, pelo gateway (§13.2). Toda regra cita o runbook do [Anexo C](../anexos/C-operacional.md) na anotação.
 
 ## 13. Remediação em camadas e agente SRE
 
@@ -373,7 +380,7 @@ Incidente com dado pessoal segue também o [Anexo C R11](../anexos/C-operacional
 | Erros | Sentry (região escolhida na criação [VALIDAR]) | Sim | `beforeSend` (§11) |
 | Métricas e logs | Grafana Cloud (região mais próxima do Brasil disponível [VALIDAR]) | Sim, conforme a região | Sem dado pessoal (§11) |
 | Diagnóstico do agente SRE | API Claude (Anthropic) | Sim | Só métricas e logs sem dado pessoal; o agente de suporte do F2 envia dados pessoais ([08](08-identidade-e-seguranca.md)) |
-| E-mail transacional | Resend ou Brevo | Sim | E-mail do destinatário e conteúdo da mensagem |
+| E-mail transacional | Resend no F0 (§6); Brevo como alternativa pela mesma porta `EmailSender` | Sim | E-mail do destinatário e conteúdo da mensagem; o link de convite ou redefinição leva o token, que só existe no e-mail |
 | Sondas, paging, gateway | UptimeRobot, Pushover, Cloudflare | Sim | Só metadados técnicos |
 
 Cada fornecedor com "Sim" entra na lista de suboperadores do DPA com o mecanismo de transferência, na revisão jurídica de DEC-08 ([Anexo B](../anexos/B-juridico.md)).
@@ -436,12 +443,12 @@ Fatias propostas: T-003 → OPS-001 a 005 e 023 (já sobe arquivando WAL); T-013
 ### REQ-OPS-006 — Deploy por tag com rollback automático
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** —
 **Regra.** O deploy DEVE seguir a §7: só tags de `main`, CI só por forced-command, smoke completo e rollback automático para `PREV` em falha.
-**Aceite.** CT-OPS-006 — Dado `v0.3.0` em produção, Quando a tag `v0.3.1`, cujo `api` nunca fica pronto, é publicada, Então em ≤ 5 min após o `up` falho o `api` volta a `v0.3.0`, `/etc/tracksys/current-version` = `v0.3.0`, o job termina vermelho e o Pushover recebe 1 page; Quando `ssh deploy@tracksys-p 'bash'` roda, Então a sessão é recusada sem shell; Dado `v0.3.2` saudável, Então o smoke passa e `current-version` = `v0.3.2`.
+**Aceite.** CT-OPS-006 — Dado `v0.3.0` em produção, Quando o deploy de `v0.3.1` falha no `up`/smoke (na VM, `DEPLOY_FAULT=smoke` como root, §7; no CI, fake de `docker compose up --wait` saindo 1), Então em ≤ 5 min após o `up` falho o `api` volta a `v0.3.0`, `/etc/tracksys/current-version` = `v0.3.0`, o job termina vermelho e o Pushover recebe 1 page; Quando `ssh deploy@tracksys-p 'bash'` roda, Então a sessão é recusada sem shell; Dado `v0.3.2` saudável, Então o smoke passa e `current-version` = `v0.3.2`.
 
 ### REQ-OPS-007 — Migrations expand/contract no deploy
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-07
 **Regra.** O deploy DEVE criar ponto de restauração, aplicar migrations e rodar o verificador de catálogo antes de trocar o código; falha DEVE abortar com a versão anterior servindo. Migration destrutiva DEVE estar em `*_contract.sql` (§7). Produção NÃO DEVE rodar `migrate down`.
-**Aceite.** CT-OPS-007 — Dado a tag `v0.4.0` com migration que cria `app.tmp_x` sem RLS, Quando o deploy roda, Então o verificador falha, `api` e `worker` seguem em `v0.3.2` e o Pushover recebe 1 page; Dado um PR com `ALTER TABLE app.vehicle DROP COLUMN nickname` em `2026..._remove_nickname.sql`, Então o job `migration-safety` falha; com o arquivo `..._contract.sql` e sem mudança em `apps/**`, Então passa.
+**Aceite.** CT-OPS-007 — Dado o deploy de `v0.4.0` com o verificador de catálogo falhando (no CI, fake de `migrate check` saindo 1, como faria uma migration que cria `app.tmp_x` sem RLS; na VM, `DEPLOY_FAULT=catalog` como root, §7, sem migration quebrada em `main`), Quando o deploy roda, Então o verificador falha, `api` e `worker` seguem em `v0.3.2` e o Pushover recebe 1 page; Dado um PR com `ALTER TABLE app.vehicle DROP COLUMN nickname` em `2026..._remove_nickname.sql`, Então o job `migration-safety` falha; com o arquivo `..._contract.sql` e sem mudança em `apps/**`, Então passa.
 
 ### REQ-OPS-008 — Backup contínuo cifrado com cópia fora da Oracle
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** —

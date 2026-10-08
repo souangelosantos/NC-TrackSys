@@ -24,10 +24,10 @@
 
 | Tipo | Fase | Gatilho exato | Sev. | Fonte | Depende de hardware | Padrão | Notificação (título — corpo) |
 |---|---|---|---|---|---|---|---|
-| `ignition_on` | F0 | `transitions.ignition` de `false` para `true` | warning | Posição ou heartbeat | `ignition = true` | Desligado | "Ignição ligada" — "{veículo}: ignição ligada às {hora}." |
+| `ignition_on` | F0 | `transitions.ignition` de `false` para `true` | warning | Posição ou heartbeat | `ignition = 'yes'` | Desligado | "Ignição ligada" — "{veículo}: ignição ligada às {hora}." |
 | `watch_mode_breach` | F0 | Modo vigilância ativo e (ignição `true` observada após a ativação **ou** 2 fixes válidos consecutivos a mais de `radius_m` da âncora) — §5 | critical | Posição + `watch_mode` | Não (ignição opcional) | Ligado, não desativável | "Modo vigilância: movimento" — "{veículo} saiu do local ou teve a ignição ligada às {hora}. Toque para ver no mapa." |
-| `power_cut` | F0 | `alarms` contém `powerCut`; ou, com `power_cut_alarm = false` e `power_source` definido, transição `power_state` `main → battery` | critical | Posição ou evento `alarm` | `power_cut_alarm` ou `power_source` [VALIDAR — DEC-02] | Ligado | "Alimentação cortada" — "{veículo}: o rastreador perdeu a energia do veículo às {hora} e está na bateria interna." |
-| `sos` | F0 | `alarms` contém `sos` | critical | Posição ou evento `alarm` | `sos = true` [VALIDAR — DEC-02] e botão instalado | Ligado, não desativável | "Pânico acionado" — "{veículo}: botão de pânico às {hora}. Toque para falar com a central." |
+| `power_cut` | F0 | `alarms` contém `powerCut`; ou, com `power_cut_alarm = 'no'` e `power_source` definido, transição `power_state` `main → battery` | critical | Posição ou evento `alarm` | `power_cut_alarm` ou `power_source` [VALIDAR — DEC-02] | Ligado | "Alimentação cortada" — "{veículo}: o rastreador perdeu a energia do veículo às {hora} e está na bateria interna." |
+| `sos` | F0 | `alarms` contém `sos` | critical | Posição ou evento `alarm` | `sos = 'yes'` [VALIDAR — DEC-02] e botão instalado | Ligado, não desativável | "Pânico acionado" — "{veículo}: botão de pânico às {hora}. Toque para falar com a central." |
 | `offline` | F0 | Sem contato há > 1.800 s (30 min) e sem `signal_lost_moving` aberto | warning | Laço de silêncio | Não | Ligado | "Sem comunicação" — "{veículo} não comunica desde {hora}. Última posição no app." |
 | `signal_lost_moving` | F0 | `motion = 'moving'`, `ignition` diferente de `false` e sem contato há > 180 s | critical | Laço de silêncio | Não | Ligado | "Comunicação perdida em movimento" — "{veículo} parou de comunicar em movimento às {hora}. Pode ser bloqueador de sinal. Veja a última posição." |
 | `low_battery` | F1 | `alarms` contém `lowBattery`, ou `batteryLevel ≤ 20` com `power_state ≠ 'main'` | warning | Posição ou heartbeat | `batteryLevel` reportado [VALIDAR — DEC-02] | Ligado | "Bateria do rastreador baixa" — "{veículo}: bateria interna em {n}% sem energia do veículo." |
@@ -36,7 +36,7 @@
 
 Regras do catálogo:
 1. `{veículo}` = apelido do veículo, senão a placa; `{hora}` = `HH:mm` em America/Sao_Paulo [PREMISSA: fuso único por operadora até existir campo de fuso]. Texto sem coordenadas nem endereço (aparece na tela bloqueada).
-2. **Disponibilidade:** o tipo só existe para o veículo se o perfil do dispositivo primário tem a capacidade exigida igual a `true`. Capacidade `null` ou `false` → tipo indisponível ("Indisponível neste rastreador" nas preferências); alarme recebido mesmo assim fica em `position.extra` e soma `alerts_unexpected_alarm_total{alarm}`, sem abrir alerta (INV-03).
+2. **Disponibilidade:** o tipo só existe para o veículo se o perfil do dispositivo primário tem a capacidade exigida igual a `'yes'`. Capacidade `'unknown'` ou `'no'` → tipo indisponível ("Indisponível neste rastreador" nas preferências); alarme recebido mesmo assim fica em `position.extra` e soma `alerts_unexpected_alarm_total{alarm}`, sem abrir alerta (INV-03). **Vocabulário:** capacidade é sempre `'yes'`/`'no'`/`'unknown'` no `capability_profile` ([04](04-dominio-e-dados.md), T-002), nunca booleano nem NULL; texto antigo com `true`/`false`/`null` para capacidade lê-se `'yes'`/`'no'`/`'unknown'`.
 3. **Ignição desligada por padrão:** ligada, notificaria cada uso legítimo do dono; o modo vigilância cobre o carro estacionado. O app oferece ligar no primeiro acesso ([10](10-apps-e-ux.md)).
 4. Avisos de encerramento (severidade `info`): "{veículo} voltou a comunicar às {hora}." (`offline`, `signal_lost_moving`) e "{veículo}: energia do veículo restabelecida às {hora}." (`power_cut`), só para quem recebeu o push de abertura.
 
@@ -75,6 +75,12 @@ Exemplo de evento (ids fictícios); `alert.closed.v1` acrescenta `endedAt`, `clo
    - (a) `GET /api/server` do Traccar falha em 2 checagens seguidas a cada 15 s [VALIDAR — DEC-02 rota];
    - (b) com ≥ 10 dispositivos com contato nas últimas 24 h, mais de 50% deles passam de 180 s sem contato dentro de 5 min;
    - (c) a ingestão não recebe nenhuma mensagem por > 120 s, tendo havido contato de ≥ 1 dispositivo nos 10 min anteriores.
+
+   Fórmulas computáveis de (b) e (c), avaliadas a cada 15 s sobre os vínculos correntes de todas as operadoras (`app.list_operator_ids()` e o contexto `operator` de cada uma, agregando `device_state`) [ADOTADO NA v2.0: T-011]:
+   - (b) `N` = vínculos com `last_contact_at ≥ now − 86.400 s`; vale se `N ≥ 10` e mais de 50% de `N` têm `last_contact_at` em `[now − 480 s, now − 180 s)`;
+   - (c) `M = max(last_contact_at)` sobre os mesmos vínculos; vale se `now − 720 s ≤ M < now − 120 s`.
+
+   O início de cada incidente gera 1 page (prioridade 2) ao fundador.
 5. O limiar de 180 s pressupõe intervalo de 30 s em movimento e o de 1.800 s, 300 s parado (`moving_interval_s`, `stopped_interval_s` do perfil) [VALIDAR — DEC-02]. Se o spike medir intervalo maior, o limiar em movimento passa a `max(180 s, 3 × moving_interval_s)`.
 
 ## 5. Modo vigilância (cerca âncora)
@@ -84,7 +90,7 @@ Exemplo de evento (ids fictícios); `alert.closed.v1` acrescenta `endedAt`, `clo
 | Ativar | `POST /api/v1/vehicles/{vehicleId}/watch-mode` com `{"radiusM": 150}` (opcional; 100–500, padrão 150). Papéis: `tenant_owner`, `tenant_member` com acesso ao veículo, `operator_admin`, `operator_agent`. Grava `audit_log` `watch_mode.activate` |
 | Pré-condições (dispositivo primário) | Fix válido nas últimas 24 h, senão 409 `WATCH_MODE_NO_FIX`; `ignition` diferente de `true` e `motion` diferente de `moving`, senão 409 `WATCH_MODE_VEHICLE_ON`; já ativo → 200 com o registro existente |
 | Âncora | `device_state.lat_e7`/`lon_e7` (último fix válido) gravados em `watch_mode`; resposta 201 `{watchModeId, anchor:{latitude, longitude}, radiusM, activatedAt}` |
-| Violação por ignição | `state.ignition = true` com `observedAt > activated_at` (só com perfil `ignition = true`) |
+| Violação por ignição | `state.ignition = true` com `observedAt > activated_at` (só com perfil `ignition = 'yes'`) |
 | Violação por deslocamento | `location` e `previousLocation` do evento válidos, ambos com `fixTime > activated_at` e ambos a mais de `radius_m` da âncora (haversine, raio 6.371.008,8 m). Fix dentro do raio interrompe a sequência |
 | Depois da violação | Modo continua ativo; 1 episódio por ativação. Para rearmar: desativar e ativar de novo |
 | Desativar | `DELETE /api/v1/vehicles/{vehicleId}/watch-mode` → `deactivated_at`, fecha a violação aberta (`deactivated`), 204, `audit_log` `watch_mode.deactivate` |
@@ -113,7 +119,7 @@ Um modo ativo por veículo (índice único parcial `watch_mode (vehicle_id) WHER
 
 ## 7. Entrega push (FCM)
 
-1. **Destinatários:** usuários com membership ativa no cliente do veículo (`tenant_owner`; `tenant_member` com acesso ao veículo, [08](08-identidade-e-seguranca.md)), preferência ligada para (veículo, tipo) e ≥ 1 `push_token`. Equipe da operadora usa a fila do console (§9); sem push para ela no F0–F1.
+1. **Destinatários:** usuários com membership ativa no cliente do veículo (`tenant_owner`; `tenant_member` com acesso ao veículo, [08](08-identidade-e-seguranca.md)), preferência ligada para (veículo, tipo) e ≥ 1 `push_token`. Equipe da operadora usa a fila do console (§9); sem push para ela no F0–F1. [ADOTADO NA v2.0: no F0 só `tenant_owner` recebe push; `tenant_member` entra quando o acesso por veículo de [08](08-identidade-e-seguranca.md) (`membership.vehicle_ids`) existir, no F1 (T-012; escolha reversível, [15 §5](15-decisoes-riscos-premissas.md)).]
 2. **Chave:** `delivery_key = {alertId}:{userId}:push:{open|close}`; `INSERT … ON CONFLICT (delivery_key) DO NOTHING`. Uma `alert_delivery` por usuário; envio para até 5 tokens do usuário (os de `last_seen_at` mais recente, até 60 dias). `sent` quando ≥ 1 token recebe 200; `sent_at` = primeiro 200. Sem token → `no_token`.
 3. **Status:** `pending`, `sent`, `failed`, `expired` (janela do §3 item 6 vencida), `suppressed` (`ALERT_DELIVERY_ENABLED=false`), `no_token`. [ADOTADO NA v2.0: variável `ALERT_DELIVERY_ENABLED`, padrão `true`, desligada em ensaio de restore e na standby antes da promoção, simétrica a `COMMAND_DISPATCH_ENABLED` de REQ-ARQ-016.]
 4. **Retentativa:** até 5 tentativas, esperas de 2, 4, 8 e 16 s × fator em [0,8; 1,2], respeitando `Retry-After` maior; para quando a janela vence (`expired`).
@@ -149,15 +155,16 @@ Tabela proposta para [04](04-dominio-e-dados.md): `alert_preference (id, operato
 | `GET /api/v1/me/alert-preferences?vehicleId=<uuid>` | Lista `{type, enabled, locked, available, params}` para os tipos da fase em vigor |
 | `PUT /api/v1/me/alert-preferences` com `{vehicleId, type, enabled, params?}` | 200; `sos` e `watch_mode_breach` com `enabled = false` → 422 `ALERT_PREFERENCE_LOCKED`; `overspeed.params.limitKmh` fora de 40–200 → 422; veículo fora do escopo → 404 |
 
-A preferência só decide a entrega ao usuário. O episódio é sempre registrado e aparece na fila da central.
+A preferência só decide a entrega ao usuário. O episódio é sempre registrado e aparece na fila da central. As duas rotas são só de `tenant_owner` e `tenant_member`; equipe da operadora recebe 403 `FORBIDDEN` ([09 §3](09-api-e-contratos.md)), porque não recebe push no F0–F1 [ADOTADO NA v2.0: T-012; escolha reversível, [15 §5](15-decisoes-riscos-premissas.md)].
 
 ## 9. Fila de alertas no console da central
 
 1. `GET /api/v1/alerts?status=open|acknowledged|closed&severity=&vehicleId=&from=&to=&cursor=`. Escopo operadora para `operator_admin`, `operator_agent` e `search_team`; usuários do cliente veem só os seus.
 2. Ordem: abertos sem reconhecimento primeiro; depois severidade (`critical` > `warning` > `info`); depois `started_at` crescente.
 3. Colunas: severidade, tipo (rótulo PT-BR), veículo (apelido e placa), cliente, início em BRT e duração, idade do último contato, reconhecido por e quando.
-4. Ações: **Reconhecer** (`POST /api/v1/alerts/{id}/acknowledge`, `{"note": "…"}` opcional até 500 caracteres; idempotente; grava `audit_log` `alert.acknowledge`); ver no mapa; WhatsApp ou telefone do cliente por deep link ([10](10-apps-e-ux.md)); abrir atendimento com `alert_id` (F1).
+4. Ações: **Reconhecer** (`POST /api/v1/alerts/{id}/acknowledge`, `{"note": "…"}` opcional até 500 caracteres; idempotente; grava `audit_log` `alert.acknowledge`; só `operator_admin`, `operator_agent` e `search_team`, usuário do cliente → 403 `FORBIDDEN` ([09 §3](09-api-e-contratos.md); permissão `alert.ack` só da equipe) [ADOTADO NA v2.0: T-011; escolha reversível, [15 §5](15-decisoes-riscos-premissas.md)]); ver no mapa; WhatsApp ou telefone do cliente por deep link ([10](10-apps-e-ux.md)); abrir atendimento com `alert_id` (F1).
 5. Atualização ao vivo pelo evento SSE `alert` (§11); alerta `critical` novo toca som com a aba aberta ([10](10-apps-e-ux.md)).
+6. No F0 a fila existe como API (T-011) e evento SSE; a tela C08 do console é F1 ([10](10-apps-e-ux.md) §9) e não tem cartão no F0.
 
 ## 10. Medição de latência
 
@@ -169,7 +176,7 @@ A preferência só decide a entrega ao usuário. O episódio é sempre registrad
 | t3 aberto | `evidence.timings.openedAt` | Relógio do worker ao inserir o alerta |
 | t4 enviado | `alert_delivery.sent_at` | Primeiro 200 do FCM |
 
-1. **Latência do alerta** = t4 − t0 da primeira entrega `sent`. Meta: p95 ≤ 30 s (SLO interno, F1); G0: p95 ≤ 60 s ([02 G0-5](02-escopo-e-fases.md)). Entregas `expired`, `suppressed` e de modo não ao vivo ficam fora.
+1. **Latência do alerta** = t4 − t0 de cada entrega `sent` (uma por usuário e episódio, como na consulta abaixo e no G0-5). Meta: p95 ≤ 30 s (SLO interno, F1); G0: p95 ≤ 60 s ([02 G0-5](02-escopo-e-fases.md)). Entregas `expired`, `suppressed` e de modo não ao vivo ficam fora.
 2. Métricas: `alert_latency_seconds{type,severity}` (t4 − t0); `alert_stage_seconds{stage}` com `ingest` (t1 − t0), `project` (t2 − t1), `evaluate` (t3 − t2), `deliver` (t4 − t3); `alerts_queue_oldest_age_seconds{queue}`; `alert_deliveries_total{status}`.
 3. **Minuto ruim por latência** (entrada do SLO de [13](13-infra-e-operacao.md)): o minuto m é ruim se (a) o p95 de t4 − t0 das entregas com `sent_at` em m passa de 120 s; ou (b) ao fim de m existe entrega `pending` com idade (fim de m − t0) > 120 s; ou (c) o job mais antigo de `alerts.evaluate` ou `alerts.deliver` tem mais de 120 s.
 
@@ -184,7 +191,7 @@ WHERE d.status = 'sent' AND d.sent_at >= $1 AND d.sent_at < $2;
 
 | Item | Regra |
 |---|---|
-| Autenticação | Sessão Better Auth por cookie (console) ou `Authorization: Bearer` (app). Token em query string nunca é aceito. Sem sessão → 401 |
+| Autenticação | Sessão Better Auth por cookie (console) ou `Authorization: Bearer` (app). Token em query string nunca é aceito. Sem sessão, ou sessão sem membership ativa (ex.: revogada), → 401 `AUTH_REQUIRED` (CT-ALR-019; exceção ao 404 de [08 §4](08-identidade-e-seguranca.md) item 3) |
 | Escopo | `?vehicleIds=<uuid>,<uuid>` (até 200). Ausente: todo o escopo da membership se ≤ 200 veículos; senão 422 `STREAM_SCOPE_TOO_LARGE` com `maxVehicles: 200`. Qualquer id fora do escopo → 404 para o pedido inteiro |
 | Limites | 200 veículos por conexão; 2 conexões por sessão (a 3ª abre e a mais antiga recebe `close` com `replaced`); vida máxima 60 min (`lifetime`); fila de saída > 500 eventos (`overflow`). Console com mais de 200 veículos divide o escopo em 2 conexões (Lider: ~300). [ADIADO PARA O F2: conexão de escopo operadora com até 1.000 veículos quando uma operadora passar de 400 veículos ativos (F2).] |
 | Cabeçalhos | `Content-Type: text/event-stream; charset=utf-8`, `Cache-Control: no-cache, no-transform`, `X-Accel-Buffering: no` |
@@ -212,14 +219,14 @@ data: {"vehicles":1,"openAlerts":1,"serverTime":"2026-10-20T15:20:01.002Z"}
 1. **Snapshot:** ao conectar, o servidor envia `retry: 5000`, um `vehicle.state` por veículo do escopo (revisão atual), os alertas abertos do escopo e `ready`. Depois, só mudanças.
 2. **Reconexão:** o cliente manda `Last-Event-ID`; o servidor sempre reenvia o snapshot completo (a revisão é por dispositivo, não cursor global). O cliente descarta `vehicle.state` com o mesmo `(vehicleId, deviceId)` e revisão menor ou igual à exibida; `deviceId` diferente substitui. `alert` é deduplicado por `alertId` com precedência `closed` > `acknowledged` > `open` (INV-04).
 3. **`close`:** `session_revoked` e `session_expired` levam ao login, sem reconexão; `replaced`, `lifetime`, `overflow` e `shutdown` reconectam com espera de 1 s dobrando até 30 s, ± 20%.
-4. **Campos:** `position` é `null` sem fix válido; `ignition`, `relayState` e `powerState` seguem INV-03 (`null`/`unknown`, nunca `false` por ausência). `presence` é calculado na emissão por `packages/domain/src/alerts/presence.ts` e recalculado no cliente a cada 10 s com a mesma tabela: `lost_moving` (regra do `signal_lost_moving`), `offline` (contato > 1.800 s), `delayed` (contato > `stopped_interval_s` + 60 s; J16: 360 s), senão `online`.
+4. **Campos:** `position` é `null` sem fix válido; `ignition`, `relayState` e `powerState` seguem INV-03 (`null`/`unknown`, nunca `false` por ausência). `presence` é calculado na emissão por `packages/domain/src/alerts/presence.ts` e recalculado no cliente a cada 10 s com a mesma tabela: `lost_moving` (regra do `signal_lost_moving`, com idade do contato ≥ `max(180 s, 3 × moving_interval_s)`), `offline` (sem contato registrado ou idade ≥ 1.800 s), `delayed` (idade ≥ `stopped_interval_s` + 60 s; J16: 360 s), senão `online`. Os limiares de presença são inclusivos (`≥`): com exatamente 360 s o selo já é `delayed` (CT-UX-004) [ADOTADO NA v2.0: T-008]. A abertura dos alertas do §4 continua com `>`.
 5. O app usa SSE só em primeiro plano; em segundo plano, push ([ADR-008](../adr/ADR-008-contrato-primeiro-zod-openapi-sse.md)). Visitante de link compartilhado usa fluxo próprio ([08](08-identidade-e-seguranca.md)).
 
 ## 12. Invariantes aplicadas
 
 | INV | Como este capítulo cumpre |
 |---|---|
-| INV-03 | Ignição NULL não abre `ignition_on` nem violação por ignição; `power_state` `unknown` não fecha `power_cut`; velocidade NULL não conta para `overspeed`; capacidade `null` torna o tipo indisponível; SSE envia `null`, nunca `false` por ausência |
+| INV-03 | Ignição NULL não abre `ignition_on` nem violação por ignição; `power_state` `unknown` não fecha `power_cut`; velocidade NULL não conta para `overspeed`; capacidade `'unknown'` torna o tipo indisponível; SSE envia `null`, nunca `false` por ausência |
 | INV-04 | `id` do SSE = revisão; cliente descarta revisão menor ou igual; snapshot completo na reconexão |
 | INV-05 | Modo diferente de `live` registra o episódio sem `alert_delivery`; `ALERT_DELIVERY_ENABLED=false` em restore e standby; job repetido não duplica (`episode_key`, `delivery_key`) |
 | INV-07 | Fila, preferências e SSE leem sob o RLS da sessão; jobs releem sob o RLS do evento ([03 REQ-ARQ-010](03-arquitetura.md)) |
@@ -229,7 +236,7 @@ data: {"vehicles":1,"openAlerts":1,"serverTime":"2026-10-20T15:20:01.002Z"}
 ### REQ-ALR-001 — Catálogo e disponibilidade por hardware
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** INV-03
 **Regra.** O motor DEVE implementar os tipos do §2 com gatilho, severidade e texto da tabela, e NÃO DEVE abrir alerta de tipo indisponível para o perfil do dispositivo primário.
-**Aceite.** CT-ALR-001 — Dado V1 com perfil `sos = null`, Quando chega posição com `alarm = "sos"`, Então nenhum alerta é aberto, `alerts_unexpected_alarm_total{alarm="sos"}` vale 1 e as preferências de V1 mostram `sos` com `available = false`; Dado perfil `sos = true`, Então abre 1 alerta `sos` com severidade `critical`.
+**Aceite.** CT-ALR-001 — Dado V1 com perfil `sos = 'unknown'`, Quando chega posição com `alarm = "sos"`, Então nenhum alerta é aberto, `alerts_unexpected_alarm_total{alarm="sos"}` vale 1 e as preferências de V1 mostram `sos` com `available = false`; Dado perfil `sos = 'yes'`, Então abre 1 alerta `sos` com severidade `critical`.
 
 ### REQ-ALR-002 — Ignição ligada
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** INV-03
@@ -244,17 +251,17 @@ data: {"vehicles":1,"openAlerts":1,"serverTime":"2026-10-20T15:20:01.002Z"}
 ### REQ-ALR-004 — Violação do modo vigilância
 **Fase:** F0 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** INV-03, INV-05
 **Regra.** `watch_mode_breach` DEVE abrir pela ignição observada após a ativação ou por 2 fixes válidos consecutivos fora do raio, 1 vez por ativação.
-**Aceite.** CT-ALR-004 — Dado modo ativo com âncora (−5,0892110, −42,8018920), raio 150 m e perfil `ignition = null`, Quando chegam fixes válidos em (−5,0880110, …) a 133 m e depois em (−5,0874110, …) a 200 m, Então nenhum alerta; Quando chega o 2º fix seguido a 200 m, Então abre 1 `watch_mode_breach` com `evidence.trigger = "distance"` e push `critical`; Quando chega um 3º fix fora, Então nenhum alerta novo.
+**Aceite.** CT-ALR-004 — Dado modo ativo com âncora (−5,0892110, −42,8018920), raio 150 m e perfil `ignition = 'unknown'`, Quando chegam fixes válidos em (−5,0880110, …) a 133 m e depois em (−5,0874110, …) a 200 m, Então nenhum alerta; Quando chega o 2º fix seguido a 200 m, Então abre 1 `watch_mode_breach` com `evidence.trigger = "distance"` e push `critical`; Quando chega um 3º fix fora, Então nenhum alerta novo.
 
 ### REQ-ALR-005 — Corte de alimentação
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** INV-03
 **Regra.** `power_cut` DEVE seguir catálogo e episódios (§2, §6); sinais repetidos com episódio aberto NÃO DEVEM gerar novo push. Gatilho real do J16: [VALIDAR — DEC-02].
-**Aceite.** CT-ALR-005 — Dado perfil `power_cut_alarm = true` e `power_source = "charge"`, Quando chega `alarm = "powerCut"` às 03:10:00Z, Então abre 1 alerta e 1 push; Quando chega outro `powerCut` às 03:12:00Z, Então `evidence.signalCount = 2` e 0 push novo; Quando chega `charge = true` às 03:20:00Z, Então fecha com `power_restored` e sai 1 push `info` "Gol prata: energia do veículo restabelecida às 00:20."
+**Aceite.** CT-ALR-005 — Dado perfil `power_cut_alarm = 'yes'` e `power_source = "charge"`, Quando chega `alarm = "powerCut"` às 03:10:00Z, Então abre 1 alerta e 1 push; Quando chega outro `powerCut` às 03:12:00Z, Então `evidence.signalCount = 2` e 0 push novo; Quando chega `charge = true` às 03:20:00Z, Então fecha com `power_restored` e sai 1 push `info` "Gol prata: energia do veículo restabelecida às 00:20."
 
 ### REQ-ALR-006 — SOS
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** INV-01
 **Regra.** `sos` DEVE abrir por alarme de posição ou de evento, juntar sinais do mesmo episódio, fechar no reconhecimento e não ser desativável.
-**Aceite.** CT-ALR-006 — Dado perfil `sos = true`, Quando a posição e o evento `alarm` do mesmo acionamento chegam com 2 s de diferença, Então existe 1 alerta e 1 push por usuário; Quando `agente.alfa` reconhece, Então `ended_at` é preenchido com `acknowledged`; Quando novo `sos` chega 1 min depois, Então abre novo alerta e novo push; `PUT` de preferência `sos` com `enabled = false` → 422 `ALERT_PREFERENCE_LOCKED`.
+**Aceite.** CT-ALR-006 — Dado perfil `sos = 'yes'`, Quando a posição e o evento `alarm` do mesmo acionamento chegam com 2 s de diferença, Então existe 1 alerta e 1 push por usuário; Quando `agente.alfa` reconhece, Então `ended_at` é preenchido com `acknowledged`; Quando novo `sos` chega 1 min depois, Então abre novo alerta e novo push; `PUT` de preferência `sos` com `enabled = false` → 422 `ALERT_PREFERENCE_LOCKED`.
 
 ### REQ-ALR-007 — Sem comunicação e incidente de plataforma
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** INV-03

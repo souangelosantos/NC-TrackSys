@@ -449,7 +449,7 @@ Console envia `stepUp: { "kind": "console_totp" }`. Outros códigos: 503 `COMMAN
 ## 15. Auditoria e UX mínima
 
 1. `command_event` em toda transição e evidência; append-only; 5 anos. `audit_log`: `command.request` (`success`/`denied`), `command.cancel`, `command.contingency`, `command_policy.create`, `command.block_terms.accept`, com `correlation_id`.
-2. Textos de efeito em `packages/domain/src/commands/texts.ts`, mostrados na confirmação antes do step-up:
+2. Textos de efeito em `packages/domain/src/commands/texts.ts` (T-016, F1), mostrados na confirmação antes do step-up. No F0 o arquivo ainda não existe: o cadastro de vínculo (T-007) mostra só o nome do ponto de corte e não escreve texto de segurança próprio.
 
 | `cut_point` | Texto obrigatório |
 |---|---|

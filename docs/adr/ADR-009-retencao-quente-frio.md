@@ -19,7 +19,7 @@
 6. **Expurgo quente:** uma partição diária só é removida quando tem mais de 90 dias **e** o mês dela foi exportado e verificado.
 7. **Expurgo frio:** o arquivo do mês M é apagado quando o último dia do mês completa 12 meses. Se um `legal_hold` cobrir a operadora e o mês, o `worker` grava antes `cold/holds/<legal_hold_id>/positions.parquet` só com o veículo e o período retidos e então apaga o arquivo do mês.
 8. **Consulta fria:** "solicitar relatório" no app ou no console cria um pedido sob RLS. O `worker` lê com DuckDB só o prefixo `operator_id=` do pedido e filtra `tenant_id`, `vehicle_id` e intervalo; o resultado (CSV ou PDF com hash) vai para o object storage com link temporário ([08](../spec/08-identidade-e-seguranca.md)).
-9. O Traccar guarda só 7 dias ([ADR-003](ADR-003-traccar-borda-de-protocolos.md)). Envelope bruto da inbox: 7 dias; identidade de dedupe: 90 dias ([05](../spec/05-ingestao-e-telemetria.md)).
+9. O Traccar guarda só 7 dias ([ADR-003](ADR-003-traccar-borda-de-protocolos.md)). Envelope bruto da inbox: 7 dias; identidade de dedupe e `payload_sha256`: 90 dias ([05](../spec/05-ingestao-e-telemetria.md)).
 10. Primeiro ciclo completo (export, verificação e expurgo) operando até 31/01/2027 (F1).
 
 ## Alternativas consideradas

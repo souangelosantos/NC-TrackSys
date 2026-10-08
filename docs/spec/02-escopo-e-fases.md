@@ -83,17 +83,25 @@ Proposta de cartões; cada um é escrito em `tasks/T-NNN-*.md` com aceite congel
 | T-002 | Spike J16 em bancada: capturas, `capability_profile` draft | S1 | Hardware na bancada | N1 | [05](05-ingestao-e-telemetria.md), [06](06-comandos-e-bloqueio.md) |
 | T-003 | VM primária, Docker Compose, firewall e DNS | S1 | DEC-12 | N1 | [13](13-infra-e-operacao.md) |
 | T-004 | Contratos iniciais (Zod → OpenAPI 3.1 → clientes TS e Dart) | S1 | T-001 | N1 | [09](09-api-e-contratos.md) |
-| T-005 | Ingestão Traccar → `ingest_inbox` → `position`/`device_state`/`outbox` | S2 | T-001, T-002, T-004 | N1 | [05](05-ingestao-e-telemetria.md) |
+| T-005 | Ingestão Traccar → `ingest_inbox` → `position`/`device_state`/`outbox` | S2 | T-001, T-002, T-004 | N1; trechos N0 | [05](05-ingestao-e-telemetria.md) |
 | T-006 | Autenticação (Better Auth) e contexto RLS por requisição | S2 | T-001, T-004 | N0 | [08](08-identidade-e-seguranca.md) |
-| T-007 | Console: login e cadastro de cliente, veículo, rastreador e vínculo | S2 | T-006 | N2 | [10](10-apps-e-ux.md) |
-| T-008 | Console: mapa ao vivo (SSE) e histórico por veículo/dia | S2 | T-005, T-006 | N2 | [10](10-apps-e-ux.md), [07](07-alertas-e-tempo-real.md) |
-| T-009 | App: login, lista, mapa ao vivo com estados honestos, marca básica | S2 | T-004, T-006 | N2 | [10](10-apps-e-ux.md) |
-| T-010 | App: histórico do dia e deep links (WhatsApp, navegação) | S3 | T-009 | N2 | [10](10-apps-e-ux.md) |
-| T-011 | Motor de alertas do F0 | S3 | T-005, T-002 | N1 | [07](07-alertas-e-tempo-real.md) |
-| T-012 | Push FCM: tokens, `alert_delivery`, recebimento no app | S3 | T-011, T-009 | N1 | [07](07-alertas-e-tempo-real.md) |
+| T-007 | Console: login e cadastro de cliente, veículo, rastreador e vínculo | S2 | T-004, T-005, T-006 | N2 na UI; N1 no módulo `fleet` da API | [10](10-apps-e-ux.md) |
+| T-008 | Console: mapa ao vivo (SSE) e histórico por veículo/dia | S2 | T-005, T-006, T-007 | N2 na UI; N0 no servidor | [10](10-apps-e-ux.md), [07](07-alertas-e-tempo-real.md) |
+| T-009 | App: login, lista, mapa ao vivo com estados honestos, marca básica | S2 | T-004, T-006, T-008 | N2 | [10](10-apps-e-ux.md) |
+| T-010 | App: histórico do dia, deep links (WhatsApp, navegação) e distribuição F0 (REQ-UX-030) | S3 | T-008, T-009 | N2 | [10](10-apps-e-ux.md) |
+| T-011 | Motor de alertas do F0 | S3 | T-002, T-005, T-006 | N1 | [07](07-alertas-e-tempo-real.md) |
+| T-012 | Push FCM: tokens, `alert_delivery`, recebimento no app | S3 | T-011, T-009 | N1; trechos N0 | [07](07-alertas-e-tempo-real.md) |
 | T-013 | Deploy, backup WAL-G, restore testado e sondas | S3 | T-003 | N1 | [13](13-infra-e-operacao.md) |
 | T-014 | Migração manual por SMS e rollback | S3–S4 | T-005, DEC-02, DEC-04 | N1 | [11](11-onboarding-e-migracao.md) |
 | T-015 | Consultas do G0 (lacunas, reconciliação, latência de alerta) | S4 | T-005, T-012 | N2 | este capítulo |
+| T-019 | Guardas de processo no CI | S1–S2 | T-001 | N0 | [14](14-qualidade-e-processo-ia.md) |
+
+[ADOTADO NA v2.0] Regras da tabela, alinhadas com os cartões:
+
+- **"N1; trechos N0"**: a tarefa segue o rito N1, mas a migration, `catalog-allowlist.json`, a CAT-07 e toda função `SECURITY DEFINER` dela (T-005: 5 funções; T-012: `app.claim_push_token`) exigem revisão adversarial de outro fornecedor e leitura humana linha a linha (`AGENTS.md`). **"N0 no servidor"** (T-008): `apps/api/src/realtime/**`, `apps/api/src/telemetry/**` e a migration de índice seguem o rito N0, porque REQ-ALR-016, REQ-ALR-019 e REQ-API-008 são N0.
+- **Dependências de dados.** T-007 usa `capability_profile`, `sim_card`, `device`, `device_assignment`, `device_state` e o helper de outbox da T-005 e religa `device_state` ao abrir ou encerrar vínculo (CT-DAD-011, 2ª parte). T-008 entrega a metade HTTP/SSE do CT-NEG-017 e usa o esqueleto do console da T-007 (plano B: esqueleto mínimo). T-009 consome as rotas de estado e o SSE da T-008, na mesma semana (plano B: fixtures). T-010 usa a rota de histórico da T-008. T-011 usa sessão, contexto RLS por requisição e `audit_log` da T-006. T-012 usa um helper de sessão de teste (`signInAs` ou equivalente) que a T-006 exporta em `packages/testkit`.
+- **Donos de fronteira.** `GET /api/v1/vehicles` e `GET /api/v1/vehicles/{id}`: dono T-008 (estado honesto, REQ-API-011); se a T-007 criar a rota antes, a T-008 a estende. Evento SSE `alert`: a T-008 entrega a porta `AlertSource` com `NullAlertSource` e o LISTEN `alert_changed`; o adaptador SQL sobre `app.alert` entra na T-011. `GET`/`PUT /api/v1/operator/brand`: sem dono no F0; o app usa o `brand` devolvido por `GET /api/v1/me` (T-006; a T-009 completa com `loadBrand` se faltar). Provisionamento no Traccar (criar o dispositivo no Traccar e gravar `device.traccar_device_id`, que leva `provisioning` de `pending` para `done`): sem dono no F0. Sem ele, a ingestão põe toda mensagem em quarentena `device_identity_mismatch` ([04](04-dominio-e-dados.md) §4.1). [DECISÃO DO FUNDADOR PENDENTE — recomendação: subcomando `pilot provision` na T-014, que cria o dispositivo pela API do Traccar e grava o id como `tracksys_app` com contexto da operadora, igual ao corte 5 da seção 2.4; para a demonstração de 20/10, o fundador faz o mesmo passo à mão com o J16 de bancada; job automático do worker no F1, com o importador.]
+- **Sem cartão no F0** (cada cartão afetado registra a lacuna no PR): reconciliação e backfill (REQ-ING-016); retenção da inbox e `app.retention_purge` (REQ-ING-018, REQ-DAD-013); métricas e pages da ingestão (REQ-ING-021) e a exposição Prometheus da porta `Metrics`; teste de desempenho CT-DAD-012; fila de alertas no console ([07 §9](07-alertas-e-tempo-real.md)); telas A05 Alertas e A06 Modo vigilância (REQ-UX-009, REQ-UX-010) [DECISÃO DO FUNDADOR PENDENTE — recomendação: anexar A05 e A06 à T-012, que já entrega o recebimento do push no app, ou aceitar como corte registrado].
 
 **Caminho crítico:** T-002 → T-005 → T-011 → T-012 → T-014 → 48 h → G0. Atraso em qualquer elo aciona o plano de corte.
 
@@ -126,14 +134,18 @@ Pré-condições: DEC-02 resolvida; domínio definitivo (DEC-04) no ar antes do 
 | G0-3 | App mostra mapa ao vivo | Roteiro manual com 2 contas `tenant_owner` de clientes diferentes, em 1 Android (teste fechado) e 1 iPhone (TestFlight; dispensado só se o corte 6 for aplicado): veículo aparece; posição nova aparece sem recarregar; estado "sem sinal" aparece com o J16 de bancada desligado. Vídeo ≤ 2 min por plataforma | 100% dos passos |
 | G0-4 | App mostra histórico | Mesmo roteiro: trajeto do dia anterior de 1 veículo; horário do 1º e do último ponto igual ao da API de histórico | 100% dos passos |
 | G0-5 | Alertas entregues p95 ≤ 60 s | Consulta de T-015: por `alert_delivery` `status = 'sent'` na janela, latência = `sent_at` − recebimento da mensagem de origem pelo Traccar (`serverTime`, ver [05](05-ingestao-e-telemetria.md)); para "sem comunicação", origem = instante em que o limiar foi cruzado. Amostra ≥ 20 entregas, com ≥ 1 alerta provocado de cada tipo ativo no F0 | p95 ≤ 60 s |
-| G0-6 | CT de isolamento verde no CI | Pipeline do commit implantado em produção: suíte de isolamento de [04](04-dominio-e-dados.md) e [08](08-identidade-e-seguranca.md) mais CT-NEG-017 (fatia vertical) | 0 falha; 0 teste pulado |
+| G0-6 | CT de isolamento verde no CI | Pipeline do commit implantado em produção: suíte de isolamento de [04](04-dominio-e-dados.md) e [08](08-identidade-e-seguranca.md) mais CT-NEG-017 (fatia vertical, nas suítes da T-005 e da T-008) | 0 falha; 0 teste pulado |
 | G0-7 | 1 restore de backup testado | Restaurar base + WAL do WAL-G em ambiente limpo; medir duração e perda; contagens por tabela iguais às de produção no instante-alvo; worker restaurado não envia push nem comando (INV-05) | Duração ≤ 2 h; perda ≤ 5 min |
 | G0-8 | Rollback de SMS em 1 veículo | SMS devolve 1 veículo ao servidor da SmartGPS; a Lider confirma o veículo transmitindo no tracker-net; depois o veículo é migrado de novo | Transmissão no tracker-net ≤ 10 min após o SMS |
 | G0-9 | Termo de participação assinado | 1 termo por titular de veículo do piloto, assinado antes do SMS de migração; o termo informa se o veículo fica sem bloqueio remoto durante o piloto | Termos = titulares do piloto |
 
+[ADOTADO NA v2.0] Regras de avaliação da T-015 (tabela completa no cartão). Sem medida, o item fica `pendente`, nunca `ok` (INV-03).
+- **G0-1:** contam só veículos com pelo menos 1 mensagem na janela. A lacuna é explicada por uma linha de "Lacunas explicadas" do mesmo veículo que a cubra com tolerância de ±60 s, com causa e evidência. Janela menor que 48 h deixa o item `pendente`.
+- **G0-5:** a latência é medida em toda entrega `sent` da janela. Fica `falhou` com p95 > 60 s ou com entrega sem instante de origem, mesmo com amostra pequena. Fica `pendente` com menos de 20 entregas ou com tipo ativo sem entrega; nesse caso, o fundador provoca mais alertas e roda de novo.
+
 ## 3. Primeira fatia vertical
 
-Objetivo: provar, antes de ampliar a superfície, as decisões mais caras de errar: isolamento em 3 níveis, identidade de origem, atualidade e recuperação após falha. Prazo: 20/10/2026 (fim do S2). Aceite automatizado em `tests/acceptance/T-005/` com capturas reais do J16 (`packages/testkit`); demonstração manual com o J16 de bancada ao vivo, registrada em `docs/runbooks/gates/G0.md`.
+Objetivo: provar, antes de ampliar a superfície, as decisões mais caras de errar: isolamento em 3 níveis, identidade de origem, atualidade e recuperação após falha. Prazo: 20/10/2026 (fim do S2). Aceite automatizado em `tests/acceptance/T-005/` (ingestão e banco) e `tests/acceptance/T-008/` (passos 2 a 5: visibilidade, 404 e SSE) com capturas reais do J16 (`packages/testkit`); demonstração manual com o J16 de bancada ao vivo, registrada em `docs/runbooks/gates/G0.md`.
 
 | Dado de teste | Valor |
 |---|---|
@@ -332,6 +344,8 @@ Cada gate tem um arquivo `docs/runbooks/gates/<GATE>.md` (`G0.md`, `G-CMD.md`, `
 ## Lacunas explicadas
 ```
 
+[ADOTADO NA v2.0] Quem escreve o `G0.md`, sem apagar o que já existe: T-005, T-008 e T-012 acrescentam o registro das suas demonstrações; T-014 cria "Migração do piloto" e "Termos de participação (G0-9)"; T-015 acrescenta `## Itens` (tabela gerada entre os marcadores `<!-- g0:itens:inicio -->` e `<!-- g0:itens:fim -->`), `## Cortes` e `## Lacunas explicadas`, se ainda não existirem. No `G0.md`, o veículo aparece pelo IMEI mascarado (`***0017`) e o titular por código (`T01`), nunca por placa ou nome (REQ-QLD-016).
+
 ## 11. Requisitos
 
 ### REQ-NEG-010 — Gate G0
@@ -359,7 +373,7 @@ CT-NEG-015 — Dado 300 veículos na planilha importada, 288 migrados, 12 exceç
 
 ### REQ-NEG-014 — Primeira fatia vertical
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-01, INV-02, INV-04, INV-05, INV-07
-**Regra.** Até 20/10/2026, o roteiro da seção 3 DEVE passar de ponta a ponta: automatizado em `tests/acceptance/T-005/` com capturas reais do J16 e demonstrado ao vivo com o J16 de bancada. Recurso fora do escopo do usuário DEVE responder como inexistente (404), sem revelar existência ([09](09-api-e-contratos.md)).
+**Regra.** Até 20/10/2026, o roteiro da seção 3 DEVE passar de ponta a ponta: automatizado com capturas reais do J16 (ingestão e banco em `tests/acceptance/T-005/`; a metade HTTP/SSE do CT-NEG-017, 404 em `GET /api/v1/vehicles/{V1}` e 0 evento SSE de V1 para `dono.a2` e `admin.beta`, em `tests/acceptance/T-008/`) e demonstrado ao vivo com o J16 de bancada. Recurso fora do escopo do usuário DEVE responder como inexistente (404), sem revelar existência ([09](09-api-e-contratos.md)).
 **Aceite.** CT-NEG-017 — Dado as operadoras Alfa e Beta, os clientes A1, A2 e B1, V1 com o J16 vinculado, V2 com dispositivo simulado e 5 payloads de V1 em movimento com `fix_time` P0 < P1 < P2 < P3 < P4, Quando P1 chega 10 vezes, P2 chega com a API morta antes do COMMIT e é reentregue, P3 chega com a API morta depois do COMMIT e é reentregue, P4 falha na projeção e é reprocessado após reinício do worker, e P0 chega por último, Então há exatamente 1 linha por payload em `ingest_inbox` e em `position` (5 de cada), `device_state` de V1 exibe o `fix_time` de P4 e sua `revision` nunca diminuiu, `dono.a2` e `admin.beta` recebem 404 em `GET /api/v1/vehicles/{V1}` e 0 evento SSE de V1, o `INSERT` com `tenant_id` de A1 sob contexto da Beta falha, e nenhum push sai em duplicidade.
 
 ### REQ-NEG-015 — Veículo com bloqueio só migra em onda após o G-CMD

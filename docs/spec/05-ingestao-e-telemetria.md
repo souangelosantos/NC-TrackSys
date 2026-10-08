@@ -87,9 +87,9 @@ Função pura `normalizeTraccar(envelope, profile)` em `packages/domain`. Campo 
 | `course` | graus | `course_deg` (int2) | `round(v) mod 360` | Fora de [0, 360] → NULL |
 | `altitude` | m | `altitude_m` (int2) | `round(v)` | Fora de [−500, 9.000] → NULL |
 | `attributes.sat` | — | `satellites` | inteiro | NULL |
-| `attributes.ignition` | bool | `ignition` | Só se perfil `ignition = true` | NULL |
+| `attributes.ignition` | bool | `ignition` | Só se perfil `ignition = "yes"` | NULL |
 | `attributes.alarm` | texto, vírgulas | `extra.alarms` (array) + flag `ALARM` | `split(',')`, nomes do Traccar (`sos`, `powerCut`, `powerRestored`, `lowBattery`, `jamming`…) | Sem alarme |
-| `attributes.blocked` | bool | `device_state.relay_state` (`blocked`/`unblocked`) + `relay_observed_at`; `extra.blocked` na mudança | Só se perfil `relay_state_reported = true` | `'unknown'` |
+| `attributes.blocked` | bool | `device_state.relay_state` (`blocked`/`unblocked`) + `relay_observed_at`; `extra.blocked` na mudança | Só se perfil `relay_state_reported = "yes"` | `'unknown'` |
 | `attributes.charge` ou `attributes.power` | bool / V | `device_state.power_state` | Conforme `power_source` do perfil (§13): `charge = true` ou `power ≥ power_main_min_v` → `main`; senão `battery` | `'unknown'` |
 | `attributes.batteryLevel`, `attributes.battery` | %, V | `device_state.aux.batteryLevel`, `aux.batteryV`; `extra.batteryLevel` ao mudar de faixa de 10 pontos | 0–100; 1 casa | NULL |
 | `attributes.distance`, `totalDistance`, `odometer` | m | `device_state.aux.totalDistanceM`, `odometerM` | inteiro | NULL |
@@ -98,7 +98,7 @@ Função pura `normalizeTraccar(envelope, profile)` em `packages/domain`. Campo 
 | `attributes.archive` | bool | flag `ARCHIVE` | Marca dado do buffer offline [VALIDAR — DEC-02] | — |
 | Demais atributos | — | Descartados da linha | Ficam no payload da inbox por 7 dias | — |
 
-`extra` é NULL na maioria das linhas; recebe só `alarms`, `blocked`, `powerState` e `batteryLevel` quando presentes ou mudados, até 1 KiB. `device_state.aux` (jsonb, 1 linha por dispositivo) guarda o estado auxiliar da projeção (§8, §9) — coluna a criar em [04](04-dominio-e-dados.md).
+`extra` é NULL na maioria das linhas; recebe só `alarms`, `blocked`, `powerState` e `batteryLevel` quando presentes ou mudados, até 1 KiB. `device_state.aux` (jsonb, 1 linha por dispositivo) guarda o estado auxiliar da projeção (§8, §9); DDL em [04](04-dominio-e-dados.md) §3.5.
 
 ### 4.1 Flags de `position.flags`
 
@@ -128,16 +128,17 @@ Função pura `normalizeTraccar(envelope, profile)` em `packages/domain`. Campo 
 2. Sem `id` na mensagem: se o perfil tem `source_id_strategy = 'fingerprint_v1'`, a chave é `fp1:` + SHA-256 hex de `deviceId|fixTime|latitude|longitude|speed|course|atributos ordenados`; senão, quarentena `missing_source_id`. Padrão: `traccar_id` [VALIDAR — DEC-02 se o forward traz `position.id`].
 3. `payload_sha256` = SHA-256 do JSON canônico (chaves ordenadas) do objeto `position` ou `event`, sem o objeto `device`.
 4. `INSERT … ON CONFLICT (source_instance, kind, source_event_id) DO NOTHING`. Conflito = duplicata: commit, 202 `duplicate`, nenhum efeito. Hash diferente na mesma chave: métrica `ingest_conflicting_duplicates_total` e log `warn` com a chave e os dois hashes; a linha original não muda.
-5. Regressão de id: o `api` mantém em memória o maior id numérico visto por `(source_instance, kind)`, carregado no boot das últimas 24 h da inbox. Id mais de 10.000 abaixo desse máximo, fora de backfill, vai para quarentena `source_id_regression` com alerta ao fundador (REQ-ARQ-013). Defesa em profundidade: índice único `position (device_id, fix_time, source_event_id)` (proposta para [04](04-dominio-e-dados.md)).
+5. Regressão de id: o `api` mantém em memória o maior id numérico visto por `(source_instance, kind)`, carregado no boot das últimas 24 h da inbox. Id mais de 10.000 abaixo desse máximo, fora de backfill, vai para quarentena `source_id_regression` com alerta ao fundador (REQ-ARQ-013).
+6. Defesa em profundidade em `position`: a PK `(assignment_id, fix_time)` de [04](04-dominio-e-dados.md) §3.5 (não há índice por `source_event_id`). O mesmo `fix_time` no mesmo vínculo com outro id do Traccar grava 1 linha (a primeira) via `ON CONFLICT (assignment_id, fix_time) DO NOTHING`; sem linha nova, não há `telemetry.position.accepted.v1`. A localização de `device_state` continua usando o desempate por id (§8).
 
 ## 6. Resolução do dispositivo e janela de tempo
 
-`app.resolve_device_for_ingest(p_traccar_device_id bigint, p_unique_id text, p_at timestamptz)` — SECURITY DEFINER, dono `tracksys_owner`, executável só por `tracksys_ingest` — devolve `device_id`, `operator_id`, `capability_profile_id`, `assignment_id`, `tenant_id`, `vehicle_id`, `is_primary` e `assignment_is_current` do vínculo com `p_at ∈ [valid_from, valid_to)`. O tenant vem sempre do servidor, nunca do payload (INV-07). Assinatura final: [04](04-dominio-e-dados.md).
+`app.resolve_device_for_ingest(source_instance text, unique_id text)` — SECURITY DEFINER, dono `tracksys_owner`, executável só por `tracksys_ingest`, assinatura e corpo em [04](04-dominio-e-dados.md) §4.4 — devolve 0 ou 1 linha `(device_id, operator_id)` do rastreador não aposentado com `imei = device.uniqueId`. Com o `operator_id`, a projeção abre o contexto `operator` (§7), trava `device_state`, confere `device.traccar_device_id` e lê sob RLS o vínculo com `p_at ∈ [valid_from, valid_to)` e o perfil. O tenant vem sempre do vínculo no servidor, nunca do payload (INV-07).
 
 | Situação | Resultado |
 |---|---|
-| `device.traccar_device_id` não encontrado | Quarentena `unknown_device` |
-| Encontrado, mas `device.imei ≠ device.uniqueId` do envelope | Quarentena `device_identity_mismatch` |
+| `device.uniqueId` não resolvido (função devolve 0 linhas) | Quarentena `unknown_device` |
+| Resolvido, mas `device.traccar_device_id` NULL ou ≠ `position.deviceId` do envelope | Quarentena `device_identity_mismatch` (rastreador ainda não provisionado no Traccar, ver [02](02-escopo-e-fases.md) §2.3) |
 | Sem vínculo em `p_at` | Quarentena `no_assignment` (instalador vê o status por função de [11](11-onboarding-e-migracao.md)) |
 | Vínculo encerrado em `p_at` | Só histórico, flag `PREVIOUS_ASSIGNMENT`; `device_state` intocado (INV-06) |
 
@@ -165,18 +166,19 @@ ON CONFLICT (source_instance, kind, source_event_id) DO NOTHING RETURNING id;
 -- 0 linhas: duplicata → COMMIT → 202 duplicate
 SAVEPOINT projection;
 -- 2. Resolução e quarentena (§6): se quarentenar → UPDATE inbox SET status='quarantined', error='<código>' → RELEASE → COMMIT → 202
-SELECT * FROM app.resolve_device_for_ingest($traccar_device_id, $unique_id, $p_at);
--- 3. Contexto RLS do cliente dono no fix_time
-SELECT set_config('app.operator_id', $op, true), set_config('app.scope', 'tenant', true), set_config('app.tenant_ids', '{' || $tenant || '}', true);
--- 4. Lock por dispositivo (só vínculo corrente)
-INSERT INTO app.device_state (device_id, operator_id, tenant_id, vehicle_id, revision, motion, relay_state, power_state, aux, updated_at)
-VALUES ($dev, $op, $tenant, $veh, 0, 'unknown', 'unknown', 'unknown', '{}', now()) ON CONFLICT (device_id) DO NOTHING;
-SELECT * FROM app.device_state WHERE device_id = $dev FOR UPDATE;   -- 0 linhas: erro device_state_out_of_scope
+SELECT device_id, operator_id FROM app.resolve_device_for_ingest($source_instance, $unique_id);
+-- 3. Contexto RLS da operadora dona (04 §4.1 item 4): tabelas tipo B só aceitam escrita no escopo operator
+SELECT set_config('app.operator_id', $op, true), set_config('app.scope', 'operator', true), set_config('app.tenant_ids', '', true);
+-- 4. Lock por dispositivo. A linha nasce com o device (04 §3.5); sem INSERT defensivo aqui
+SELECT * FROM app.device_state WHERE device_id = $dev FOR UPDATE;   -- 0 linhas: erro device_state_missing (fica pending)
+-- confere device.traccar_device_id = position.deviceId (§6); lê vínculo com p_at ∈ [valid_from, valid_to) e perfil, sob RLS
+-- vínculo corrente ≠ device_state.assignment_id: erro device_state_binding_mismatch (fica pending; quem religa é o módulo fleet)
 -- 5. decideProjection(estado, mensagem normalizada, perfil) → plano (packages/domain, puro)
-INSERT INTO app.position (...) VALUES (...);                          -- se o plano grava posição
-UPDATE app.device_state SET ..., revision = nextval('app.device_state_revision_seq'), updated_at = now()
+INSERT INTO app.position (...) VALUES (...)
+  ON CONFLICT (assignment_id, fix_time) DO NOTHING;                   -- se o plano grava posição (§5 item 6)
+UPDATE app.device_state SET ...                                        -- sem revision: o gatilho device_state_revision atribui
  WHERE device_id = $dev RETURNING revision;                           -- se o plano muda estado
-INSERT INTO app.outbox (operator_id, tenant_id, type, payload) VALUES (...) RETURNING id;   -- §10
+INSERT INTO app.outbox (operator_id, tenant_id, type, entity_id, payload) VALUES (...) RETURNING id;   -- §10
 SELECT pg_notify('outbox_new', $outbox_id::text), pg_notify('device_state', $json_ids);
 -- 6. Fecha a custódia
 UPDATE app.ingest_inbox SET status = 'processed', processed_at = now(), error = NULL WHERE id = $inbox;
@@ -186,7 +188,7 @@ COMMIT;   -- só então 202
 
 Falha em qualquer ponto entre `SAVEPOINT` e `RELEASE`: `ROLLBACK TO SAVEPOINT projection` (desfaz posição, estado, outbox, NOTIFY e contexto RLS), depois `UPDATE ingest_inbox SET error = '<código>: <mensagem ≤ 500 caracteres>', next_attempt_at = now() + backoff(1)` com status `pending`, `COMMIT` e 202 `pending`. Queda do processo antes do `COMMIT` não grava nada: o Traccar não recebe 202 e reenvia. Queda depois do `COMMIT` e antes da resposta: a reentrega cai no passo 1 como duplicata.
 
-A revisão vem de uma sequência global (`app.device_state_revision_seq`) chamada sob o lock da linha: é estritamente crescente por dispositivo e continua crescendo quando a linha é recriada após troca de vínculo (o módulo `fleet` apaga `device_state` ao encerrar um vínculo; [04](04-dominio-e-dados.md)). Para INV-04 equivale ao "revision + 1" de [03 §5](03-arquitetura.md), sem reiniciar em 1.
+A revisão vem do gatilho `device_state_revision` ([04](04-dominio-e-dados.md) §3.5), que usa a sequência global `app.device_state_revision_seq` sob o lock da linha: quem atualiza não passa `revision` e lê o valor com `RETURNING`. Ela é estritamente crescente por dispositivo e continua crescendo após troca de vínculo. A linha de `device_state` nunca é apagada: ao abrir ou encerrar vínculo, o módulo `fleet` zera a telemetria para NULL/`'unknown'` e religa `tenant_id`, `vehicle_id` e `assignment_id` na mesma transação (REQ-DAD-011). Para INV-04 equivale ao "revision + 1" de [03 §5](03-arquitetura.md), sem reiniciar em 1.
 
 ## 8. Ordenação e estado atual (INV-02, INV-04)
 
@@ -259,24 +261,25 @@ Regras: `cause` ∈ `position | heartbeat | event`; `processingMode` ∈ `live |
 | Reconciliação e backfill | Worker (§12) | `backfill` | Flag `BACKFILL` |
 | Republicação de eventos da outbox | CLI `ingest:republish` | `replay` | Só para recuperar consumidor; mesmo `eventId` |
 
-Eventos em modo diferente de `live` levam `processingMode` no payload; todo consumidor com efeito externo (push, comando, SMS, cobrança, indicação) o ignora para efeito, podendo só registrar ([07](07-alertas-e-tempo-real.md), [06](06-comandos-e-bloqueio.md)). Mensagens `processed` nunca são reprojetadas. Colunas `attempts` e `next_attempt_at` na inbox: a criar em [04](04-dominio-e-dados.md). Códigos de quarentena: `unknown_device`, `device_identity_mismatch`, `no_assignment`, `fix_time_in_future`, `fix_time_too_old`, `wnro_suspect`, `invalid_coordinates`, `missing_source_id`, `source_id_regression`, `projection_failed`.
+Eventos em modo diferente de `live` levam `processingMode` no payload; todo consumidor com efeito externo (push, comando, SMS, cobrança, indicação) o ignora para efeito, podendo só registrar ([07](07-alertas-e-tempo-real.md), [06](06-comandos-e-bloqueio.md)). Mensagens `processed` nunca são reprojetadas. Colunas `attempts` e `next_attempt_at` da inbox: [04](04-dominio-e-dados.md) §3.5. Códigos de quarentena: `unknown_device`, `device_identity_mismatch`, `no_assignment`, `fix_time_in_future`, `fix_time_too_old`, `wnro_suspect`, `invalid_coordinates`, `missing_source_id`, `source_id_regression`, `projection_failed`.
 
 ## 12. Queda prolongada, reconciliação e backfill
 
-1. **Reconciliação contínua:** job `ingest.reconcile` (pg-boss, `*/15 * * * *`). Para cada dispositivo com vínculo corrente, `GET /api/positions?deviceId=<traccar_device_id>&from=<now − 80 min>&to=<now − 20 min>` na API do Traccar (rota e parâmetros [VALIDAR — DEC-02]), até 4 requisições simultâneas. Ids ausentes na inbox são projetados em modo `backfill`. A janela sobreposta torna o job idempotente; o atraso de 20 min evita disputar com as retentativas do forward. `ingest_reconciled_missing_total > 0` fora de queda conhecida indica perda no forward e gera aviso.
+1. **Reconciliação contínua:** job `ingest.reconcile` (pg-boss, `*/15 * * * *`). Para cada dispositivo com vínculo corrente, `GET /api/positions?deviceId=<traccar_device_id>&from=<now − 80 min>&to=<now − 20 min>` na API do Traccar (rota e parâmetros [VALIDAR — DEC-02]; se `from`/`to` filtram por `fixTime`, fix do buffer offline com `fix_time` antigo fica fora da janela e só o backfill manual o recupera [VALIDAR — DEC-02]), até 4 requisições simultâneas. Ids ausentes na inbox são projetados em modo `backfill`. A janela sobreposta torna o job idempotente; o atraso de 20 min evita disputar com as retentativas do forward. `ingest_reconciled_missing_total > 0` fora de queda conhecida indica perda no forward e gera aviso.
 2. **Backfill manual** (queda > 1 h do `api` ou do banco): `ingest:backfill -- --from <RFC 3339> --to <RFC 3339> [--device <uuid>]`, limitado aos 7 dias retidos no Traccar (runbook em [13](13-infra-e-operacao.md)). Lacuna sem recuperação (fora dos 7 dias ou buffer perdido) não é inventada: histórico e relatórios a mostram ([10](10-apps-e-ux.md)).
 3. **Buffer offline do J16:** sem cobertura, o J16 guarda fixes e os envia ao reconectar [VALIDAR — DEC-02]. Chegam ao vivo com `fix_time` antigo: viram histórico (`LATE` ou atual, conforme §8), dentro da janela de 30 dias. Alertas sobre fato antigo seguem a regra de atraso de [07](07-alertas-e-tempo-real.md).
 
 ## 13. Perfil de normalização (por `capability_profile`)
 
-O perfil vem de `device.capability_profile_id`; a seção `normalization` vive dentro de `capability_profile.capabilities` e é versionada com o perfil (mudança cria nova `version`; o evento registra `normalizationProfile` = `<modelo>/<versão>`). Capacidade `null` = não validada = tratada como ausente. Sem perfil, vale o embutido `generic-traccar/1`: tudo `null`, `source_id_strategy = 'traccar_id'`. Rascunho do J16 antes do spike (cada `null` vira `true`/`false` com `evidence_ref` da captura do §15):
+O perfil vem de `device.capability_profile_id`; a seção `normalization` vive dentro de `capability_profile.capabilities` e é versionada com o perfil (mudança cria nova `version`; o evento registra `normalizationProfile` = `<modelo>/<versão>`). As 11 capacidades de [04](04-dominio-e-dados.md) §3.3 usam `"yes"`, `"no"` ou `"unknown"` (INV-03); só `"yes"` habilita o uso do atributo, e `"unknown"` = não validada = tratada como ausente. Sem perfil, vale o embutido `generic-traccar/1`: todas as capacidades `"unknown"`, `source_id_strategy = 'traccar_id'`. Os campos de `normalization` mantêm os tipos da tabela abaixo. Formato do rascunho do J16 (T-002; cada capacidade só vira `"yes"`/`"no"` com arquivo de captura do §15 em `evidence`, o resto fica `"unknown"`):
 
 ```json
 {
-  "ignition": true, "relay": true, "relay_state_reported": null, "power_cut_alarm": null, "sos": null,
-  "offline_buffer": null, "accelerometer": null,
+  "relay": "yes", "relay_state_reported": "unknown", "ignition": "yes", "power_cut_alarm": "unknown", "sos": "unknown",
+  "accelerometer": "unknown", "device_speed_gate": "unknown", "secondary_server": "unknown", "domain_support": "unknown",
+  "sms_position": "unknown", "offline_buffer": "unknown",
   "normalization": {
-    "version": 1, "source_id_strategy": "traccar_id", "power_source": "charge", "power_main_min_v": null,
+    "version": 1, "source_id_strategy": "traccar_id", "power_source": null, "power_main_min_v": null,
     "wnro_correction": false, "store_invalid_fix": false, "trust_motion_attribute": false,
     "archive_attribute": null, "moving_interval_s": 30, "stopped_interval_s": 300
   }
@@ -293,7 +296,7 @@ O perfil vem de `device.capability_profile_id`; a seção `normalization` vive d
 
 ## 14. Retenção da inbox
 
-Job diário `ingest.retention` (pg-boss, `30 3 * * *` UTC), em lotes de 10.000 linhas com pausa de 100 ms: `payload = NULL` quando `received_at < now() − 7 dias`; `DELETE` quando `received_at < now() − 90 dias` (identidade de dedupe). Vale para todos os status. No mês 12 a inbox guarda ~135 milhões de identidades (~1,5 milhão por dia); o dimensionamento de disco entra em [04](04-dominio-e-dados.md) e [13](13-infra-e-operacao.md).
+Job diário `ingest.retention` (pg-boss, `7 3 * * *` UTC, o horário de [04](04-dominio-e-dados.md) §8.1), em lotes de 10.000 linhas com pausa de 100 ms: `payload = NULL` quando `received_at < now() − 7 dias`; `DELETE` quando `received_at < now() − 90 dias`. `payload_sha256` fica com a identidade de dedupe até o DELETE, para que o conflito de hash do §5 continue detectável sem o payload [ADOTADO NA v2.0]. Vale para todos os status, salvo `pending`, que nunca é apagada. No F0, este job não tem cartão ([02](02-escopo-e-fases.md) §2.3). No mês 12 a inbox guarda ~135 milhões de identidades (~1,5 milhão por dia); o dimensionamento de disco entra em [04](04-dominio-e-dados.md) e [13](13-infra-e-operacao.md).
 
 ## 15. Spike do J16 (T-002): o que capturar
 
@@ -376,11 +379,11 @@ Logs: nunca coordenadas, IMEI completo, segredo ou payload ([03 REQ-ARQ-014](03-
 ### REQ-ING-007 — Desconhecido não vira zero
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** INV-03
 **Regra.** Atributo ausente, perfil sem a capacidade ou valor inválido DEVEM resultar em NULL/`unknown`; a ausência NÃO DEVE apagar valor observado antes.
-**Aceite.** CT-ING-007 — Dado um dispositivo novo e uma posição sem `ignition` nem `blocked`, Então `position.ignition` é NULL, `device_state.ignition` é NULL e `relay_state = 'unknown'`; Dado `device_state.ignition = true` e um heartbeat sem `ignition`, Então `device_state.ignition` continua `true`; Dado perfil com `ignition = null` e `attributes.ignition = false`, Então `position.ignition` é NULL.
+**Aceite.** CT-ING-007 — Dado um dispositivo novo e uma posição sem `ignition` nem `blocked`, Então `position.ignition` é NULL, `device_state.ignition` é NULL e `relay_state = 'unknown'`; Dado `device_state.ignition = true` e um heartbeat sem `ignition`, Então `device_state.ignition` continua `true`; Dado perfil com `ignition = "unknown"` e `attributes.ignition = false`, Então `position.ignition` é NULL.
 
 ### REQ-ING-008 — Dono resolvido no servidor pelo vínculo no tempo
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-06, INV-07
-**Regra.** O dono do fato DEVE vir de `app.resolve_device_for_ingest` pelo vínculo vigente em `p_at`; ids de tenant no payload NÃO DEVEM ser lidos. Fato de vínculo encerrado DEVE ir só para o histórico do dono antigo.
+**Regra.** A operadora dona DEVE vir de `app.resolve_device_for_ingest`, e o cliente dono, do vínculo vigente em `p_at` lido sob RLS no escopo `operator` (§6, §7); ids de tenant no payload NÃO DEVEM ser lidos. Fato de vínculo encerrado DEVE ir só para o histórico do dono antigo.
 **Aceite.** CT-ING-008 — Dado o dispositivo D vinculado ao cliente A1 até 2026-10-20T12:00:00Z e ao cliente A2 desde então, Quando chega posição de D com `fix_time = 2026-10-20T11:59:00Z` às 12:05, Então a linha em `position` tem `tenant_id` de A1 e flag `PREVIOUS_ASSIGNMENT` (512), e o `device_state` de A2 não muda; Dado IMEI sem `device`, Então quarentena `unknown_device`.
 
 ### REQ-ING-009 — Janela de tempo e WNRO
@@ -426,12 +429,12 @@ CT-ING-022 — Dado o processo `api` morto (SIGKILL) depois do INSERT na inbox e
 
 ### REQ-ING-017 — Perfil de normalização
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** INV-03
-**Regra.** A normalização DEVE ler `capabilities.normalization` do perfil do dispositivo (§13); sem perfil, `generic-traccar/1`; capacidade `null` DEVE ser tratada como ausente.
-**Aceite.** CT-ING-017 — Dado um dispositivo sem `capability_profile_id` e `attributes.blocked = true`, Então `relay_state = 'unknown'`; Dado perfil J16 com `relay_state_reported = true`, Então `relay_state = 'blocked'` e `relay_observed_at = observedAt`; Dado `power_source = 'charge'` e `charge = false`, Então `power_state = 'battery'`.
+**Regra.** A normalização DEVE ler `capabilities.normalization` do perfil do dispositivo (§13); sem perfil, `generic-traccar/1`; capacidade `"unknown"` ou `"no"` DEVE ser tratada como ausente.
+**Aceite.** CT-ING-017 — Dado um dispositivo sem `capability_profile_id` e `attributes.blocked = true`, Então `relay_state = 'unknown'`; Dado perfil J16 com `relay_state_reported = "yes"`, Então `relay_state = 'blocked'` e `relay_observed_at = observedAt`; Dado `power_source = 'charge'` e `charge = false`, Então `power_state = 'battery'`.
 
 ### REQ-ING-018 — Retenção da inbox
 **Fase:** F0 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** INV-01
-**Regra.** O job do §14 DEVE anular o payload após 7 dias e apagar a linha após 90 dias, em lotes.
+**Regra.** O job do §14 DEVE anular o payload após 7 dias, manter `payload_sha256` com a identidade e apagar a linha após 90 dias, em lotes (mesma regra de CT-DAD-013, [04](04-dominio-e-dados.md)).
 **Aceite.** CT-ING-018 — Dado linhas com `received_at` há 6, 8 e 91 dias, Quando `ingest.retention` roda, Então a de 6 dias mantém o payload, a de 8 tem `payload` NULL e `payload_sha256` intacto, a de 91 não existe; e reenviar a chave da linha de 8 dias responde `duplicate`.
 
 ### REQ-ING-019 — Spike do J16 registrado como fixture

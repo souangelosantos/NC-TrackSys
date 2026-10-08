@@ -86,7 +86,7 @@ Toda resposta 4xx/5xx usa `Content-Type: application/problem+json`, com `type` =
 | `AUTH_REQUIRED` | 401 | Sem sessão, sessão expirada, revogada ou no transporte errado | `reason` | 08 |
 | `INVALID_CREDENTIALS` | 401 | Login ou TOTP inválido (mesma resposta exista ou não o e-mail) | — | 08 |
 | `WEBHOOK_UNAUTHORIZED` | 401 | Token do webhook ausente ou errado | — | 08 |
-| `FORBIDDEN` | 403 | Recurso visível; papel sem a permissão (ex.: `tenant_member` sem `can_command`, `allow_app_block = false`); escrita em transação somente leitura | `reason` opcional | 08 |
+| `FORBIDDEN` | 403 | Recurso visível; papel sem a permissão (ex.: `tenant_member` sem `can_command`, `allow_app_block = false`, cliente reconhecendo alerta, equipe nas preferências de alerta); escrita em transação somente leitura; login no app de usuário com 2FA ativo (F0) | `reason` opcional; F0: `two_factor_app_unsupported` ([08 §2](08-identidade-e-seguranca.md)) | 08 |
 | `CSRF_REJECTED` | 403 | Mutação por cookie sem `Origin` permitido | — | 08 |
 | `TWO_FACTOR_ENROLLMENT_REQUIRED` | 403 | Papel exige 2FA ativo | — | 08 |
 | `STEP_UP_REQUIRED` | 403 | Comando sem prova; TOTP com mais de 5 min; cadastro de chave sem login recente | `requiredMethod`: `device_key`, `device_key_registration`, `totp`, `password` | 08 |
@@ -102,12 +102,12 @@ Toda resposta 4xx/5xx usa `Content-Type: application/problem+json`, com `type` =
 | `SPEED_ABOVE_LIMIT` | 409 | Reservado: hoje a política de 06 arma (`awaiting_speed`) em vez de recusar | `speedKmh`, `maxMovingCutKmh` | 06 |
 | `COMMAND_ALREADY_ACTIVE` · `COMMAND_IN_FLIGHT` | 409 | Já existe `block`/`unblock` ativo; o ativo já saiu para o rastreador (com `Retry-After`) | `activeCommandId` | 06 |
 | `COMMAND_NOT_CANCELLABLE` | 409 | Cancelamento depois de DISPATCHING | — | 06 |
-| `CUT_POINT_MISSING` · `PROFILE_NOT_HOMOLOGATED` | 422 | Vínculo sem `cut_point`; perfil sem homologação com relé (INV-10) | — | 06 |
+| `CUT_POINT_MISSING` · `PROFILE_NOT_HOMOLOGATED` | 422 | Vínculo sem `cut_point`; perfil sem homologação com relé (INV-10). Nomes canônicos: os `COMMAND_CUT_POINT_MISSING`, `COMMAND_PROFILE_NOT_HOMOLOGATED` etc. de [06 §14](06-comandos-e-bloqueio.md) mapeiam para os códigos desta tabela (T-018) | — | 06 |
 | `COMMAND_NOT_ALLOWED` | 422 | Política recusa | `reason`: `block_terms_missing`, `block_scope_disabled`, `relay_unsupported`, `tenant_closed` (lista em 06) | 06 |
 | `PRECONDITION_FAILED` | 412 | `If-Match` diferente do `ETag` atual | — | 09 |
 | `PAYLOAD_TOO_LARGE` | 413 | Corpo acima do limite | `maxBytes` | 09 |
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | `Content-Type` não aceito na rota | — | 09 |
-| `VALIDATION_FAILED` | 422 | Schema ou regra semântica | `errors[{path, rule, message}]` | 09 |
+| `VALIDATION_FAILED` | 422 | Schema ou regra semântica; inclui token de redefinição de senha inválido, usado ou vencido (`errors[0] = {path: "token", rule: "token_invalid"}`, [08 §2](08-identidade-e-seguranca.md)) | `errors[{path, rule, message}]` | 09 |
 | `HISTORY_RANGE_TOO_LARGE` | 422 | Histórico com `to − from` > 7 dias | `maxRangeS: 604800` | 09 |
 | `HISTORY_REQUIRES_EXPORT` | 422 | `from` anterior aos 90 dias quentes | `hotSince` | 09 |
 | `STREAM_SCOPE_TOO_LARGE` · `ALERT_PREFERENCE_LOCKED` | 422 | Ver [07](07-alertas-e-tempo-real.md) | ver 07 | 07 |
@@ -136,12 +136,12 @@ Obrigatória em:
 Outros POST aceitam a chave opcionalmente, com a mesma semântica. Formato: 16 a 64 caracteres `[A-Za-z0-9_-]`; comandos exigem UUID.
 
 ```sql
--- rls: A (tenant_id NULL em operação de nível operadora → entrada em nullableTenantId); proposta para 04
+-- rls: A (tenant_id NULL em operação de nível operadora → entrada em nullableTenantId); criada pela T-006, DDL canônico em 04
 CREATE TABLE app.idempotency_record (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   operator_id uuid NOT NULL REFERENCES app.operator (id), tenant_id uuid NULL,
   user_id uuid NOT NULL REFERENCES auth."user" (id),
-  operation text NOT NULL CHECK (operation ~ '^[a-z_]+(\.[a-z_]+)+$'),
+  operation text NOT NULL CHECK (operation ~ '^[a-z_-]+(\.[a-z_-]+)+$'),   -- operationId do registro de rotas, ex.: device-assignments.create
   key text NOT NULL CHECK (key ~ '^[A-Za-z0-9_-]{16,64}$'),
   intent_sha256 bytea NOT NULL CHECK (length(intent_sha256) = 32),
   response_status smallint NULL, resource_type text NULL, resource_id uuid NULL, problem jsonb NULL,
@@ -155,7 +155,7 @@ CREATE TABLE app.idempotency_record (
 2. Primeiro comando da transação da rota: `INSERT ... ON CONFLICT (user_id, operation, key) DO NOTHING RETURNING id`. Requisição concorrente com a mesma chave espera no índice único até a primeira terminar (arbitragem pelo banco, sem lock em memória).
 3. Sem linha devolvida: lê a existente. Mesmo hash → repete o status original com a representação atual de `resource_id` (ou o `problem` gravado) e `Idempotent-Replayed: true`. Hash diferente → 409 `IDEMPOTENCY_CONFLICT`.
 4. Com linha: executa, grava `response_status`, `resource_type`, `resource_id` e faz COMMIT. Erro de validação ou exceção → ROLLBACK e a chave fica livre. Recusa de negócio persistida (ex.: comando `REJECTED` com 409) grava `problem` sem `correlationId`.
-5. `expires_at = created_at + 24 h`; expurgo de hora em hora por `app.retention_purge('idempotency_record', 50000)` [proposta para [04 §4.4](04-dominio-e-dados.md)]. Comandos não usam esta tabela: `command` guarda `idempotency_key` UNIQUE por `(operator_id, tenant_id)` e `request_sha256`; a mesma chave vinda de outro usuário recebe 409 `IDEMPOTENCY_CONFLICT`, o que mantém o escopo por usuário.
+5. `expires_at = created_at + 24 h`; chave vencida é reaproveitada pelo `ON CONFLICT … WHERE expires_at <= now()` (T-006); o expurgo de volume é de hora em hora por `app.retention_purge('idempotency_record', 50000)` ([04 §4.4](04-dominio-e-dados.md); a função ainda não tem cartão no F0). Comandos não usam esta tabela: `command` guarda `idempotency_key` UNIQUE por `(operator_id, tenant_id)` e `request_sha256`; a mesma chave vinda de outro usuário recebe 409 `IDEMPOTENCY_CONFLICT`, o que mantém o escopo por usuário.
 6. Comando: a checagem de idempotência vem antes da verificação do step-up, então a repetição devolve o comando existente sem consumir outro desafio ([08 §6.3](08-identidade-e-seguranca.md)).
 
 ## 5. Concorrência otimista
@@ -186,13 +186,13 @@ CREATE TABLE app.idempotency_record (
 | `GET /api/v1/vehicles/{vehicleId}` · `PATCH` | `vehicle.read` · `vehicle.write` | item de §9.1 + `ETag` · merge patch + `If-Match` (titular: só `nickname`, `color`) | — |
 | `GET /api/v1/vehicles/{vehicleId}/history` | `telemetry.history` | `?from&to&cursor&limit` → §9.4 | — |
 | `GET /api/v1/vehicles/{vehicleId}/assignments` | `vehicle.read` + `device.read` | → coleção `{id, deviceId, cutPoint, isPrimary, validFrom, validTo}` | — |
-| `GET /api/v1/devices` · `POST` | `device.read` · `device.write` | `?status&q&cursor&limit` · `{imei, model, protocol, capabilityProfileId, firmware?, simIccid?}` → 201 `{…, provisioning: "pending"}` (o worker cadastra no Traccar); 409 `DEVICE_ALREADY_REGISTERED` | opcional |
+| `GET /api/v1/devices` · `POST` | `device.read` · `device.write` | `?status&q&cursor&limit` · `{imei, model, protocol, capabilityProfileId, firmware?, simIccid?}` → 201 `{…, provisioning: "pending"}` (o worker cadastra no Traccar); cria na mesma transação a linha de `device_state` do rastreador, sem vínculo (T-007); 409 `DEVICE_ALREADY_REGISTERED` | opcional |
 | `GET /api/v1/devices/{deviceId}` · `PATCH` | `device.read` · `device.write` | → 200 + `ETag`, `provisioning` ∈ `pending`, `done`, `failed`, IMEI completo só aqui · `{status, firmware, simIccid}` + `If-Match` | — |
 | `GET /api/v1/sim-cards` · `POST` | `device.read` · `device.write` | `?q&cursor&limit` · `{iccid, msisdn?, apn?}` → 201; 409 `SIM_ALREADY_REGISTERED` | opcional |
 | `POST /api/v1/device-assignments` | `assignment.write` | `{vehicleId, deviceId, cutPoint, isPrimary, notes?}` com `cutPoint` obrigatório (`fuel_pump`, `ignition`, `starter` ou `null` explícito = sem bloqueio, INV-10) → 201; 409 `ASSIGNMENT_OVERLAP` | opcional |
-| `POST /api/v1/device-assignments/{assignmentId}/close` | `assignment.write` | `{reason}` → 200 `{validTo}` (corte não retroativo, [04 §9.1](04-dominio-e-dados.md)) | — |
+| `POST /api/v1/device-assignments/{assignmentId}/close` | `assignment.write` | `{reason, deviceStatus?}` → 200 `{validTo}` (corte não retroativo, [04 §9.1](04-dominio-e-dados.md)); `deviceStatus` opcional `stock` (padrão) ou `maintenance` define o status do rastreador devolvido (C06, [10 §9](10-apps-e-ux.md); acréscimo aditivo da T-007) | — |
 | `GET /api/v1/capability-profiles` | equipe da operadora | → coleção `{id, model, firmwareRange, protocol, version, status, capabilities}` | — |
-| `GET /api/v1/operator/brand` · `PUT` | sessão · `brand.manage` | → 200 + `ETag` · `{displayName, logoUrl, primaryColor, secondaryColor, supportWhatsapp, supportPhone}` + `If-Match` | — |
+| `GET /api/v1/operator/brand` · `PUT` | sessão · `brand.manage` | → 200 + `ETag`, `If-None-Match` igual → 304 sem corpo (T-009; `GET /api/v1/me` traz o mesmo `brand`) · `{displayName, logoUrl, primaryColor, secondaryColor, supportWhatsapp, supportPhone}` + `If-Match`. O `PUT` serve à tela Marca (C13, F1); no F0 a marca é gravada pelo script `seed:brand` ([10 §4](10-apps-e-ux.md)) | — |
 | `GET /api/v1/stream` | `telemetry.live` | SSE ([07 §11](07-alertas-e-tempo-real.md)) | — |
 | `GET /api/v1/alerts` · `POST /api/v1/alerts/{alertId}/acknowledge` | `alert.read` · `alert.ack` | [07 §9](07-alertas-e-tempo-real.md) | — |
 | `POST` · `DELETE /api/v1/vehicles/{vehicleId}/watch-mode` | `watch_mode.manage` | [07 §5](07-alertas-e-tempo-real.md) | — |
@@ -231,6 +231,11 @@ Schemas das rotas internas ficam em `packages/contracts/src/internal/traccar.ts`
 
 `state` é exatamente o schema do evento SSE `vehicle.state` ([07 §11](07-alertas-e-tempo-real.md)); `stateAge` é calculado contra `serverTime` e o cliente recalcula a cada 10 s; `availableActions` explica por que uma ação está indisponível.
 
+Acréscimos aditivos adotados na v2.0 (T-008):
+- `presenceThresholds: {delayedAfterS, offlineAfterS, lostMovingAfterS}` em cada item, do perfil efetivo do dispositivo primário (`stopped_interval_s + 60`, `1800`, `max(180, 3 × moving_interval_s)`; perfil ausente ou não legível → `{360, 1800, 180}`), usado pelo cliente para recalcular `presence` ([10 §5](10-apps-e-ux.md)).
+- `availableActions.block.reason`/`unblock.reason` no F0 (nunca disponível), na ordem: `NO_PRIMARY_DEVICE` (veículo sem vínculo primário aberto) → `CUT_POINT_MISSING` → `PROFILE_NOT_HOMOLOGATED` → `COMMAND_DISPATCH_DISABLED`. `watchMode` vale `{available: false, active: false}` até a T-011 ligar o leitor real.
+- No escopo `tenant`, `app.device` (tipo C) não é legível: o titular recebe `primaryDevice.model`, `imeiLast4` e `profileStatus` nulos e os limiares padrão do J16 [VALIDAR — DEC-02]. Perfil diferente do J16 no escopo do cliente (F1) exige função `SECURITY DEFINER` ou visão de limiares, com revisão N0 e CAT-07 ([04](04-dominio-e-dados.md)).
+
 ```json
 {
   "items": [
@@ -246,6 +251,7 @@ Schemas das rotas internas ficam em `packages/contracts/src/internal/traccar.ts`
         "ignition": true, "motion": "moving", "relayState": "unknown", "powerState": "main", "presence": "online"
       },
       "stateAge": { "contactAgeS": 4, "fixAgeS": 6 },
+      "presenceThresholds": { "delayedAfterS": 360, "offlineAfterS": 1800, "lostMovingAfterS": 180 },
       "availableActions": { "block": { "available": false, "reason": "PROFILE_NOT_HOMOLOGATED" },
         "unblock": { "available": false, "reason": "PROFILE_NOT_HOMOLOGATED" }, "watchMode": { "available": true, "active": false } }
     },
@@ -260,6 +266,7 @@ Schemas das rotas internas ficam em `packages/contracts/src/internal/traccar.ts`
         "position": null, "ignition": null, "motion": "unknown", "relayState": "unknown", "powerState": "unknown", "presence": "offline"
       },
       "stateAge": { "contactAgeS": 2334, "fixAgeS": null },
+      "presenceThresholds": { "delayedAfterS": 360, "offlineAfterS": 1800, "lostMovingAfterS": 180 },
       "availableActions": { "block": { "available": false, "reason": "CUT_POINT_MISSING" },
         "unblock": { "available": false, "reason": "CUT_POINT_MISSING" }, "watchMode": { "available": false, "active": false } }
     }
@@ -315,7 +322,7 @@ Nenhuma linha em `command`; `audit_log` `command.request` `denied`. Com presenç
 
 ### 9.4 `GET /api/v1/vehicles/{vehicleId}/history`
 
-Regras: `from` e `to` obrigatórios (RFC 3339, `to > from`); `to − from` ≤ 604.800 s (7 dias), senão 422 `HISTORY_RANGE_TOO_LARGE`; `from` ≥ agora − 90 dias, senão 422 `HISTORY_REQUIRES_EXPORT`; `to` no futuro é cortado em agora. Inclui as posições de todos os vínculos primários do veículo no período ([04 §7.3](04-dominio-e-dados.md)), em ordem de `fixTime`. Página: `limit` padrão 1.000, máximo 5.000 pontos (exceção à regra de coleção); cursor com o último `(fixTime, assignmentId)`. `flags` traz os nomes dos bits de [05 §4.1](05-ingestao-e-telemetria.md). `gaps`: `signal_lost_moving` quando o ponto anterior tem `speedKmh` ≥ 5 e o intervalo passa de 180 s; `no_data` quando o intervalo passa de 2.400 s [PREMISSA; intervalos do J16 — DEC-02]. Lacuna não é preenchida nem interpolada.
+Regras: `from` e `to` obrigatórios (RFC 3339, `to > from`); `to − from` ≤ 604.800 s (7 dias), senão 422 `HISTORY_RANGE_TOO_LARGE`; `from` ≥ agora − 90 dias, senão 422 `HISTORY_REQUIRES_EXPORT`; `to` no futuro é cortado em agora. Inclui as posições de todos os vínculos primários do veículo no período ([04 §7.3](04-dominio-e-dados.md)), em ordem de `fixTime`. Página: `limit` padrão 1.000, máximo 5.000 pontos (exceção à regra de coleção); cursor com o último `(fixTime, assignmentId)`. `flags` traz os nomes dos bits de [05 §4.1](05-ingestao-e-telemetria.md). `gaps`: `signal_lost_moving` quando o ponto anterior tem `speedKmh` ≥ 5 e o intervalo passa de 180 s; `no_data` quando o intervalo passa de 2.400 s [PREMISSA; intervalos do J16 — DEC-02]. Lacuna não é preenchida nem interpolada. `availableFrom` (acréscimo aditivo da T-008) = início do 1º vínculo primário do veículo visível no escopo, ou `null` sem vínculo; o app e o console usam o campo para "Histórico disponível a partir de {data}" (A04, C07).
 
 `GET /api/v1/vehicles/0192a1b2-0000-7000-8000-0000000000f1/history?from=2026-10-20T03:00:00Z&to=2026-10-21T03:00:00Z` (dia 20/10 em BRT):
 
@@ -334,6 +341,7 @@ Regras: `from` e `to` obrigatórios (RFC 3339, `to > from`); `to − from` ≤ 6
   "gaps": [{ "from": "2026-10-20T11:03:00.000Z", "to": "2026-10-20T11:09:40.000Z", "durationS": 400, "kind": "signal_lost_moving" }],
   "qualitySummary": { "points": 4, "validPoints": 4, "invalidPoints": 0, "latePoints": 1, "maxGapS": 400 },
   "nextCursor": null,
+  "availableFrom": "2026-09-02T14:10:00.000Z",
   "dataWatermark": "2026-10-21T03:00:04.512Z",
   "serverTime": "2026-10-21T10:00:00.000Z"
 }
@@ -406,8 +414,8 @@ Fixture dos CTs: a mesma de [08 §13](08-identidade-e-seguranca.md).
 
 ### REQ-API-011 — Lista de veículos com estados honestos
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** INV-03, INV-04, INV-07
-**Regra.** `GET /api/v1/vehicles` e `GET /api/v1/vehicles/{id}` DEVEM devolver o item do §9.1: `state` com o schema do SSE `vehicle.state`, desconhecido como `null`/`"unknown"`, `stateAge` contra `serverTime` e `availableActions` com motivo.
-**Aceite.** CT-API-011 — Dado V1 com perfil `ignition = null`, último fix às 15:19:58Z e `serverTime` 15:20:04Z, Então o item tem `"ignition": null` e `"fixAgeS": 6`; Dado um rastreador que nunca teve fix, Então `"position": null`, `"motion": "unknown"` e `"fixAgeS": null`; Dado vínculo com `cut_point` NULL, Então `availableActions.block.reason = "CUT_POINT_MISSING"`; Dado 300 veículos na Alfa, Então o p95 da primeira página com `limit=200` fica ≤ 300 ms.
+**Regra.** `GET /api/v1/vehicles` e `GET /api/v1/vehicles/{id}` DEVEM devolver o item do §9.1: `state` com o schema do SSE `vehicle.state`, desconhecido como `null`/`"unknown"`, `stateAge` contra `serverTime`, `presenceThresholds` e `availableActions` com motivo.
+**Aceite.** CT-API-011 — Dado V1 com `device_state.ignition` NULL, último fix às 15:19:58Z e `serverTime` 15:20:04Z, Então o item tem `"ignition": null` e `"fixAgeS": 6`; Dado um rastreador que nunca teve fix, Então `"position": null`, `"motion": "unknown"` e `"fixAgeS": null`; Dado vínculo com `cut_point` NULL, Então `availableActions.block.reason = "CUT_POINT_MISSING"`; Dado 300 veículos na Alfa, Então o p95 da primeira página com `limit=200` fica ≤ 300 ms.
 
 ### REQ-API-012 — Histórico síncrono limitado
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** INV-02, INV-03, INV-06, INV-07

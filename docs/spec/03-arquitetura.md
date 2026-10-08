@@ -102,7 +102,7 @@ Tracejado: chamada iniciada no aparelho do usuário, resolução de DNS ou cópi
 | Módulo | Processo | Tabelas que escreve | Dono do fluxo |
 |---|---|---|---|
 | `identity` | api | `auth.*`, `membership`, `platform_support_grant`, `push_token`, `device_key` | [08](08-identidade-e-seguranca.md) |
-| `fleet` | api; worker (provisiona no Traccar) | `operator`, `operator_brand`, `tenant`, `vehicle`, `device`, `sim_card`, `device_assignment`, `capability_profile` | [04](04-dominio-e-dados.md) |
+| `fleet` | api; worker (provisiona no Traccar; sem dono no F0, ver [02](02-escopo-e-fases.md) §2.3) | `operator`, `operator_brand`, `tenant`, `vehicle`, `device`, `sim_card`, `device_assignment`, `capability_profile`; `device_state` só ao criar o rastreador e no reset ao abrir ou encerrar vínculo (REQ-DAD-011) | [04](04-dominio-e-dados.md) |
 | `ingestion` | api (síncrono); worker (`pending`) | `ingest_inbox`, `position`, `device_state` | [05](05-ingestao-e-telemetria.md) |
 | `alerts` | worker (avaliação, entrega); api (reconhecimento, vigilância) | `alert`, `alert_delivery`, `watch_mode` | [07](07-alertas-e-tempo-real.md) |
 | `commands` | api (pedido); worker (despacho) | `command`, `command_attempt`, `command_event`, `command_policy`, `occurrence` | [06](06-comandos-e-bloqueio.md) |
@@ -301,8 +301,10 @@ Sem PgBouncer no F0–F1. No mês 12 a outbox e os jobs somam ~2,5 milhões de l
 │   ├── db/                 # @tracksys/db — migrations em packages/db/migrations, tipos Kysely, contexto RLS, verificador de catálogo
 │   ├── domain/             # @tracksys/domain — lógica pura: normalização, regras de alerta, política de comando, máquina de estados
 │   └── testkit/            # @tracksys/testkit — fixtures, capturas J16, fakes de Traccar/Asaas/FCM/emnify
+├── docker-compose.yml      # desenvolvimento local: db (T-001); api e worker sob o profile "app" (T-004)
 ├── infra/
-│   ├── docker-compose.yml
+│   ├── docker-compose.yml  # produção na VM (T-003, T-013)
+│   ├── app/Dockerfile      # imagem única tracksys-app para api e worker (T-004); T-013 acrescenta o alvo migrate
 │   ├── db/Dockerfile       # FROM postgres:17 + postgresql-17-postgis-3
 │   ├── caddy/  traccar/
 │   └── scripts/            # provision.sh, deploy.sh, backup, failover
@@ -339,7 +341,12 @@ Toda configuração vem de variáveis de ambiente validadas por Zod no boot (REQ
 | `INGEST_SOURCE_INSTANCE` | api, worker | `^traccar-[a-z0-9-]+$`, ex.: `traccar-01` |
 | `TRACCAR_API_URL`, `TRACCAR_API_USER`, `TRACCAR_API_PASSWORD` | worker | URL (padrão `http://traccar:8082`); não vazios |
 | `BETTER_AUTH_SECRET` / `BETTER_AUTH_URL` | api | ≥ 32 caracteres / `https://api.<TRACKSYS_DOMAIN>` |
+| `TRUSTED_PROXY_CIDRS` | api | CIDRs separados por vírgula, padrão vazio; só socket vindo daí tem `X-Forwarded-For` e `X-Client-Port` aceitos (T-006) |
+| `EMAIL_DRIVER` / `EMAIL_FROM` | worker | `resend` ou `file` (`file` proibido com `NODE_ENV=production`) / remetente |
+| `RESEND_API_KEY` / `EMAIL_FILE_DIR` | worker | Obrigatória com `resend` / diretório do driver `file`, padrão `.tmp/emails` |
 | `SENTRY_DSN` | api, worker | URL, opcional |
+
+[ADOTADO NA v2.0] Provedor de e-mail do F0: Resend [PREMISSA], atrás da porta `EmailSender` do `worker` (T-006). Trocar por Brevo é um adaptador novo, sem mudança de contrato.
 
 ## 14. Gatilhos objetivos de evolução
 
@@ -389,7 +396,7 @@ Menos peças significa menos runbooks para o fundador e para o plantonista, um �
 ### REQ-ARQ-005 — Health e readiness por processo
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** —
 **Regra.** `api` e `worker` DEVEM expor `GET /health/live` (200 sem checar dependências, ≤ 50 ms) e `GET /health/ready` (200 só se o banco responde `SELECT 1` em ≤ 1 s; no `worker`, também pg-boss iniciado e LISTEN do relay ativo; senão 503 com a lista de checagens falhas). Em `https://api.<domínio>/health/ready` o corpo DEVE ser só `{"status":"ok"}` ou `{"status":"unavailable"}`. Healthcheck do Docker a cada 10 s, 3 falhas; contêiner `unhealthy` DEVE ser reiniciado em ≤ 90 s (mecanismo em [13](13-infra-e-operacao.md)).
-**Aceite.** CT-ARQ-005 — Dado a stack no ar, Quando o contêiner `db` é parado, Então em ≤ 5 s `/health/ready` do `api` e do `worker` responde 503 com `checks.db = "fail"` e `/health/live` responde 200; Quando o `db` volta, Então `/health/ready` volta a 200 em ≤ 15 s.
+**Aceite.** CT-ARQ-005 — Dado a stack no ar, Quando o contêiner `db` é parado, Então em ≤ 5 s `/health/ready` na porta interna do `api` (`INTERNAL_PORT`, 3001) e na do `worker` (`WORKER_HEALTH_PORT`, 3002) responde 503 com `checks.db = "fail"`, na porta pública do `api` (3000) responde 503 só com `{"status":"unavailable"}`, e `/health/live` responde 200; Quando o `db` volta, Então `/health/ready` volta a 200 em ≤ 15 s.
 
 ### REQ-ARQ-006 — Configuração por ambiente validada no boot
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** —

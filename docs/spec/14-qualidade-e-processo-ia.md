@@ -235,6 +235,8 @@ O revisor publica a saída da §8.2 como comentário no PR. O job `review-record
 
 **Jornadas E2E.** Console: J-C1 login com TOTP de fixture; J-C2 cadastro de cliente, veículo, rastreador e vínculo com `cut_point`; J-C3 posição injetada pela rota interna aparece no mapa em ≤ 5 s; J-C4 histórico do dia; J-C5 `admin.beta` abre a URL de V1 e vê "não encontrado". App: J-A1 login; J-A2 lista e mapa ao vivo, e "sem sinal" quando o simulador para; J-A3 histórico do dia; J-A4 alerta recebido por FCM de teste [VALIDAR — envio FCM no emulador do CI]; J-A5 deep links de WhatsApp e navegação abrem o destino certo.
 
+**Datas dos CTs.** Os CTs dos capítulos usam datas fixas (ex.: 2026-10-20), que caem fora das partições de `position` quando o CI roda depois. Ao virar teste congelado, o cartão desloca cada data para o **dia UTC corrente** (ou D−1, D+1… quando o CT compara dias), mantendo a hora, e escreve `<hoje>` no texto do CT; textos esperados em BRT ficam iguais. Prazos relativos (90 dias quentes, 72 h de convite) contam a partir do relógio do teste [ADOTADO NA v2.0: T-008, T-011, T-012].
+
 ### 9.1 Propriedades
 
 P1–P4 (INV-01 a INV-04) estão em [05 §16](05-ingestao-e-telemetria.md); P-CMD-1 a P-CMD-3, em [06 §17](06-comandos-e-bloqueio.md). **P5 (INV-05)**, na suíte do motor de alertas (T-011): gerador de 1 a 50 mensagens com `processingMode` em `replay`, `backfill` ou `reprocess` e atributos aleatórios, intercaladas com mensagens `live` já processadas; propriedade: os fakes de FCM, Traccar (`POST /api/commands/send`), emnify (SMS) e Asaas recebem 0 chamadas novas e `alert_delivery`, `command_attempt` e `referral` não ganham linhas. Toda falha imprime a seed; o contraexemplo reduzido vira teste unitário fixo no PR da correção.
@@ -283,7 +285,7 @@ Dono: [04 §5](04-dominio-e-dados.md). Consultas e formato das violações: [T-0
 | ISO-03 | Sem contexto → 0 linhas |
 | ISO-04 | INSERT com `operator_id` de outra operadora → falha no WITH CHECK (SQLSTATE 42501) |
 | ISO-05 | FK composta impede vincular veículo a cliente de outra operadora (SQLSTATE 23503) |
-| ISO-06 | Meta-teste: tabela criada sem RLS é apontada pelo verificador (na T-001, uma tabela temporária por regra CAT); tudo desfeito com ROLLBACK |
+| ISO-06 | Meta-teste: tabela criada sem RLS é apontada pelo verificador (na T-001, uma tabela temporária por regra CAT, sempre com prefixo `tmp_` para não colidir com tabela real de tarefa futura, como `audit_log` da T-006); tudo desfeito com ROLLBACK |
 
 A T-001 implementa `operator`, `operator_brand`, `tenant` e `vehicle` com essas regras e acrescenta ISO-07 a ISO-09 ([04 §5.2](04-dominio-e-dados.md)). Toda tarefa que cria tabela no schema `app` repete ISO-01 a ISO-05 para ela nos testes congelados (REQ-QLD-011). A CAT-07 é proposta em [04](04-dominio-e-dados.md) e não está ativa.
 
@@ -293,11 +295,11 @@ A T-001 implementa `operator`, `operator_brand`, `tenant` e `vehicle` com essas 
 |---|---|---|---|---|
 | `verify` | T-001; ampliado pelas tarefas seguintes | `pnpm install --frozen-lockfile` → lint → typecheck → `db:up` → `db:lint` (F1) → `db:migrate` → rollback e up (CT-DAD-020) → `db:check` → `pnpm test` (unidade e propriedade) → `contracts:check` (T-004) → `check:boundaries` → `test:acceptance` | ≤ 8 min | Sim |
 | `acceptance-freeze` | T-001 | `git diff --diff-filter=MDR` em `tests/acceptance` | ≤ 1 min | Sim |
-| `acceptance-match` | Cartão de processo | Blocos do cartão em `origin/main` × arquivos do PR | ≤ 1 min | Sim |
-| `risk-label` | Cartão de processo | `.github/risk-paths.yml` → rótulo; falha se o nível declarado no PR < calculado | ≤ 1 min | Sim |
-| `review-record` | Cartão de processo | Comentário de revisão válido no head (N0, N1) | ≤ 1 min | Sim |
-| `pr-title` | Cartão de processo | Regex da §12 | ≤ 1 min | Sim |
-| `docs-check` | Cartão de processo | Links relativos; `CLAUDE.md` com `@AGENTS.md`; `tasks:lint`; `trace.py` sem PROBLEMA novo | ≤ 1 min | Sim |
+| `acceptance-match` | T-019 | Blocos do cartão em `origin/main` × arquivos do PR | ≤ 1 min | Sim |
+| `risk-label` | T-019 | `.github/risk-paths.yml` → rótulo; falha se o nível declarado no PR < calculado | ≤ 1 min | Sim |
+| `review-record` | T-019 | Comentário de revisão válido no head (N0, N1) | ≤ 1 min | Sim |
+| `pr-title` | T-019 | Regex da §12 | ≤ 1 min | Sim |
+| `docs-check` | T-019 | Links relativos; `CLAUDE.md` com `@AGENTS.md`; `tasks:lint`; `trace.py` sem PROBLEMA novo | ≤ 1 min | Sim |
 | `secrets` | [08](08-identidade-e-seguranca.md) (REQ-SEG-019) | gitleaks | ≤ 1 min | Sim |
 | `api-compat` | T-004 | `oasdiff breaking --fail-on ERR` ([09](09-api-e-contratos.md)) | ≤ 2 min | Sim |
 | `e2e-console` | F1 | Playwright | ≤ 6 min | F1, se tocar console ou contratos |
@@ -306,7 +308,7 @@ A T-001 implementa `operator`, `operator_brand`, `tenant` e `vehicle` com essas 
 | `acceptance-red` | F1 | Testes novos contra `origin/main` | ≤ 5 min | Se houver testes novos |
 | `e2e-mobile` | F1 | `flutter test integration_test` | ≤ 15 min | Não bloqueia PR; bloqueia publicação |
 
-[ADOTADO NA v2.0: cartão "Guardas de processo no CI" no S1–S2 do F0, risco N0, 1 sessão, entregando `risk-label`, `review-record`, `pr-title`, `acceptance-match`, `docs-check` e `tasks:lint`. Até o merge dele, o fundador confere esses itens pelo checklist do template de PR.]
+[ADOTADO NA v2.0: cartão **T-019 — Guardas de processo no CI** ([02 §2.3](02-escopo-e-fases.md); o arquivo do cartão em `tasks/` ainda não foi escrito) no S1–S2 do F0, risco N0, 1 sessão, depende só da T-001, entregando `risk-label`, `review-record`, `pr-title`, `acceptance-match`, `docs-check` e `tasks:lint`. Até o merge dele, o fundador confere esses itens pelo checklist do template de PR.]
 
 Regras:
 1. Os jobs correm em paralelo; `verify` é o caminho longo. Meta: p90 do pipeline obrigatório ≤ 10 min, com cache do pnpm (T-001) e cache da imagem do banco no GitHub Actions.
