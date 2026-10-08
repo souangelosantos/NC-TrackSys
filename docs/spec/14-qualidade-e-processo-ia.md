@@ -376,7 +376,7 @@ Escape em INV congela merges N0 até o postmortem (modelo no [Anexo C §6](../an
 ### REQ-QLD-001 — `AGENTS.md` como regra única e links verificados
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** —
 **Regra.** `AGENTS.md` DEVE ser a regra única dos agentes, com ≤ 150 linhas; `CLAUDE.md` DEVE conter a linha `@AGENTS.md`; arquivos de outras ferramentas DEVEM só apontar para ele. `pnpm docs:check` DEVE falhar com link relativo quebrado em `AGENTS.md`, `CLAUDE.md`, `README.md`, `docs/**` ou `tasks/**`, ignorando blocos e trechos de código.
-**Aceite.** CT-QLD-001 — Dado `main`, Quando `pnpm docs:check` roda, Então sai com 0; Dado um PR que acrescenta em `docs/spec/07-alertas-e-tempo-real.md` o link `[x](99-inexistente.md)`, Então sai com 1 citando o arquivo e a linha; Dado `CLAUDE.md` sem `@AGENTS.md`, Então sai com 1.
+**Aceite.** CT-QLD-001 — Dado `main`, Quando `pnpm docs:check` roda, Então sai com 0; Dado um PR que acrescenta em `docs/spec/07-alertas-e-tempo-real.md` um link markdown para o arquivo inexistente `99-inexistente.md`, Então sai com 1 citando o arquivo e a linha; Dado `CLAUDE.md` sem `@AGENTS.md`, Então sai com 1.
 
 ### REQ-QLD-002 — Cartão no template canônico com DoR verificável
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N2 · **Invariantes:** —
