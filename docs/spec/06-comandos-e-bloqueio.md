@@ -9,6 +9,25 @@
 > - Step-up pela chave do aparelho (ADR-006); homologação de bancada com 20 ciclos e gate G-CMD.
 > - Contingência por SMS manual registrada depois; inadimplência e IA sem caminho para comando.
 
+**Nesta página**
+- [§1 Princípios](06-comandos-e-bloqueio.md)
+- [§2 Disponibilidade](06-comandos-e-bloqueio.md)
+- [§3 Política de bloqueio](06-comandos-e-bloqueio.md)
+- [§4 Quem pode pedir](06-comandos-e-bloqueio.md)
+- [§5 Máquina de estados](06-comandos-e-bloqueio.md)
+- [§6 Modelo de dados](06-comandos-e-bloqueio.md)
+- [§7 Despacho via Traccar](06-comandos-e-bloqueio.md)
+- [§8 Confirmação, UNKNOWN e reconciliação](06-comandos-e-bloqueio.md)
+- [§9 Desbloqueio assimétrico](06-comandos-e-bloqueio.md)
+- [§10 Contingência por SMS manual](06-comandos-e-bloqueio.md)
+- [§11 Ocorrência (efeitos em comandos)](06-comandos-e-bloqueio.md)
+- [§12 Termo de ciência do bloqueio](06-comandos-e-bloqueio.md)
+- [§13 Homologação do perfil e G-CMD](06-comandos-e-bloqueio.md)
+- [§14 Contratos](06-comandos-e-bloqueio.md)
+- [§15 Auditoria e UX mínima](06-comandos-e-bloqueio.md)
+- [§16 Requisitos](06-comandos-e-bloqueio.md)
+- [§17 Suíte CT-CMD](06-comandos-e-bloqueio.md)
+
 ## 1. Princípios
 
 | INV | Texto | Consequência no código |
