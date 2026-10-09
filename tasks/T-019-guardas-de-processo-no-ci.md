@@ -276,4 +276,5 @@ bash infra/scripts/check-branch-protection.sh   # proteção de main OK
 | Onde fica o registro da revisão semanal? | `docs/runbooks/revisao-semanal/AAAA-MM-DD.md` (seção 5.6), em PR N2 do fundador. A issue semanal é o lembrete; o arquivo é o registro. |
 | Como ligar a pergunta ao "próximo cartão do mesmo assunto"? | O CI não infere assunto: exige `Q#<n>` em algum cartão ou no `AGENTS.md` antes de qualquer merge (`docs-check`); escolher o cartão certo é do fundador (CT-QLD-018 parte 2). |
 | Proteção de `main` pelo CI? | Não: ler a proteção exige administrador; o script roda com o `gh` do fundador e é lembrado toda semana [VALIDAR — permissão do endpoint de proteção]. |
+| `migration-compat` e `migration-safety` entram aqui? | Não. O job `migration-compat` (REQ-DAD-020: aceite do commit base contra o schema novo) e o `migration-safety` são da T-013; esta tarefa não os duplica. O `migration-lint` (REQ-DAD-021) é daqui. |
 | Commits | `test(ci): aceite congelado (T-019)`, `ci: guardas e workflows (T-019)`; título do PR `ci: guardas de processo no CI (T-019)`. |

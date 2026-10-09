@@ -1,9 +1,9 @@
-# T-012 — Push FCM: tokens, `alert_delivery`, recebimento no app
+# T-012 — Push FCM: tokens, `alert_delivery`, recebimento no app, telas A05 e A06
 
 | Campo | Valor |
 |---|---|
 | Fase | F0 (semana S3: 21–27/10/2026; marco 27/10: alerta provocado chega ao celular) |
-| Requisitos | REQ-ALR-011, REQ-ALR-012, REQ-ALR-013; parte de entrega de REQ-ALR-002, REQ-ALR-005, REQ-ALR-006, REQ-ALR-007, REQ-ALR-009 e REQ-ALR-010; REQ-ALR-001 (disponibilidade nas preferências); REQ-ALR-015 (t4 e métricas de latência); REQ-DAD-006 (`app.claim_push_token`); REQ-UX-009 (tela A05 Alertas e toque no push), REQ-UX-010 (tela A06 Modo vigilância; sai junto com o corte 3 de [02 §2.4](../docs/spec/02-escopo-e-fases.md)), REQ-UX-012 (tela A09 Notificações) [ADOTADO NA v2.0]; REQ-ARQ-009 (3ª parte do CT-ARQ-009; outbox e relay são da T-005) |
+| Requisitos | REQ-ALR-011, REQ-ALR-012, REQ-ALR-013; parte de entrega de REQ-ALR-002, REQ-ALR-005, REQ-ALR-006, REQ-ALR-007, REQ-ALR-009 e REQ-ALR-010; REQ-ALR-001 (disponibilidade nas preferências); REQ-ALR-015 (t4 e métricas de latência); REQ-DAD-006 (`app.claim_push_token`); REQ-UX-009 (tela A05 Alertas e toque no push), REQ-UX-010 (tela A06 Modo vigilância; sai junto com o corte 3 de [02 §2.4](../docs/spec/02-escopo-e-fases.md)), REQ-UX-012 (tela A09 Notificações) [ADOTADO NA v2.0]; REQ-ARQ-009 (3ª parte do CT-ARQ-009; outbox e relay são da T-005); REQ-QLD-009 (extensão da P5 da T-011 com o fake de FCM e `alert_delivery`; fecha o CT-QLD-009) |
 | Invariantes | INV-01, INV-03, INV-05, INV-07, INV-08 (A06 nunca dispara comando físico) |
 | Risco de revisão | **N1** (tabela 2.3 de [02](../docs/spec/02-escopo-e-fases.md)). **Trechos N0:** a migration e `app.claim_push_token` (`SECURITY DEFINER`, CAT-07) exigem revisão adversarial de outro fornecedor e leitura humana linha a linha |
 | Depende de | T-011 (alertas, rota `device.state.updated.v1` da outbox, filas, `renderAlertText`, `Metrics`, rotas de vigilância e de alertas), T-009 (app Flutter com login, mapa ao vivo e A03; traz a T-006), T-008 (evento SSE `alert`, `availableActions.watchMode`), T-010 (ações A07 e A08 reutilizadas na A05; até ela entrar, o detalhe mostra só "Ver no mapa" e registra no PR); T-005 (relay da outbox, `OUTBOX_ROUTES`); helper de sessão de teste `signInAs(world, user, { clientKind })` de `packages/testkit` (T-006) |
@@ -63,7 +63,7 @@ apps/mobile/lib/features/{notifications/notifications_screen,notifications/permi
 apps/mobile/lib/router.dart, apps/mobile/lib/features/home/home_screen.dart, apps/mobile/lib/features/vehicle/vehicle_detail_screen.dart, apps/mobile/lib/features/account/account_screen.dart (alterar: rotas /alertas e /alertas/:id, acesso pelo Início, interruptor no A03, link para A09 na Conta)
 apps/mobile/test/push/{alert_link_test,push_token_sync_test}.dart
 apps/mobile/test/alerts/alert_detail_test.dart, apps/mobile/test/watch_mode/watch_mode_switch_test.dart, apps/mobile/test/notifications/notifications_test.dart
-tests/acceptance/T-012/{schema,routes,delivery}.test.ts
+tests/acceptance/T-012/{schema,routes,delivery,delivery.property}.test.ts   (a P5 da T-011 fica intacta; a extensão é arquivo novo)
 ```
 
 ## Especificação detalhada
@@ -233,6 +233,8 @@ Base: `seedVerticalSlice` (T-005), usuários e sessões de teste da T-006 (`dono
 - CT-ALR-015 (t4): `serverTime = 15:20:00.000Z` e fake aceitando às 15:20:07.400Z → `alert_latency_seconds` registra 7,4 e as 4 etapas somam 7,4 s (± 0,001).
 - Limpeza: token com `last_seen_at` há 61 dias some; há 59 dias fica.
 
+`delivery.property.test.ts` (P5 de [14 §9.1](../docs/spec/14-qualidade-e-processo-ia.md), extensão da `replay.property.test.ts` da T-011; fast-check `numRuns: 25` com Postgres, seed impressa na falha): o mesmo gerador de 1 a 50 mensagens com `processingMode` em `replay`, `backfill` ou `reprocess`, intercaladas com mensagens `live` já processadas, agora com preferências ligadas e tokens de `dono.a1`, passando por `runRelayOnce`, `handleEvaluateJob` e `handleDeliverJob` → o fake de FCM recebe 0 chamadas novas e `alert_delivery` não ganha linha (**CT-QLD-009**: remover a condição `processingMode === 'live'` antes de criar `alert_delivery` faz a propriedade falhar com contraexemplo de 1 mensagem `replay` e 1 chamada ao fake de FCM).
+
 `apps/mobile/test/push/`: `alert_link_test.dart` (link válido → `/alertas/<alertId>`; esquema, host ou UUID inválidos → `/inicio`); `push_token_sync_test.dart` (com cliente falso: login, retorno ao primeiro plano e renovação chamam `PUT`; logout chama `DELETE` antes de limpar a sessão).
 
 Testes Flutter de tela (cliente falso, relógio fixo, `LiveMapController` falso da T-009):
@@ -272,5 +274,5 @@ cd apps/mobile && flutter analyze && flutter test test/push test/alerts test/wat
 | 8. Toque na notificação abre o quê? | O detalhe do alerta `/alertas/:id` (A05), como manda REQ-UX-009; o mapa com o veículo centralizado fica a 1 toque ("Ver no mapa" → `/inicio?veiculo=<vehicleId>`). [ADOTADO NA v2.0: A05 e A06 entram nesta tarefa.] |
 | 9. Equipe da operadora pode ler/editar preferências? | Não: 403. No F0 ela não recebe push; preferência é do usuário do cliente. |
 | 10. Tokens de quem perdeu toda membership | Ficam até existir `app.retention_purge` (T-027, F1); a entrega já os ignora, porque só lê destinatários com membership ativa. |
-| 11. A06 entra se o prazo apertar? | A06 sai junto com o corte 3 de [02 §2.4](../docs/spec/02-escopo-e-fases.md) (modo vigilância): o fundador registra o corte na seção "Cortes" do `G0.md`, REQ-UX-010 passa para o F1 e o restante desta tarefa segue. A05 e A09 não têm corte (REQ-UX-009 e REQ-UX-012 são P0). |
+| 11. A06 entra se o prazo apertar? | A06 sai junto com o corte 3 de [02 §2.4](../docs/spec/02-escopo-e-fases.md) (modo vigilância): o fundador registra o corte na seção `## Cortes` do `G0.md` (cria a seção, se ainda não existir, no formato da seção 5 da T-015: `- Corte 3 aplicado em DD/MM/AAAA HH:mm BRT: <motivo>.`), REQ-UX-010 passa para o F1 e o restante desta tarefa segue. A05 e A09 não têm corte (REQ-UX-009 e REQ-UX-012 são P0). |
 | 12. Rota de detalhe do alerta e de estado da vigilância não estão em 09? | São leituras aditivas (`alerts.get` e `watch-mode.get`), com o mesmo isolamento das demais (404 idêntico, `scope-fixtures.ts`); registrar no PR para a 09 §6 incorporar. Nenhuma escrita nova. |

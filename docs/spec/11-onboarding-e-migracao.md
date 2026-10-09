@@ -309,7 +309,7 @@ CREATE TRIGGER migration_item_limit BEFORE INSERT ON app.migration_item FOR EACH
 GRANT SELECT, INSERT, UPDATE ON app.import_job, app.migration_wave, app.migration_item TO tracksys_app;
 ```
 
-**Sonda de quarentena por rastreador** (F0, para o aviso "Comunicando sem vínculo" de [10](10-apps-e-ux.md) C05) [ADOTADO NA v2.0: nova função na lista fechada de [04](04-dominio-e-dados.md) §4.4, revisão N0; caminho do IMEI no `payload` da inbox: alinhar com [05](05-ingestao-e-telemetria.md)]:
+**Sonda de quarentena por rastreador** (F0, para o aviso "Comunicando sem vínculo" de [10](10-apps-e-ux.md) C05) [ADOTADO NA v2.0: nova função na lista fechada de [04](04-dominio-e-dados.md) §4.4, revisão N0, criada pela T-005 (REQ-ONB-019); aviso de C05 na T-007; caminho do IMEI no `payload` da inbox: alinhar com [05](05-ingestao-e-telemetria.md)]:
 
 ```sql
 CREATE FUNCTION app.device_ingest_probe(p_device_id uuid)
@@ -324,6 +324,8 @@ AS $$
 $$;
 CREATE INDEX ingest_inbox_quarantine_uid_idx ON app.ingest_inbox ((payload #>> '{device,uniqueId}'), received_at)
   WHERE status = 'quarantined';
+-- ingest_inbox tem RLS FORCE e só a política de tracksys_ingest: a função (dono tracksys_owner) precisa da política G
+CREATE POLICY ingest_inbox_definer_read ON app.ingest_inbox FOR SELECT TO tracksys_owner USING (true);
 REVOKE ALL ON FUNCTION app.device_ingest_probe(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.device_ingest_probe(uuid) TO tracksys_app;
 ```

@@ -31,7 +31,7 @@ Especificação completa: [docs/spec/00-indice.md](docs/spec/00-indice.md). Deci
 | `pnpm db:lint` | Linter de migrations (REQ-DAD-021) |
 | `pnpm docs:check` / `pnpm tasks:lint` | Links, DEC, cartões e `trace.py` (REQ-QLD-001, 002 e 020) |
 | `pnpm lint` / `pnpm format` / `pnpm typecheck` | Biome e TypeScript |
-| `pnpm verify` | `lint`, `typecheck`, `db:migrate`, `db:rollback`, `db:migrate`, `db:check` e `test:acceptance`, nessa ordem (prova o `down`); é a ordem do CI |
+| `pnpm verify` | `lint`, `typecheck`, `db:migrate`, `db:rollback`, `db:migrate`, `db:check` e `test:acceptance`, nessa ordem (prova o `down`); a T-019 acrescenta `db:lint` antes do primeiro `db:migrate`; é a ordem do CI |
 
 ## Invariantes que nenhum código pode violar
 

@@ -197,7 +197,7 @@ WHERE d.status = 'sent' AND d.sent_at >= $1 AND d.sent_at < $2;
 | Cabeçalhos | `Content-Type: text/event-stream; charset=utf-8`, `Cache-Control: no-cache, no-transform`, `X-Accel-Buffering: no` |
 | Eventos | `vehicle.state` com `id: <revision>`; `alert` sem `id`; `ready` ao fim do snapshot; `close` antes de encerrar |
 | Heartbeat | Comentário `: keep-alive <RFC 3339>` a cada 15 s ([03 §7](03-arquitetura.md)) |
-| Origem | NOTIFY `device_state` (coalescido 250 ms por dispositivo) e NOTIFY `alert_changed`; o `api` relê sob o contexto RLS da conexão; nada passa pelo pg-boss |
+| Origem | NOTIFY `device_state` (coalescido 250 ms por dispositivo) e NOTIFY `alert_changed`; o `api` relê sob o contexto RLS da conexão; nada passa pelo pg-boss. [ADOTADO NA v2.0] A T-008 entrega o hub, o LISTEN `alert_changed` e a porta `AlertSource` com `NullAlertSource`; o adaptador SQL sobre `app.alert` é da T-011 ([02 §2.3](02-escopo-e-fases.md)) |
 | Revogação | Logout, troca de senha ou remoção de membership dispara NOTIFY `auth_changed` ([08](08-identidade-e-seguranca.md)); conexões afetadas recebem `close` com `session_revoked` em ≤ 5 s. Sessão revalidada a cada 60 s (`session_expired`) |
 
 ```text

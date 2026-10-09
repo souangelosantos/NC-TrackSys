@@ -28,7 +28,7 @@ Levar a operação ao nível do contrato: VM standby com réplica por streaming,
 3. Gateway de incidentes (Cloudflare Worker) e agente SRE somente leitura, com avaliação antes de ligar (REQ-QLD-017).
 4. Ensaio de contingência com o plantonista.
 5. Backfill automático da ingestão (REQ-ING-016, parte F1) [ADOTADO NA v2.0]: o job `ingest.reconcile` projeta em modo `backfill` o que faltar na inbox (flag 8, sem push nem efeito, INV-05) e o CLI de backfill aceita até 7 dias; a reconciliação, as consultas e o relatório ficam com a T-015.
-6. Métricas Prometheus da ingestão (REQ-ING-021, parte F1): exposição da porta `Metrics` no `api` e no `worker` com as métricas e limiares de aviso e page de [05 §17](../docs/spec/05-ingestao-e-telemetria.md) (CT-ING-021); a sonda de atraso no Uptime Kuma/Pushover já vem da T-013.
+6. Métricas Prometheus da ingestão (REQ-ING-021, parte F1): exposição da porta `Metrics` no `api` e no `worker` com as métricas e limiares de aviso e page de [05 §17](../docs/spec/05-ingestao-e-telemetria.md) (CT-ING-021); a sonda de atraso no Uptime Kuma/Pushover já vem da T-013. Quando o `api` passar a emitir `ingest_pending_count`, `ingest_pending_oldest_age_seconds` e `ingest_last_received_age_seconds`, tirá-las do textfile da sonda `tracksys-ingest-lag` (T-013) e levar a sonda para o Uptime Kuma da standby. O modo `--recent` da T-015 continua como conferência manual.
 7. Teste de desempenho CT-DAD-012 [ADOTADO NA v2.0]: 30 dias sintéticos de 300 veículos (~2,5 M posições), `EXPLAIN` da consulta canônica de [04 §7.3](../docs/spec/04-dominio-e-dados.md) com varredura do `*_pkey` em no máximo 2 partições e ≤ 100 ms.
 
 ## Fora do escopo
@@ -40,6 +40,6 @@ Levar a operação ao nível do contrato: VM standby com réplica por streaming,
 
 1. Especificação detalhada (tabelas com SQL, rotas, jobs e textos) a partir dos capítulos citados.
 2. Testes de aceite com Dado/Quando/Então e arquivos em `tests/acceptance/T-028/`, congelados antes da implementação (risco N0: revisão adversarial por agente de outro fornecedor e leitura humana linha a linha).
-3. Comandos de verificação e seção "Decisões já tomadas" com pelo menos 6 respostas.
+3. Comandos de verificação e seção "Decisões já tomadas" com pelo menos 5 respostas (DoR de [14 §5](../docs/spec/14-qualidade-e-processo-ia.md)).
 4. Conferir se os requisitos listados ainda batem com os capítulos ([16 — Rastreabilidade](../docs/spec/16-rastreabilidade.md)).
 5. Com os itens 5 a 7 do escopo (acrescentados na v2.0), a estimativa pode passar de 3 sessões: se passar, dividir o cartão ([14 §4](../docs/spec/14-qualidade-e-processo-ia.md)) antes do DoR, com backfill, métricas e CT-DAD-012 num cartão próprio.

@@ -1,4 +1,4 @@
-# T-014 — Migração manual por SMS e rollback
+# T-014 — Migração manual por SMS, rollback e `pilot provision`
 
 | Campo | Valor |
 |---|---|

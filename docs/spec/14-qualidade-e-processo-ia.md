@@ -271,12 +271,12 @@ Dono: [04 §5](04-dominio-e-dados.md). Consultas e formato das violações: [T-0
 
 | Regra | Violação apontada |
 |---|---|
-| CAT-01 | Tabela do schema `app` sem RLS habilitada **e** forçada (`relrowsecurity` e `relforcerowsecurity`), salvo allowlist justificada em `packages/db/catalog-allowlist.json` |
-| CAT-02 | Tabela com RLS e nenhuma política |
-| CAT-03 | Tabela do schema `app` sem `operator_id` NOT NULL, exceto `app.operator` e as listadas em `withoutOperatorId` com justificativa; ou com `tenant_id` anulável fora de `nullableTenantId` |
+| CAT-01 | Tabela do schema `app` (inclusive partição) sem RLS habilitada **e** forçada (`relrowsecurity` e `relforcerowsecurity`), fora de `rlsExempt` em `packages/db/catalog-allowlist.json` |
+| CAT-02 | Tabela com RLS e nenhuma política (partições herdam as do pai) |
+| CAT-03 | Tabela do schema `app` sem `operator_id` NOT NULL, exceto `app.operator` e as listadas em `withoutOperatorId` com justificativa; ou com `tenant_id` anulável fora de `nullableTenantId` (partições seguem o pai) |
 | CAT-04 | FK de tabela do schema `app` (exceto FK para `app.operator`) para tabela que tem `operator_id` e/ou `tenant_id` que não liga, **na mesma posição** de `conkey`/`confkey`, `operator_id → operator_id` e `tenant_id → tenant_id`; FK para `app.tenant` liga `operator_id → operator_id` e `tenant_id → id`. FK com colunas trocadas é violação |
 | CAT-05 | `tracksys_app` superusuário ou com BYPASSRLS; membro, direto ou herdado (`pg_has_role(..., 'MEMBER')`), de papel superusuário, com BYPASSRLS ou dono de objeto do schema `app`; ou dono de tabela, função ou do próprio schema `app` |
-| CAT-06 | `tracksys_app` com UPDATE (inclusive só em uma coluna, `has_any_column_privilege`), DELETE ou TRUNCATE em tabela da chave `appendOnly` da allowlist (`audit_log`, `command_event`, `access_log`, `position` quando existirem) |
+| CAT-06 | `tracksys_app` com UPDATE (inclusive só em uma coluna, `has_any_column_privilege`), DELETE ou TRUNCATE em tabela da chave `appendOnly` da allowlist (`audit_log`, `command_event`, `access_log`, `position` quando existirem; a partir da T-013, também `ops.audit_log` e os papéis `tracksys_ops_audit` e `tracksys_ops_ro`, [04 §5.1](04-dominio-e-dados.md)) |
 
 | Teste | Dado / Quando → Então |
 |---|---|

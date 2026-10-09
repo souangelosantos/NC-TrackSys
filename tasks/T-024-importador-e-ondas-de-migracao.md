@@ -27,7 +27,7 @@ Importar a base da operadora a partir da planilha exportada do tracker-net (XLSX
 2. Importador com relatório de erros por linha e idempotência por linha.
 3. Ondas com pré-checagem (domínio definitivo, senha SMS, perfil homologado para quem tem bloqueio).
 4. Mensagem pronta de aviso aos clientes da operadora.
-5. Job automático do `worker` que provisiona no Traccar todo rastreador criado no console ou pelo importador: cria o dispositivo pela API do Traccar e grava `device.traccar_device_id` como `tracksys_app` com contexto da operadora (`provisioning` de `pending` para `done`), idempotente por rastreador. Substitui, no F1, o subcomando manual `pilot provision` da T-014; o item `traccar_not_provisioned` da pré-checagem da onda (CT-ONB-010) continua valendo.
+5. Job automático do `worker` que provisiona no Traccar todo rastreador criado no console ou pelo importador: cria o dispositivo pela API do Traccar e grava `device.traccar_device_id` como `tracksys_app` com contexto da operadora (`provisioning` de `pending` para `done`), idempotente por rastreador. Substitui, no F1, o subcomando manual `pilot provision` da T-014 e reutiliza `provisionDevice` de `apps/worker/src/fleet/provision-device.ts` (T-014), sem reescrever a chamada à API do Traccar nem a gravação de `device.traccar_device_id`; o item `traccar_not_provisioned` da pré-checagem da onda (CT-ONB-010) continua valendo.
 
 ## Fora do escopo
 
@@ -38,5 +38,5 @@ Importar a base da operadora a partir da planilha exportada do tracker-net (XLSX
 
 1. Especificação detalhada (tabelas com SQL, rotas, jobs e textos) a partir dos capítulos citados.
 2. Testes de aceite com Dado/Quando/Então e arquivos em `tests/acceptance/T-024/`, congelados antes da implementação (risco N0: revisão adversarial por agente de outro fornecedor e leitura humana linha a linha).
-3. Comandos de verificação e seção "Decisões já tomadas" com pelo menos 6 respostas.
+3. Comandos de verificação e seção "Decisões já tomadas" com pelo menos 5 respostas (DoR de [14 §5](../docs/spec/14-qualidade-e-processo-ia.md)).
 4. Conferir se os requisitos listados ainda batem com os capítulos ([16 — Rastreabilidade](../docs/spec/16-rastreabilidade.md)).

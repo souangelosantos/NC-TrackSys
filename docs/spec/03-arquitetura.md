@@ -348,6 +348,8 @@ Toda configuração vem de variáveis de ambiente validadas por Zod no boot (REQ
 | `RESEND_API_KEY` / `EMAIL_FILE_DIR` | worker | Obrigatória com `resend` / diretório do driver `file`, padrão `.tmp/emails` |
 | `SENTRY_DSN` | api, worker | URL, opcional |
 | `VITE_SENTRY_DSN` | console (build) | URL, opcional; sem DSN, o SDK do Sentry fica desligado (T-007) |
+| `SENTRY_CSP_HOST` | Caddy (`app.`) | Origem de ingestão do Sentry do console acrescentada ao `connect-src` da CSP de `app.`; vazia → CSP inalterada (T-013, [13 §6](13-infra-e-operacao.md)) |
+| `OUTBOX_RELAY` | worker | `on` (padrão) ou `off`; `off` só é aceito com `NODE_ENV=test` (harness de teste do relay, T-005) |
 
 [ADOTADO NA v2.0] Provedor de e-mail do F0: Resend [PREMISSA], atrás da porta `EmailSender` do `worker` (T-006). Trocar por Brevo é um adaptador novo, sem mudança de contrato.
 

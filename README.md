@@ -8,7 +8,7 @@ Plataforma SaaS de rastreamento veicular da **Versix Solutions**, vendida a oper
 
 | Você é… | Leia |
 |---|---|
-| Agente de IA indo implementar | [AGENTS.md](AGENTS.md) e depois o cartão da tarefa em [tasks/](tasks/) |
+| Agente de IA indo implementar | [AGENTS.md](AGENTS.md) e depois o cartão da tarefa em [tasks/](tasks/) (índice: [tasks/INDEX.md](tasks/INDEX.md)) |
 | Fundador revisando escopo e prazos | [01 — Visão e negócio](docs/spec/01-visao-e-negocio.md) → [02 — Escopo e fases](docs/spec/02-escopo-e-fases.md) → [15 — Decisões, riscos e premissas](docs/spec/15-decisoes-riscos-premissas.md) |
 | Quem revisa a arquitetura | [03 — Arquitetura](docs/spec/03-arquitetura.md) e [docs/adr/](docs/adr/) |
 | Advogado | [Anexo B — Jurídico](docs/anexos/B-juridico.md) |

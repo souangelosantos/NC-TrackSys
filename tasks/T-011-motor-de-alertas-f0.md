@@ -3,7 +3,7 @@
 | Campo | Valor |
 |---|---|
 | Fase | F0 (semana S3: 21–27/10/2026; marco 27/10: alerta provocado chega ao celular, com a T-012) |
-| Requisitos | REQ-ALR-001 a REQ-ALR-010 (abertura, fechamento, episódio e evidência; a entrega push é da T-012); REQ-ALR-014 (fila, reconhecimento e o adaptador SQL do evento SSE `alert`; o hub, a porta `AlertSource` e o LISTEN `alert_changed` são da T-008); REQ-ALR-015 (marcos t0–t3); REQ-DAD-018 (só o passo 7 de 04 §9.1: alertas e vigilância na transferência; a rota é da T-007) |
+| Requisitos | REQ-ALR-001 a REQ-ALR-010 (abertura, fechamento, episódio e evidência; a entrega push é da T-012); REQ-ALR-014 (fila, reconhecimento e o adaptador SQL do evento SSE `alert`; o hub, a porta `AlertSource` e o LISTEN `alert_changed` são da T-008); REQ-ALR-015 (marcos t0–t3); REQ-DAD-018 (só o passo 7 de 04 §9.1: alertas e vigilância na transferência; a rota é da T-007); REQ-QLD-009 (só a P5, INV-05 no motor de alertas, [14 §9.1](../docs/spec/14-qualidade-e-processo-ia.md); P1–P4 são da T-005; a T-012 estende a P5 com o fake de FCM e `alert_delivery`, que fecha o CT-QLD-009) |
 | Invariantes | INV-01, INV-03, INV-04, INV-05, INV-07, INV-08 (vigilância nunca dispara comando) |
 | Risco de revisão | **N1** — revisão cruzada de outro fornecedor; fundador lê o resumo dirigido |
 | Depende de | T-005 (outbox, relay e `OUTBOX_ROUTES`, `device_state`, `insertOutboxEvent`, `list_silent_devices`, `list_operator_ids`, `outbox_claim`), T-002 (capacidades do J16). **De fato:** T-006 (sessão, contexto RLS por requisição e `audit_log`, usados pelas rotas), T-007 (`vehicle-transfer.ts`, que esta tarefa estende com o passo 7 de 04 §9.1) e T-008 (`presence.ts`, portas `AlertSource` e `WatchModeStatusReader`, hub SSE) — entregues no S2; T-004 (schema `pgboss`, `migrate: false`) |
@@ -33,7 +33,7 @@ Abrir e fechar, de forma idempotente e com evidência, os episódios de alerta d
 7. Adaptadores reais das portas da T-008 no `api` (seção 7.1): `SqlAlertSource` sobre `app.alert` no lugar do `NullAlertSource` (snapshot e evento SSE `alert`) e `SqlWatchModeStatusReader` no lugar do padrão `{ available: false, active: false }` de `availableActions.watchMode`.
 8. Pager do fundador (Pushover) e interface `Metrics` em memória (8); fakes de Pushover e de `GET /api/server` do Traccar em `packages/testkit`.
 9. Passo 7 de [04 §9.1](../docs/spec/04-dominio-e-dados.md) na transferência (seção 7.2): ao transferir V1 (`vehicles.transfer`, T-007), encerrar em T os alertas abertos de V1 e desativar a vigilância de V1, na mesma transação.
-10. Testes de aceite em `tests/acceptance/T-011/` e testes puros em `packages/domain/test/alerts.test.ts`.
+10. Testes de aceite em `tests/acceptance/T-011/` (inclusive a propriedade P5, `replay.property.test.ts`) e testes puros em `packages/domain/test/alerts.test.ts`.
 
 ## Fora do escopo
 
@@ -58,7 +58,7 @@ apps/worker/src/ops/pager.ts, apps/worker/src/observability/metrics.ts, apps/wor
 apps/api/src/alerts/{alerts.module,alerts.controller,watch-mode.controller,sql-alert-source,sql-watch-mode-status-reader}.ts
 apps/api/src/realtime/realtime.module.ts, apps/api/src/telemetry/telemetry.module.ts   (alterar: trocar NullAlertSource e o leitor padrão pelos adaptadores SQL)
 packages/testkit/src/fakes/{pushover,traccar}.ts
-tests/acceptance/T-011/{schema,rules,evaluate,silence,routes,relay,transfer}.test.ts
+tests/acceptance/T-011/{schema,rules,evaluate,silence,routes,relay,transfer,replay.property}.test.ts
 ```
 
 ## Especificação detalhada
@@ -121,7 +121,7 @@ Catálogo: `alert` e `watch_mode` têm `operator_id` e `tenant_id` NOT NULL (CAT
 
 ### (2) pg-boss 10
 
-- `packages/db/src/queues.ts`: `export const QUEUES = ['alerts.evaluate'] as const` (a T-012 acrescenta `alerts.deliver`). Opções da fila iguais às do `create_queue` da migration: política `standard`, `retryLimit: 5`, `retryDelay: 2`, `retryBackoff: true`, `expireInSeconds: 120`. Um teste compara a lista com `SELECT name FROM pgboss.queue`.
+- `packages/db/src/queues.ts`: `export const QUEUES = ['arq.probe', 'email.send', 'alerts.evaluate'] as const`, todas as filas criadas por migration até aqui (`arq.probe` da T-004, `email.send` da T-006; se o arquivo já existir, só acrescente `alerts.evaluate`; a T-012 acrescenta `alerts.deliver`). Opções da fila iguais às do `create_queue` da migration: política `standard`, `retryLimit: 5`, `retryDelay: 2`, `retryBackoff: true`, `expireInSeconds: 120`. Um teste compara o conjunto `QUEUES` com o de `SELECT name FROM pgboss.queue` (iguais, sem ordem).
 - A fila nasce na migration (seção 1), aplicada pelo dono `tracksys_owner` (`DATABASE_URL`), que também cria a partição da fila; os `GRANT` no schema `pgboss` e os privilégios padrão vêm da migration da T-004. Nenhum `CREATE` para `tracksys_app`.
 - Runtime (`worker` e `api`): `DATABASE_URL_APP` (`tracksys_app`), schema `pgboss`, `migrate: false` (T-004). O `api` não consome filas.
 - Plano B (decisão 4), só se `pgboss.create_queue` não existir na versão fixada: `boss-setup.ts` (`pnpm db:boss`) com `DATABASE_URL` do dono chama `createQueue` de cada fila de `queues.ts` e reaplica os `GRANT` da T-004; idempotente; `verify` e CI passam a rodá-lo logo após `pnpm db:migrate`. Registrar no PR.
@@ -209,6 +209,8 @@ Base comum: `seedVerticalSlice` (T-005), V1 com apelido "Gol prata", perfil de t
 `relay.test.ts` (só a rota nova; o relay é testado na T-005): `OUTBOX_ROUTES['device.state.updated.v1'] = 'alerts.evaluate'`; 1 linha `device.state.updated.v1` na outbox → `runRelayOnce(client, OUTBOX_ROUTES)` cria 1 job em `alerts.evaluate` com payload `{ eventId, type, operatorId, tenantId, entityId }` e `singletonKey = 'alerts.evaluate:<outboxId>'`; 2ª rodada cria 0 jobs.
 
 `transfer.test.ts` (passo 7 de 04 §9.1, HTTP com a rota `vehicles.transfer` da T-007): V1 de A1 com `ignition_on` aberto e vigilância ativa; `agente.alfa` transfere V1 para A2 → 201; o alerta fica com `ended_at = transferredAt` e `evidence.closeReason = 'vehicle_transferred'`, 1 `alert.closed.v1` com `notifyClose = false`, `watch_mode` de V1 com `deactivated_at = transferredAt`; V1' sem alerta aberto nem vigilância; `GET /api/v1/alerts?status=open` de `agente.alfa` não traz o alerta de V1; nenhuma linha em tabela de comando (INV-08).
+
+`replay.property.test.ts` (P5 de [14 §9.1](../docs/spec/14-qualidade-e-processo-ia.md), INV-05; fast-check `numRuns: 25` com Postgres, seed impressa na falha): gerador de 1 a 50 mensagens derivadas das capturas da T-002 com `processingMode` em `replay`, `backfill` ou `reprocess` (via `ingestTraccar`) e atributos aleatórios (ignição, `alarm = "sos"`, `powerCut`, posição fora da cerca da vigilância), intercaladas com mensagens `live` já processadas; depois de `runRelayOnce` e `handleEvaluateJob` para todos os jobs, os fakes de Pushover e de Traccar recebem 0 chamadas novas e todo `alert.opened.v1`/`alert.closed.v1` nascido de mensagem não ao vivo leva `processingMode ≠ "live"` no payload (é por ele que a T-012 não cria `alert_delivery`). O contraexemplo reduzido vira teste fixo no PR da correção.
 
 ## Comandos de verificação
 

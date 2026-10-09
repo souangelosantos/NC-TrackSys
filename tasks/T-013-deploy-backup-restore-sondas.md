@@ -261,8 +261,8 @@ pnpm verify
 
 | Dúvida provável | Resposta |
 |---|---|
-| A T-003 usa `apps/api/Dockerfile` e a T-004 entregou `infra/app/Dockerfile` (imagem única). Qual vale? | A da T-004, já em `main`. Esta tarefa alinha o Compose de produção (`tracksys-app`) e tira o perfil `app`, como a T-003 previu. |
-| `/health/ready` público ou só na 3001? | O smoke e as sondas usam `https://api.<domínio>/health/ready` ([13 §7, §10](../docs/spec/13-infra-e-operacao.md)). Se a T-004 só expõe na 3001, acrescente a rota na 3000 com `{"status":"ok"}` sem detalhes e registre no PR. |
+| Qual Dockerfile vale para `api`, `worker` e `migrate`? | O `infra/app/Dockerfile` da T-004 (imagem única `tracksys-app`), que a T-003 já referencia; nenhum serviço usa `apps/api/Dockerfile` nem `apps/worker/Dockerfile`. Esta tarefa acrescenta o alvo `migrate` e tira o perfil `app` de `api` e `worker`, como a T-003 previu. |
+| `/health/ready` público ou só na 3001? | O smoke e as sondas usam `https://api.<domínio>/health/ready` ([13 §7, §10](../docs/spec/13-infra-e-operacao.md)): a 3000 pública da T-004 responde só `{"status":"ok"}` (ou 503 `{"status":"unavailable"}`), sem `checks`. O healthcheck do Docker continua em `127.0.0.1:3001/health/ready` (`api`) e `:3002` (`worker`). |
 | Onde roda o restore de ensaio no F0? | Na primária, em projeto isolado: a standby não roda contêiner no F0 (T-003). Limites somados do ensaio: ~2 GB. No F1 o ensaio mensal vai para a standby. |
 | O banco restaurado pode arquivar WAL? | Não. `archive_mode=off` no ensaio; senão ele empurraria uma nova timeline para o bucket de produção. |
 | Por que contagens da produção como `postgres`? | `tracksys_ops_ro` não tem USAGE em `app` e as funções `ops.*` são do F1. O acesso é pelo socket, em `READ ONLY`, só `count`/`max` — o mesmo caminho do `pg_create_restore_point` do deploy. |

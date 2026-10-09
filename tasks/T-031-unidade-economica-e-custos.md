@@ -7,7 +7,7 @@
 | Fase | F1 (quinzena 01–15/12/2026) |
 | Requisitos | REQ-NEG-003, REQ-NEG-004, REQ-DAD-024, REQ-QLD-019 |
 | Invariantes | INV-07, INV-12 |
-| Risco de revisão | N1 |
+| Risco de revisão | N1; trechos N0: a migration da tabela de custos (RLS, `catalog-allowlist.json`) segue o rito N0 (AGENTS.md) |
 | Depende de | T-023, T-027 |
 | Estimativa | 1–2 sessões de agente |
 | Bloqueado por decisão | nenhuma |
@@ -34,5 +34,5 @@ Medir se o negócio fecha: relatório mensal em CSV por operadora e consolidado 
 
 1. Especificação detalhada (tabelas com SQL, rotas, jobs e textos) a partir dos capítulos citados.
 2. Testes de aceite com Dado/Quando/Então e arquivos em `tests/acceptance/T-031/`, congelados antes da implementação.
-3. Comandos de verificação e seção "Decisões já tomadas" com pelo menos 6 respostas.
+3. Comandos de verificação e seção "Decisões já tomadas" com pelo menos 5 respostas (DoR de [14 §5](../docs/spec/14-qualidade-e-processo-ia.md)).
 4. Conferir se os requisitos listados ainda batem com os capítulos ([16 — Rastreabilidade](../docs/spec/16-rastreabilidade.md)).

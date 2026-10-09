@@ -417,7 +417,7 @@ Obrigatórios: tipos de bloqueio e desbloqueio, `no_queue`, `confirmation`, `off
 
 ### 13.5 G-CMD
 
-Checklist GC-1 a GC-6 em [02](02-escopo-e-fases.md) §4.3. Sequência: bancada aprovada → perfil `homologated` → `COMMAND_BLOCK_SCOPE=pilot:<veículo do teste>` → teste supervisionado (GC-6) → `docs/runbooks/gates/G-CMD.md` aprovado → `COMMAND_BLOCK_SCOPE=all`.
+Checklist GC-1 a GC-6 em [02](02-escopo-e-fases.md) §4.3. Sequência: bancada aprovada → perfil `homologated` → `COMMAND_BLOCK_SCOPE=pilot:<veículo do teste>` → teste supervisionado (GC-6) → `docs/runbooks/gates/G-CMD.md` aprovado → `COMMAND_BLOCK_SCOPE=all`. Kit `homologation:check` e runbook `docs/runbooks/gates/G-CMD.md`: T-022 [ADOTADO NA v2.0].
 
 ## 14. Contratos
 

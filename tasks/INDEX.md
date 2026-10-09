@@ -14,7 +14,7 @@ Lista de todos os cartões do F0 e do F1, com fase, janela, risco, dependências
 |---|---|---|---|---|---|---|
 | [T-001](T-001-fundacao-monorepo-e-isolamento.md) | Fundação: monorepo, Postgres local e isolamento em 3 níveis | F0 | S1 (07–13/10) | N0 | — | Pronto (DoR) |
 | [T-002](T-002-spike-j16-bancada.md) | Spike J16 em bancada: capturas, `capability_profile` draft | F0 | S1 (07–13/10) | N1 | Hardware na bancada | Pronto (DoR) |
-| [T-003](T-003-vm-primaria-compose-firewall-dns.md) | VM primária, Docker Compose, firewall e DNS | F0 | S1 (07–13/10) | N1 | DEC-12 | Pronto (DoR) |
+| [T-003](T-003-vm-primaria-compose-firewall-dns.md) | VM primária, Docker Compose, firewall e DNS | F0 | S1 (07–13/10) | N1; caminhos N0 de 14 §6 | DEC-12 | Pronto (DoR) |
 | [T-004](T-004-contratos-e-esqueleto-api-worker.md) | Contratos iniciais (Zod → OpenAPI 3.1 → clientes TS e Dart) e esqueleto de `api` e `worker` | F0 | S1 (07–13/10) | N1 | T-001 | Pronto (DoR) |
 | [T-005](T-005-ingestao-traccar-inbox-projecao.md) | Ingestão Traccar → `ingest_inbox` → `position`/`device_state`/`outbox` | F0 | S2 (14–20/10) | N1; trechos N0 | T-001, T-002, T-004 | Pronto (DoR) |
 | [T-006](T-006-autenticacao-e-contexto-rls.md) | Autenticação (Better Auth) e contexto RLS por requisição | F0 | S2 (14–20/10) | N0 | T-001, T-004 | Pronto (DoR) |
@@ -23,9 +23,9 @@ Lista de todos os cartões do F0 e do F1, com fase, janela, risco, dependências
 | [T-009](T-009-app-login-lista-mapa-ao-vivo-marca.md) | App: login, lista, mapa ao vivo com estados honestos e marca básica da operadora | F0 | S2 (14–20/10) | N2 | T-004, T-006, T-008 | Pronto (DoR) |
 | [T-010](T-010-app-historico-e-deep-links.md) | App: histórico do dia e deep links (WhatsApp da central e navegação) | F0 | S3 (21–27/10) | N2 | T-008, T-009 | Pronto (DoR) |
 | [T-011](T-011-motor-de-alertas-f0.md) | Motor de alertas do F0 | F0 | S3 (21–27/10) | N1 | T-002, T-005, T-006 | Pronto (DoR) |
-| [T-012](T-012-push-fcm-tokens-e-entregas.md) | Push FCM: tokens, `alert_delivery`, recebimento no app | F0 | S3 (21–27/10) | N1; trechos N0 | T-011, T-009 | Pronto (DoR) |
-| [T-013](T-013-deploy-backup-restore-sondas.md) | Deploy, backup WAL-G, restore testado e sondas | F0 | S3 (21–27/10) | N1 | T-003 | Pronto (DoR) |
-| [T-014](T-014-migracao-manual-sms-e-rollback.md) | Migração manual por SMS e rollback | F0 | S3–S4 (22/10 a 29/10, 12:00 BRT) | N1 | T-005, DEC-02, DEC-04 | Pronto (DoR) |
+| [T-012](T-012-push-fcm-tokens-e-entregas.md) | Push FCM: tokens, `alert_delivery`, recebimento no app, telas A05 e A06 | F0 | S3 (21–27/10) | N1; trechos N0 | T-011, T-009 | Pronto (DoR) |
+| [T-013](T-013-deploy-backup-restore-sondas.md) | Deploy, backup WAL-G, restore testado e sondas | F0 | S3 (21–27/10) | N1; trechos N0 | T-003 | Pronto (DoR) |
+| [T-014](T-014-migracao-manual-sms-e-rollback.md) | Migração manual por SMS, rollback e `pilot provision` | F0 | S3–S4 (22/10 a 29/10, 12:00 BRT) | N1 | T-005, DEC-02, DEC-04 | Pronto (DoR) |
 | [T-015](T-015-consultas-g0-e-relatorio-de-evidencias.md) | Consultas do G0 e relatório de evidências | F0 | S4 (28–31/10) | N2 | T-005, T-012 | Pronto (DoR) |
 | [T-016](T-016-dominio-de-comandos.md) | Domínio de comandos puro: avaliador, máquina de estados e textos | F1 | 01–15/11 | N0 | T-002, T-004 | Pronto (DoR) |
 | [T-017](T-017-migration-f1-comandos.md) | Migration do F1 de comandos, chave do aparelho, consentimento e segredos da operadora | F1 | 01–15/11 | N0 | T-005, T-006, T-016 | Pronto (DoR) |
@@ -40,11 +40,11 @@ Lista de todos os cartões do F0 e do F1, com fase, janela, risco, dependências
 | [T-026](T-026-guincho-parceiro-e-indicacoes.md) | Guincho parceiro: botão no app, indicação, consentimento e relatório mensal | F1 | 16–30/11 | N0 | T-009, T-017, T-023; DEC-05 | Resumido — DoR pendente |
 | [T-027](T-027-auditoria-suporte-legal-hold-e-retencao.md) | Auditoria, acesso de suporte, legal hold e retenção quente/frio | F1 | 01–15/12 (retenção quente/frio até 31/01/2027) | N0 | T-005, T-006, T-012; DEC-15 | Resumido — DoR pendente |
 | [T-028](T-028-standby-failover-slo-e-agente-sre.md) | Standby, failover com fencing, SLO, status page e agente SRE de diagnóstico | F1 | 01–15/11 (SLO medido desde 01/12) | N0 | T-003, T-005, T-013, T-015; DEC-12, DEC-13 | Resumido — DoR pendente |
-| [T-029](T-029-console-f1-carteira-atendimento-e-alertas.md) | Console do F1: carteira completa, atendimento, marca, cercas e alertas novos | F1 | 01–30/11 | N1 | T-007, T-008, T-011 | Resumido — DoR pendente |
+| [T-029](T-029-console-f1-carteira-atendimento-e-alertas.md) | Console do F1: carteira completa, atendimento, marca, cercas e alertas novos | F1 | 01–30/11 | N1; trechos N0 | T-007, T-008, T-011 | Resumido — DoR pendente |
 | [T-030](T-030-lojas-qualidade-e-versao-minima.md) | Publicação nas lojas, versão mínima do app, E2E e carga | F1 | 16–30/11 | N1 | T-009, T-010, T-012; DEC-03, DEC-04 | Resumido — DoR pendente |
-| [T-031](T-031-unidade-economica-e-custos.md) | Relatório de unidade econômica e conta de armazenamento | F1 | 01–15/12 | N1 | T-023, T-027 | Resumido — DoR pendente |
+| [T-031](T-031-unidade-economica-e-custos.md) | Relatório de unidade econômica e conta de armazenamento | F1 | 01–15/12 | N1; trechos N0 | T-023, T-027 | Resumido — DoR pendente |
 
-Os riscos "N1; trechos N0" e "N0 no servidor" seguem as regras de 02 §2.3: os trechos N0 (migration, `catalog-allowlist.json`, CAT-07, funções `SECURITY DEFINER` e o servidor de tempo real da T-008) exigem revisão adversarial de outro fornecedor e leitura humana linha a linha.
+Os riscos "N1; trechos N0", "N1; caminhos N0 de 14 §6" e "N0 no servidor" seguem as regras de 02 §2.3: os trechos N0 (migration, `catalog-allowlist.json`, CAT-07, funções `SECURITY DEFINER`, o servidor de tempo real da T-008, `.github/workflows/**` e `infra/scripts/deploy.sh` da T-013 e os caminhos N0 de 14 §6 da T-003) exigem revisão adversarial de outro fornecedor e leitura humana linha a linha.
 
 ## Caminho crítico do F0
 

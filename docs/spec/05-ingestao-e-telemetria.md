@@ -140,7 +140,7 @@ Função pura `normalizeTraccar(envelope, profile)` em `packages/domain`. Campo 
 | `device.uniqueId` não resolvido (função devolve 0 linhas) | Quarentena `unknown_device` |
 | Resolvido, mas `device.traccar_device_id` NULL ou ≠ `position.deviceId` do envelope | Quarentena `device_identity_mismatch` (rastreador ainda não provisionado no Traccar, ver [02](02-escopo-e-fases.md) §2.3) |
 | Sem vínculo em `p_at` | Quarentena `no_assignment` (instalador vê o status por função de [11](11-onboarding-e-migracao.md)) |
-| Vínculo encerrado em `p_at` | Só histórico, flag `PREVIOUS_ASSIGNMENT`; `device_state` intocado (INV-06) |
+| Vínculo encerrado em `p_at` | Só histórico, flag `PREVIOUS_ASSIGNMENT`; `device_state` intocado (INV-06). Recebido mais de 24 h depois do `valid_to` desse vínculo: quarentena `closed_assignment_late` ([04](04-dominio-e-dados.md) §9.1) |
 
 **Janela aceita para `fix_time`:** `[received_at − 30 dias, received_at + 120 s]`, com `received_at` = relógio do `api` na chegada (no reprocessamento, o `received_at` original da inbox). Heartbeat (`outdated = true`) ignora `fixTime` e usa `serverTime` como `p_at`.
 
@@ -265,6 +265,8 @@ Eventos em modo diferente de `live` levam `processingMode` no payload; todo cons
 
 ## 12. Queda prolongada, reconciliação e backfill
 
+[ADOTADO NA v2.0] Fases: no F0, a T-015 só compara a janela do item 1 com a inbox (modo `--recent` do coletor do G0, por id do Traccar contra `(source_instance, kind, source_event_id)`), sem gravar; o job `ingest.reconcile` com projeção em `backfill`, o CLI `ingest:backfill` e a métrica `ingest_reconciled_missing_total` são da T-028, no F1 (REQ-ING-016).
+
 1. **Reconciliação contínua:** job `ingest.reconcile` (pg-boss, `*/15 * * * *`). Para cada dispositivo com vínculo corrente, `GET /api/positions?deviceId=<traccar_device_id>&from=<now − 80 min>&to=<now − 20 min>` na API do Traccar (rota e parâmetros [VALIDAR — DEC-02]; se `from`/`to` filtram por `fixTime`, fix do buffer offline com `fix_time` antigo fica fora da janela e só o backfill manual o recupera [VALIDAR — DEC-02]), até 4 requisições simultâneas. Ids ausentes na inbox são projetados em modo `backfill`. A janela sobreposta torna o job idempotente; o atraso de 20 min evita disputar com as retentativas do forward. `ingest_reconciled_missing_total > 0` fora de queda conhecida indica perda no forward e gera aviso.
 2. **Backfill manual** (queda > 1 h do `api` ou do banco): `ingest:backfill -- --from <RFC 3339> --to <RFC 3339> [--device <uuid>]`, limitado aos 7 dias retidos no Traccar (runbook em [13](13-infra-e-operacao.md)). Lacuna sem recuperação (fora dos 7 dias ou buffer perdido) não é inventada: histórico e relatórios a mostram ([10](10-apps-e-ux.md)).
 3. **Buffer offline do J16:** sem cobertura, o J16 guarda fixes e os envia ao reconectar [VALIDAR — DEC-02]. Chegam ao vivo com `fix_time` antigo: viram histórico (`LATE` ou atual, conforme §8), dentro da janela de 30 dias. Alertas sobre fato antigo seguem a regra de atraso de [07](07-alertas-e-tempo-real.md).
@@ -341,6 +343,8 @@ Domínio puro em `packages/domain/test/ingestion.property.test.ts` (`numRuns: 10
 | `ingest_last_received_age_seconds` | gauge | > 120 s com ≥ 1 sessão no Traccar | > 300 s |
 | `ingest_lag_seconds` (`received_at − serverTime`) e `ingest_fix_age_seconds` (`received_at − fix_time`) | histograma | p95 lag > 5 s | — |
 | `ingest_late_positions_total`, `ingest_compacted_total`, `ingest_jump_suspect_total`; `ingest_conflicting_duplicates_total` e `ingest_reconciled_missing_total` | contador | Os dois últimos: > 0 | — |
+
+[ADOTADO NA v2.0] No F0, `ingest_pending_count`, `ingest_pending_oldest_age_seconds` e `ingest_last_received_age_seconds` saem da sonda `tracksys-ingest-lag` da primária (timer de 60 s, textfile, page direto no Pushover; T-013, AL-07 de [13 §12](13-infra-e-operacao.md)); o cálculo pelo `api` e as demais métricas desta tabela entram com a T-028, no F1.
 
 Logs: nunca coordenadas, IMEI completo, segredo ou payload ([03 REQ-ARQ-014](03-arquitetura.md)); o `correlationId` da ingestão é o id da inbox.
 
@@ -448,6 +452,6 @@ CT-ING-022 — Dado o processo `api` morto (SIGKILL) depois do INSERT na inbox e
 **Aceite.** CT-ING-020 — Dado o CI de um PR que remove o desempate por `source_event_id` do §8 (fix com `fix_time` igual ao atual passa a substituí-lo), Quando `pnpm test` roda, Então P2 falha com contraexemplo reduzido de 2 fixes com o mesmo `fix_time`.
 
 ### REQ-ING-021 — Métricas e alarmes de ingestão
-**Fase:** F0 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** —
+**Fase:** F0, F1 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** — · [ADOTADO NA v2.0: sonda de atraso da ingestão por timer na primária, com page no Pushover, na T-013 (F0, cobre o CT-ING-021); métricas Prometheus do `api` e do `worker` e porta `Metrics` na T-028 (F1)]
 **Regra.** `api` e `worker` DEVEM emitir as métricas do §17 com os limiares de aviso e page.
 **Aceite.** CT-ING-021 — Dado o worker parado e uma falha injetada que deixa 1 linha `pending`, Quando passam 301 s, Então `ingest_pending_oldest_age_seconds > 300` e o fake de Pushover recebe 1 page.

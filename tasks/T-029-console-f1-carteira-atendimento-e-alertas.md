@@ -7,7 +7,7 @@
 | Fase | F1 (quinzena 01–30/11/2026) |
 | Requisitos | REQ-UX-024, REQ-UX-027, REQ-UX-028, REQ-ALR-020, REQ-ALR-021, REQ-ALR-022, REQ-ALR-023 |
 | Invariantes | INV-03, INV-07 |
-| Risco de revisão | N1 |
+| Risco de revisão | N1; trechos N0: a migration das tabelas de cerca e `ticket` (RLS, FK composta, `catalog-allowlist.json`) segue o rito N0 (AGENTS.md) |
 | Depende de | T-007, T-008, T-011 |
 | Estimativa | 3 sessões de agente |
 | Bloqueado por decisão | nenhuma |
@@ -36,5 +36,5 @@ Completar a paridade da central com o tracker-net: carteira (clientes, veículos
 
 1. Especificação detalhada (tabelas com SQL, rotas, jobs e textos) a partir dos capítulos citados.
 2. Testes de aceite com Dado/Quando/Então e arquivos em `tests/acceptance/T-029/`, congelados antes da implementação.
-3. Comandos de verificação e seção "Decisões já tomadas" com pelo menos 6 respostas.
+3. Comandos de verificação e seção "Decisões já tomadas" com pelo menos 5 respostas (DoR de [14 §5](../docs/spec/14-qualidade-e-processo-ia.md)).
 4. Conferir se os requisitos listados ainda batem com os capítulos ([16 — Rastreabilidade](../docs/spec/16-rastreabilidade.md)).

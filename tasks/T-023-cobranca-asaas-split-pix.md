@@ -38,5 +38,5 @@ Integrar a conta Asaas da operadora sem migrar a cobrança: chave cifrada, webho
 
 1. Especificação detalhada (tabelas com SQL, rotas, jobs e textos) a partir dos capítulos citados.
 2. Testes de aceite com Dado/Quando/Então e arquivos em `tests/acceptance/T-023/`, congelados antes da implementação (risco N0: revisão adversarial por agente de outro fornecedor e leitura humana linha a linha).
-3. Comandos de verificação e seção "Decisões já tomadas" com pelo menos 6 respostas.
+3. Comandos de verificação e seção "Decisões já tomadas" com pelo menos 5 respostas (DoR de [14 §5](../docs/spec/14-qualidade-e-processo-ia.md)).
 4. Conferir se os requisitos listados ainda batem com os capítulos ([16 — Rastreabilidade](../docs/spec/16-rastreabilidade.md)).

@@ -5,7 +5,7 @@
 | Fase | F1 (quinzena 01–15/11/2026) |
 | Requisitos | REQ-CMD-004, REQ-CMD-009, REQ-CMD-010, REQ-CMD-020, REQ-CMD-022, REQ-DAD-001, REQ-DAD-003, REQ-SEG-020, REQ-QLD-011 |
 | Invariantes | INV-06, INV-07, INV-08, INV-10, INV-12 |
-| Regras de catálogo | CAT-01 a CAT-06; ISO-01 a ISO-05 para cada tabela nova |
+| Regras de catálogo | CAT-01 a CAT-07 (a CAT-07 já vem da T-005 ou da T-006; esta migration não cria função `SECURITY DEFINER`); ISO-01 a ISO-05 para cada tabela nova |
 | Risco de revisão | N0 — migration, RLS, gatilhos e cifra; revisão adversarial de outro fornecedor + leitura humana linha a linha |
 | Depende de | T-005 (`app.tg_immutable_columns`, `device`, `device_assignment`, `outbox` e helper de outbox), T-006 (`auth."user"`, `membership`, `audit_log`), T-016 (pares de transição) |
 | Estimativa | 2 sessões de agente |
@@ -377,7 +377,7 @@ Postgres real, papel `tracksys_app` com `withContext` (T-001) e `DATABASE_URL_AD
 ```bash
 pnpm db:up
 pnpm db:migrate                                   # Applied: 20261102090000_f1_comandos.sql
-pnpm db:check                                     # Catálogo OK: nenhuma violação de CAT-01..CAT-06.
+pnpm db:check                                     # Catálogo OK: nenhuma violação de CAT-01..CAT-07.
 pnpm exec dbmate --migrations-dir ./packages/db/migrations --no-dump-schema rollback && pnpm db:migrate
 pnpm test:acceptance tests/acceptance/T-017
 pnpm verify
