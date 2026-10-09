@@ -28,7 +28,7 @@
 
 **Bloqueio** do veículo V está disponível se, e somente se, todas valem (no pedido e de novo antes do despacho):
 1. `COMMAND_DISPATCH_ENABLED=true` ([03](03-arquitetura.md), REQ-ARQ-016) e V dentro de `COMMAND_BLOCK_SCOPE` [ADOTADO NA v2.0: variável `COMMAND_BLOCK_SCOPE` = `none` (padrão) | `pilot:<vehicle_id>[,…]` | `all`, alterada só por deploy com revisão N0: `none` até a bancada, `pilot:` no teste supervisionado do G-CMD, `all` após o G-CMD].
-2. Vínculo primário aberto de V com `cut_point` NOT NULL.
+2. Vínculo primário aberto de V (senão `NO_PRIMARY_DEVICE`) com `cut_point` NOT NULL (senão `CUT_POINT_MISSING`).
 3. Rastreador com `capability_profile.status = 'homologated'`, `capabilities.relay = "yes"` e seção `commands` completa (§13.4). Exceção única: a bancada [ADOTADO NA v2.0: `COMMAND_BENCH_OPERATOR_ID` aceita perfil `draft` com `relay = "yes"` e seção `commands` completa, exceto `homologation_ref`, só para rastreadores dessa operadora, que não tem cliente real].
 4. Termo de ciência aceito pelo titular na versão exigida (§12).
 5. `tenant.status ≠ 'closed'`. `suspended_commercial` não muda nada (INV-09).
@@ -58,7 +58,7 @@ E = `evidence_max_age_s` da política vigente (≤ 60 s); t = `now()` do banco n
 | `starter` | Impede a próxima partida; motor ligado segue funcionando | Presença `online` ([07](07-alertas-e-tempo-real.md) §11): contato ≤ `stopped_interval_s` + 60 s (J16: 360 s). Velocidade não importa | ARMED `awaiting_contact` |
 | `ignition` | Desliga a ignição | (a) 2 fixes em E com velocidade 0 e `fix_time` distintos; ou (b) IGN_OFF | ARMED `awaiting_stop` |
 | `fuel_pump` | Corta o combustível; o motor apaga em segundos | (a) fix mais recente em E e **todos** os fixes em E com velocidade ≤ `max_moving_cut_kmh`; ou (b) IGN_OFF. Com `max_moving_cut_kmh = 0`, (a) vira a regra (a) de `ignition` | ARMED `awaiting_speed` (fix acima do teto) ou `awaiting_evidence` (sem fix) |
-| NULL | — | Indisponível (INV-10) | 422 `COMMAND_CUT_POINT_MISSING` |
+| NULL | — | Indisponível (INV-10) | 422 `CUT_POINT_MISSING` |
 
 "Velocidade 0" = `speed_kmh_x10 ≤ commands.stopped_speed_max_kmh_x10` do perfil, padrão 0 [VALIDAR — DEC-02: ruído do J16 parado, cenário S01 de [05](05-ingestao-e-telemetria.md)]. Desbloqueio, `position_request` e `set_interval` vão direto a READY.
 
@@ -444,7 +444,7 @@ Checklist GC-1 a GC-6 em [02](02-escopo-e-fases.md) §4.3. Sequência: bancada a
   "evidence": { "evaluatedAt": "2026-11-20T14:00:00Z", "lastFixAt": "2026-11-20T13:59:51Z", "speedKmh": 52.0 } }
 ```
 
-Console envia `stepUp: { "kind": "console_totp" }`. Outros códigos: 503 `COMMAND_DISPATCH_DISABLED` (só `block`; `unblock` aceito espera em READY), `COMMAND_PROFILE_NOT_HOMOLOGATED`, `COMMAND_RELAY_UNSUPPORTED`, `COMMAND_BLOCK_SCOPE_DISABLED`, `COMMAND_APP_BLOCK_DISABLED`, `COMMAND_FORBIDDEN`, `STEP_UP_REQUIRED`, `STEP_UP_CHALLENGE_EXPIRED`, `STEP_UP_CHALLENGE_USED`, `STEP_UP_SIGNATURE_INVALID`, `COMMAND_REASON_REQUIRED`. Evento `command.state.changed.v1`: `{ commandId, vehicleId, deviceId, type, fromState, toState, stateVersion, stateReason, at, requestedVia, processingMode }`; consumidores em [03](03-arquitetura.md) §6. SSE `command.state` ao solicitante: [09](09-api-e-contratos.md).
+Console envia `stepUp: { "kind": "console_totp" }`. Outros códigos: 503 `COMMAND_DISPATCH_DISABLED` (só `block`; `unblock` aceito espera em READY), `NO_PRIMARY_DEVICE` (sem vínculo primário aberto; HTTP 422 `COMMAND_NOT_ALLOWED` com `reason = no_primary_device`), `CUT_POINT_MISSING`, `PROFILE_NOT_HOMOLOGATED`, `COMMAND_RELAY_UNSUPPORTED`, `COMMAND_BLOCK_SCOPE_DISABLED`, `COMMAND_APP_BLOCK_DISABLED`, `COMMAND_FORBIDDEN`, `STEP_UP_REQUIRED`, `STEP_UP_CHALLENGE_EXPIRED`, `STEP_UP_CHALLENGE_USED`, `STEP_UP_SIGNATURE_INVALID`, `COMMAND_REASON_REQUIRED`. Os `code` HTTP são os de [09 §3](09-api-e-contratos.md); os demais nomes `COMMAND_*` e `STEP_UP_*` desta seção e dos CTs são motivos do domínio (T-016), que a T-018 mapeia para eles (ex.: `COMMAND_RELAY_UNSUPPORTED` → 422 `COMMAND_NOT_ALLOWED` com `reason = relay_unsupported`; `STEP_UP_CHALLENGE_EXPIRED` → 403 `STEP_UP_INVALID` com `reason = challenge_expired`). Evento `command.state.changed.v1`: `{ commandId, vehicleId, deviceId, type, fromState, toState, stateVersion, stateReason, at, requestedVia, processingMode }`; consumidores em [03](03-arquitetura.md) §6. SSE `command.state` ao solicitante: [09](09-api-e-contratos.md).
 
 ## 15. Auditoria e UX mínima
 
@@ -464,7 +464,7 @@ Console envia `stepUp: { "kind": "console_totp" }`. Outros códigos: 503 `COMMAN
 ### REQ-CMD-001 — Disponibilidade do bloqueio
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-10, INV-03
 **Regra.** `api` e `worker` DEVEM aplicar a §2 no pedido e antes do despacho. Bloqueio indisponível NÃO DEVE gerar linha em `command` nem chamada ao Traccar. Desbloqueio DEVE depender só das condições próprias da §2.
-**Aceite.** CT-CMD-001 — Dado V1 com vínculo de `cut_point` NULL, Quando o `tenant_owner` pede `block` com step-up válido, Então 422 `COMMAND_CUT_POINT_MISSING`, 0 linhas em `command`, 1 `audit_log` `denied` e 0 requisições no fake de Traccar; Dado perfil `draft` fora da operadora de bancada, Então 422 `COMMAND_PROFILE_NOT_HOMOLOGATED`; Dado perfil `homologated` com `relay = "unknown"`, Então 422 `COMMAND_RELAY_UNSUPPORTED`; Dado `COMMAND_BLOCK_SCOPE=none`, Então 422 `COMMAND_BLOCK_SCOPE_DISABLED`; Dado perfil `suspended` com `relay = "yes"`, Quando pede `unblock`, Então 201.
+**Aceite.** CT-CMD-001 — Dado V1 com vínculo de `cut_point` NULL, Quando o `tenant_owner` pede `block` com step-up válido, Então 422 `CUT_POINT_MISSING`, 0 linhas em `command`, 1 `audit_log` `denied` e 0 requisições no fake de Traccar; Dado perfil `draft` fora da operadora de bancada, Então 422 `PROFILE_NOT_HOMOLOGATED`; Dado perfil `homologated` com `relay = "unknown"`, Então 422 `COMMAND_RELAY_UNSUPPORTED`; Dado `COMMAND_BLOCK_SCOPE=none`, Então 422 `COMMAND_BLOCK_SCOPE_DISABLED`; Dado perfil `suspended` com `relay = "yes"`, Quando pede `unblock`, Então 201.
 
 ### REQ-CMD-002 — Avaliação por `cut_point`
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-08, INV-03

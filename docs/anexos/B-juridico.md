@@ -48,7 +48,7 @@ Serve de registro das operações de tratamento (LGPD art. 37 [VALIDAR]). Base l
 | T4 | Auditoria de comandos e ações administrativas | `audit_log`, `command_event` | Exercício regular de direitos (VI) [VALIDAR — Q-05] | 5 anos (prescrição do CDC art. 27 [VALIDAR]) |
 | T5 | Ocorrência, equipe de busca e link para a polícia | Posição ao vivo, linha do tempo, número do BO | Execução de contrato (V) a pedido do titular; risco iminente à vida: proteção da vida (VII) [VALIDAR] | Como T1 e T3 |
 | T6 | Compartilhamento temporário (família) | Posição atual, modelo, cor, placa opcional | Execução de contrato (V), por ação do titular | Link ≤ 24 h |
-| T7 | Segurança e antifraude | Envelope bruto do Traccar, identidade de dedupe, IP, limites | Legítimo interesse (IX), com teste de balanceamento registrado (art. 10 [VALIDAR]) | Bruto 7 dias; identidade 90 dias |
+| T7 | Segurança e antifraude | Envelope bruto do Traccar, identidade de dedupe, IP, limites | Legítimo interesse (IX), com teste de balanceamento registrado (art. 10 [VALIDAR]) | Bruto 7 dias; identidade 90 dias (expurgo automático a partir do F1, T-027; no F0, risco aceito R-21 de [15](../spec/15-decisoes-riscos-premissas.md) §3) |
 | T8 | Registros de acesso | IP, porta de origem, data e hora UTC, user agent | Obrigação legal (II): Marco Civil art. 15 [VALIDAR] | 6 meses |
 | T9 | Cobrança e PIX | Nome, CPF, faturas, código PIX | Execução de contrato (V); obrigação legal fiscal (II) [VALIDAR] | 5 anos |
 | T10 | Atendimento | Ticket, notas, veículo, alerta | Execução de contrato (V) | Até a anonimização do cliente |

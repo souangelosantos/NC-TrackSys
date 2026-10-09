@@ -8,7 +8,7 @@
 | Requisitos | REQ-SVA-001 a REQ-SVA-009, REQ-UX-022 |
 | Invariantes | INV-05, INV-07, INV-11, INV-12 |
 | Risco de revisão | N0 |
-| Depende de | T-009, T-023 |
+| Depende de | T-009, T-017 (tabela `consent`), T-023 |
 | Estimativa | 2 sessões de agente |
 | Bloqueado por decisão | DEC-05 (repartição; enquanto aberta, vale a proposta do capítulo 12) |
 | Status | Resumido — DoR pendente |
@@ -23,7 +23,7 @@ Validar o modelo de receita com o parceiro que a Lider já tem: botão "Chamar g
 
 ## Escopo — fazer
 
-1. Tabelas `partner`, `referral` e `consent` (se ainda não existir).
+1. Tabelas `partner` e `referral`, e a FK composta de `consent.partner_id` para `partner` (a `consent` nasce na T-017 sem essa FK).
 2. Botão no app que nunca bloqueia o contato, mesmo com a API fora do ar.
 3. Relatório mensal por operadora e consolidado para a Versix.
 

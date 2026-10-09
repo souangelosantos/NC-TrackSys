@@ -3,7 +3,7 @@
 | Campo | Valor |
 |---|---|
 | Fase | F0 (semana S2: 14–20/10/2026) |
-| Requisitos | REQ-SEG-001, REQ-SEG-002, REQ-SEG-003, REQ-SEG-004, REQ-SEG-005, REQ-SEG-006, REQ-SEG-007 (HTTP), REQ-SEG-008, REQ-SEG-009, REQ-SEG-010, REQ-SEG-023, REQ-SEG-026, REQ-API-008, REQ-API-009, REQ-API-018, REQ-ARQ-008, REQ-ARQ-010 (job de e-mail), REQ-DAD-001 e REQ-DAD-003 (`membership`), REQ-DAD-006 (`memberships_for_user`) |
+| Requisitos | REQ-SEG-001, REQ-SEG-002, REQ-SEG-003, REQ-SEG-004, REQ-SEG-005, REQ-SEG-006, REQ-SEG-007 (HTTP), REQ-SEG-008, REQ-SEG-009, REQ-SEG-010, REQ-SEG-023, REQ-SEG-026, REQ-API-008, REQ-API-009, REQ-API-018, REQ-ARQ-008, REQ-ARQ-010 (job de e-mail), REQ-DAD-001 e REQ-DAD-003 (`membership`), REQ-DAD-006 (`memberships_for_user`), REQ-DAD-009 (partições de `access_log`; as de `position` são da T-005) |
 | Invariantes | INV-07 (isolamento), INV-11 (nenhum papel tem comando implícito), INV-12 |
 | Regras de catálogo | CAT-01 a CAT-07 (esta tarefa implementa a CAT-07 se ainda não existir); ISO-01 a ISO-05 para `membership`, `audit_log` e `idempotency_record` |
 | Risco de revisão | **N0** — modo de planejamento antes de editar; revisão adversarial por agente de outro fornecedor; leitura humana linha a linha |
@@ -25,8 +25,8 @@ Fazer cada requisição autenticada virar, no banco, exatamente o contexto RLS a
 
 ## Escopo — fazer
 
-1. Migration `20261014120000_identidade.sql` com o SQL exato da seção 1 e allowlist da seção 2; CAT-07 em `packages/db/src/catalog.ts`.
-2. `withContext(pool, ctx, fn, opts?)` com `opts = { readOnly?: boolean; statementTimeoutMs?: number }` (sem `opts`, comportamento idêntico ao da T-001); `withDb` repassa `opts`.
+1. Migration `20261014130000_identidade.sql` com o SQL exato da seção 1 e allowlist da seção 2; CAT-07 em `packages/db/src/catalog.ts` (se a T-005 ainda não a entregou).
+2. `withContext(pool, ctx, fn, opts?)` com `opts = { readOnly?: boolean; statementTimeoutMs?: number }` (sem `opts`, comportamento idêntico ao da T-001); `withDb` repassa `opts`. `ctx` continua validado por `z.strictObject` e `opts` é argumento separado, validado por outro `z.strictObject` (chave extra = erro); `SET TRANSACTION READ ONLY` e `SET LOCAL statement_timeout` vêm logo após o `BEGIN`; o `RESET ALL` depois do COMMIT/ROLLBACK e o descarte da conexão quando ele falha (`release(err)`, T-001) continuam valendo.
 3. Better Auth em `apps/api/src/identity/auth.ts` e um handler `@Route` por caminho da allowlist (seção 3). O handler HTTP genérico do Better Auth **não** é montado.
 4. Pipeline de rota (seção 4), matriz de permissões e `resolveRequestContext` puros em `packages/domain/src/auth/` (seção 5).
 5. Rotas `me.get`, `invitations.create`, `invitations.accept`, `memberships.list`, `memberships.revoke` e as de auth (seção 3), com schemas em `packages/contracts/src/auth/` e clientes regenerados.
@@ -35,19 +35,19 @@ Fazer cada requisição autenticada virar, no banco, exatamente o contexto RLS a
 8. `pg_notify('auth_changed', '{"u":"<userId>"}')` em logout, troca/redefinição de senha e revogação de membership, na mesma transação.
 9. Suíte de isolamento por rota gerada do registro (`apps/api/test/scope.e2e.test.ts` + `scope-fixtures.ts`) e teste de matriz papel × rota.
 10. CLI `operator:create` (seção 10) e `seedIdentityWorld` em `packages/testkit`.
-11. Testes de aceite de `tests/acceptance/T-006/` escritos e mesclados **antes** da implementação (DoR item 6 para N0).
+11. Testes de aceite de `tests/acceptance/T-006/` escritos **antes** da implementação (DoR item 6 para N0): como o cartão descreve os testes em tabela, eles são o 1º commit do PR (`test(auth): aceite congelado (T-006)`), lido pelo fundador antes dos commits de implementação (14 §7 item 3; um PR só de testes quebraria o `verify` de `main`).
 
 ## Fora do escopo
 
 - Chave do aparelho, step-up, grants de suporte, `platform_admin`, papéis `installer`, `search_team` e `tenant_member` (F1; aqui ficam sem permissão).
 - Fechamento de conexões SSE por `auth_changed` (T-008 consome o NOTIFY; aqui só se emite).
 - Rotas de frota e telas do console (T-007); `GET`/`PUT /api/v1/operator/brand`; app (T-009).
-- `app.retention_purge` e `app.ensure_partitions` (T-005). Gatilhos `tenant_immutable`/`vehicle_immutable` (T-005).
+- `app.ensure_partitions` e os gatilhos `tenant_immutable`/`vehicle_immutable` (T-005). `app.retention_purge`, inclusive o tipo `idempotency_record` (T-027, F1).
 
 ## Arquivos a criar/alterar
 
 ```
-criar    packages/db/migrations/20261014120000_identidade.sql
+criar    packages/db/migrations/20261014130000_identidade.sql
 alterar  packages/db/{catalog-allowlist.json,src/allowlist.ts,src/catalog.ts,scripts/check-catalog.ts,src/context.ts,src/kysely.ts,src/index.ts}
 criar    packages/db/src/{audit.ts,access-log.ts}    gerar packages/db/src/generated/db.ts
 criar    packages/domain/src/auth/{permissions.ts,context.ts,invite-rules.ts,password.ts,common-passwords.txt}  packages/domain/src/common/jcs.ts
@@ -57,7 +57,7 @@ criar    apps/api/src/identity/{identity.module.ts,auth.ts,auth.controller.ts,me
          memberships.controller.ts,request-auth.ts,request-context.ts,rate-limit.ts,access-log.hook.ts,totp-replay.ts,password-policy.ts}
 criar    apps/api/src/platform/{db-errors.ts,idempotency.ts,route-transaction.ts}  apps/api/src/cli.ts
 criar    apps/api/test/{scope.e2e.test.ts,scope-fixtures.ts,permissions.matrix.test.ts}
-criar    apps/worker/src/identity/{email.consumer.ts,email-sender.ts}  packages/testkit/src/identity-world.ts
+criar    apps/worker/src/identity/{email.consumer.ts,email-sender.ts}  packages/testkit/src/identity-world.ts  (exporta seedIdentityWorld e signInAs)
 alterar  apps/api/src/config/env.ts  apps/worker/src/config/env.ts  .env.example  apps/api/scripts/build.ts (entrada cli)
 criar    tests/acceptance/T-006/{world.ts,auth-session,two-factor,context,invitations,password-reset,memberships,rate-limit,access-audit,catalog-identity,scope-suite,permissions}.test.ts
 ```
@@ -70,6 +70,7 @@ criar    tests/acceptance/T-006/{world.ts,auth-session,two-factor,context,invita
 -- migrate:up
 -- T-006 — Identidade: schema auth (Better Auth), membership, auditoria, registro de acesso e idempotência.
 -- Requisitos: REQ-SEG-001, REQ-SEG-008, REQ-SEG-010, REQ-SEG-026, REQ-API-009, REQ-DAD-001, REQ-DAD-006. CAT-01..CAT-07.
+SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '60s';
 -- (a) Schema auth: fora do RLS; acesso só pelo módulo identity (ADR-006). Tabelas do Better Auth no formato do CLI.
 CREATE SCHEMA auth;
 CREATE TABLE auth."user" (
@@ -126,7 +127,8 @@ DECLARE col text; BEGIN
       RAISE EXCEPTION 'coluna %.% é imutável', TG_TABLE_NAME, col USING ERRCODE = 'integrity_constraint_violation';
     END IF; END LOOP; RETURN NEW;
 END $$;
--- (c) membership — rls: C (+ G)
+-- (c) membership
+-- rls: C + G
 CREATE TABLE app.membership (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES auth."user" (id), operator_id uuid NOT NULL REFERENCES app.operator (id), tenant_id uuid NULL,
@@ -151,7 +153,8 @@ CREATE POLICY membership_tenant_manage ON app.membership FOR ALL
   USING (operator_id = app.current_operator_id() AND app.current_scope() = 'tenant' AND tenant_id = ANY (app.current_tenant_ids()) AND role = 'tenant_member')
   WITH CHECK (operator_id = app.current_operator_id() AND app.current_scope() = 'tenant' AND tenant_id = ANY (app.current_tenant_ids()) AND role = 'tenant_member');
 CREATE POLICY membership_definer_read ON app.membership FOR SELECT TO tracksys_owner USING (true);
--- (d) audit_log — rls: A (tenant_id NULL em ação de nível operadora). Append-only (CAT-06).
+-- (d) audit_log — tenant_id NULL em ação de nível operadora. Append-only (CAT-06).
+-- rls: A
 CREATE TABLE app.audit_log (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), operator_id uuid NOT NULL REFERENCES app.operator (id), tenant_id uuid NULL,
   actor_type text NOT NULL CHECK (actor_type IN ('user', 'support', 'system', 'ai_agent')), actor_id text NULL,
@@ -166,12 +169,14 @@ ALTER TABLE app.audit_log ENABLE ROW LEVEL SECURITY, FORCE ROW LEVEL SECURITY;
 CREATE POLICY audit_log_isolation ON app.audit_log FOR ALL
   USING (operator_id = app.current_operator_id() AND (app.current_scope() = 'operator' OR tenant_id = ANY (app.current_tenant_ids())))
   WITH CHECK (operator_id = app.current_operator_id() AND (app.current_scope() = 'operator' OR tenant_id = ANY (app.current_tenant_ids())));
--- (e) access_log — rls: F (plataforma; Marco Civil, 6 meses). Partições mensais; de 2027-01 em diante, app.ensure_partitions (T-005).
+-- (e) access_log — plataforma (Marco Civil, 6 meses), sem operator_id (withoutOperatorId). Partições mensais; de 2027-01 em diante, app.ensure_partitions (T-005).
+-- rls: F
 CREATE TABLE app.access_log (
   id uuid NOT NULL DEFAULT gen_random_uuid(), user_id uuid NULL, ip inet NOT NULL,
   source_port integer NOT NULL CHECK (source_port BETWEEN 0 AND 65535), user_agent text NULL CHECK (length(user_agent) <= 512),
   at timestamptz NOT NULL DEFAULT now(), CONSTRAINT access_log_pkey PRIMARY KEY (id, at)
 ) PARTITION BY RANGE (at);
+-- rls: F (partições herdam as políticas do pai; RLS forçada em cada uma, CAT-01)
 CREATE TABLE app.access_log_p202610 PARTITION OF app.access_log FOR VALUES FROM ('2026-10-01 00:00:00+00') TO ('2026-11-01 00:00:00+00');
 CREATE TABLE app.access_log_p202611 PARTITION OF app.access_log FOR VALUES FROM ('2026-11-01 00:00:00+00') TO ('2026-12-01 00:00:00+00');
 CREATE TABLE app.access_log_p202612 PARTITION OF app.access_log FOR VALUES FROM ('2026-12-01 00:00:00+00') TO ('2027-01-01 00:00:00+00');
@@ -180,7 +185,8 @@ ALTER TABLE app.access_log_p202610 ENABLE ROW LEVEL SECURITY, FORCE ROW LEVEL SE
 ALTER TABLE app.access_log_p202611 ENABLE ROW LEVEL SECURITY, FORCE ROW LEVEL SECURITY;
 ALTER TABLE app.access_log_p202612 ENABLE ROW LEVEL SECURITY, FORCE ROW LEVEL SECURITY;
 CREATE POLICY access_log_app_insert ON app.access_log FOR INSERT TO tracksys_app WITH CHECK (true);
--- (f) idempotency_record — rls: A (09 §4; tenant_id NULL em operação de nível operadora; operation = operationId do registro).
+-- (f) idempotency_record — 09 §4; tenant_id NULL em operação de nível operadora; operation = operationId do registro (com hífen).
+-- rls: A
 CREATE TABLE app.idempotency_record (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), operator_id uuid NOT NULL REFERENCES app.operator (id), tenant_id uuid NULL,
   user_id uuid NOT NULL REFERENCES auth."user" (id), operation text NOT NULL CHECK (operation ~ '^[a-z_-]+(\.[a-z_-]+)+$'),
@@ -229,7 +235,7 @@ DROP SCHEMA auth CASCADE;
 
 ### (2) Allowlist e CAT-07
 
-`catalog-allowlist.json` ganha a chave `securityDefiner` (`Record<assinatura, justificativa ≥ 10>`); `CatalogAllowlistSchema` e `CatalogRule` passam a incluir `securityDefiner` (padrão `{}`) e `'CAT-07'`. Estado ao fim desta tarefa (a T-005 acrescenta as suas entradas):
+`catalog-allowlist.json` (chaves da T-001 validadas por `z.strictObject`) ganha a chave `securityDefiner` (`Record<assinatura, justificativa ≥ 10>`, formato de [04 §5.1](../docs/spec/04-dominio-e-dados.md)); se a T-005 ainda não a entregou, esta tarefa estende o `CatalogAllowlistSchema` com `securityDefiner: z.record(z.string(), z.string().min(10)).default({})` e `CatalogRule` com `'CAT-07'` no mesmo PR. Entradas desta tarefa (sem apagar as que a T-005 já tiver gravado em `main`):
 
 ```json
 {
@@ -239,6 +245,9 @@ DROP SCHEMA auth CASCADE;
     "audit_log": "ação administrativa de nível operadora sem cliente alvo",
     "idempotency_record": "operação de nível operadora (ex.: convite de equipe) não tem cliente"
   },
+  "withoutOperatorId": {
+    "access_log": "registro de acesso da plataforma (Marco Civil), sem dono operadora; o app só insere"
+  },
   "appendOnly": ["audit_log", "command_event", "access_log"],
   "securityDefiner": {
     "app.memberships_for_user(uuid)": "monta o contexto da requisição antes de existir contexto (08 §4)"
@@ -246,7 +255,9 @@ DROP SCHEMA auth CASCADE;
 }
 ```
 
-CAT-07 (se a T-005 já entregou, só acrescente a entrada): para cada `pg_proc` com `prosecdef` no schema `app`, assinatura = `'app.' || proname || '(' || oidvectortypes(proargtypes) || ')'`. Violação, com `object` = assinatura: fora de `securityDefiner` → `função SECURITY DEFINER fora da allowlist`; `proconfig` sem o item `search_path=pg_catalog, pg_temp` → `search_path não fixado`; `has_function_privilege('public', oid, 'EXECUTE')` → `executável por PUBLIC`; entrada da allowlist sem função → `allowlist cita função inexistente`. Mensagem de sucesso do script: `Catálogo OK: nenhuma violação de CAT-01..CAT-07.`
+CAT-07 (mesma regra do cartão da T-005; se ela já entregou, só acrescente a entrada): para cada `pg_proc` com `prosecdef` no schema `app`, assinatura = `'app.' || proname || '(' || oidvectortypes(proargtypes) || ')'`. Violação, com `object` = assinatura: fora de `securityDefiner` → `função SECURITY DEFINER fora da allowlist`; entrada da allowlist sem função → `allowlist cita função inexistente`; `proconfig` sem o item `search_path=pg_catalog, pg_temp` → `search_path não fixado`; `has_function_privilege('public', oid, 'EXECUTE')` → `executável por PUBLIC`; `pg_get_userbyid(proowner) <> 'tracksys_owner'` → `dono diferente de tracksys_owner`. Qual papel executa a função é provado pelos testes de aceite (42501), não pela allowlist. Mensagem de sucesso do script: `Catálogo OK: nenhuma violação de CAT-01..CAT-07.`
+
+As tabelas desta tarefa passam nas regras novas da T-001: `access_log` não tem `operator_id` e entra em `withoutOperatorId` (CAT-03); toda FK para `app.tenant` liga `operator_id → operator_id` e `tenant_id → id` na mesma posição, e as FKs para `auth."user"` e `app.operator` ficam fora da CAT-04; `tracksys_app` não tem UPDATE, DELETE nem TRUNCATE em `audit_log` e `access_log` (CAT-06).
 
 ### (3) Better Auth e rotas
 
@@ -321,7 +332,7 @@ Primeiro comando da transação de rota com chave: `INSERT INTO app.idempotency_
 
 ### (10) CLI e mundo de teste
 
-`node apps/api/dist/cli.js operator:create --legal-name "<razão>" --display-name "<nome>" [--document <dígitos>] --admin-email <e-mail> --admin-name "<nome>"` (também `pnpm --filter @tracksys/api cli …`): numa transação `withDb({ scope: 'operator', operatorId: <uuid novo> })` cria `operator`, `operator_brand` (nome, cor padrão), usuário, membership `operator_admin` `invited`, `email_token` e job; `audit_log` `operator.create`. Imprime `{"operatorId","membershipId","expiresAt"}`; nunca o token. `seedIdentityWorld()` (testkit) cria Alfa (A1, A2), Beta (B1) e `admin.alfa`, `agente.alfa`, `dono.a1`, `dono.a2`, `admin.beta` (`<nome>@exemplo.com`, senhas `CANARIO-<uuid>`), com opção de 2FA ativo e segredo TOTP conhecido.
+`node apps/api/dist/cli.js operator:create --legal-name "<razão>" --display-name "<nome>" [--document <dígitos>] --admin-email <e-mail> --admin-name "<nome>"` (também `pnpm --filter @tracksys/api cli …`): numa transação `withDb({ scope: 'operator', operatorId: <uuid novo> })` cria `operator`, `operator_brand` (nome, cor padrão), usuário, membership `operator_admin` `invited`, `email_token` e job; `audit_log` `operator.create`. Imprime `{"operatorId","membershipId","expiresAt"}`; nunca o token. `seedIdentityWorld()` (testkit) cria Alfa (A1, A2), Beta (B1) e `admin.alfa`, `agente.alfa`, `dono.a1`, `dono.a2`, `admin.beta` (`<nome>@exemplo.com`, senhas `CANARIO-<uuid>`), com opção de 2FA ativo e segredo TOTP conhecido. `signInAs(world, user, { clientKind = 'app' })` (exportado de `packages/testkit`, usado pela T-012 e seguintes) faz o login real pelas rotas desta tarefa e devolve os headers da sessão: `app` → `Authorization: Bearer <token>`; `console` → cookie `__Secure-tracksys.session_token` e `Origin` do console (com TOTP do segredo conhecido quando o usuário tem 2FA).
 
 ## Testes de aceite (congelados)
 
@@ -337,7 +348,7 @@ Primeiro comando da transação de rota com chave: `INSERT INTO app.idempotency_
 | `memberships.test.ts` (CT-SEG-007 HTTP) | `admin.alfa` lista memberships → só da Alfa. Revoga `dono.a1` às `T` → 204, 1 NOTIFY `auth_changed` com `{"u":"<id de dono.a1>"}`, `audit_log` `membership.revoke`; a requisição seguinte de `dono.a1` a `GET /api/v1/__test/context` → 404 e `GET /api/v1/me` → 200 com `memberships: []`. `admin.beta` revoga membership da Alfa → 404; `admin.alfa` revoga a própria → 409 |
 | `rate-limit.test.ts` (CT-SEG-023) | `X-Forwarded-For: 203.0.113.10`: 5 senhas erradas de `dono.a1` → 6ª com a senha certa → 429 com `Retry-After` entre 890 e 900; de `198.51.100.7` com a senha certa → 200; a sessão aberta antes continua 200; o mesmo com `naoexiste@exemplo.com` → mesma resposta na 6ª. De `192.0.2.50`, 21 tentativas com e-mails diferentes → a 21ª recebe 429 |
 | `access-audit.test.ts` (CT-SEG-026) | `dono.a1` entra com `X-Forwarded-For: 203.0.113.10` e `X-Client-Port: 51515` → 1 `access_log` com esse IP, `source_port = 51515` e `at` UTC; 10 requisições com a mesma porta → continua 1; porta 51600 → 2. Convite cria `audit_log` `membership.invite`, `actor_type = 'user'`, `result = 'success'`. `tracksys_app` executa `UPDATE app.audit_log SET reason = 'x'` → 42501 |
-| `catalog-identity.test.ts` (CT-DAD-005, CT-DAD-006 parte, ISO-01..05) | `pnpm db:check` → `Catálogo OK: nenhuma violação de CAT-01..CAT-07.` Numa transação desfeita, como `tracksys_owner`, `CREATE FUNCTION app.tmp_definer() … SECURITY DEFINER` → violação `CAT-07 app.tmp_definer()`. `memberships_for_user` executada por `tracksys_ingest` → 42501; para `dono.a1` com A1 `closed` → 0 linhas; com a Alfa `suspended` → 0 linhas. ISO-01 a 05 em `membership`, `audit_log` e `idempotency_record` (leitura cruzada 0 linhas; `operator_id` da Beta → 42501; `tenant_id` da Beta → 23503) |
+| `catalog-identity.test.ts` (CT-DAD-005, CT-DAD-006 parte, ISO-01..05) | `pnpm db:check` → `Catálogo OK: nenhuma violação de CAT-01..CAT-07.` Numa transação desfeita, como `tracksys_owner`, `CREATE FUNCTION app.tmp_definer() … SECURITY DEFINER` → violação `CAT-07 app.tmp_definer()`. `memberships_for_user` executada por `tracksys_ingest` → 42501; para `dono.a1` com A1 `closed` → 0 linhas; com a Alfa `suspended` → 0 linhas. ISO-01 a 05 em `membership`, `audit_log` e `idempotency_record` (leitura cruzada 0 linhas; `operator_id` da Beta → 42501; `tenant_id` da Beta → 23503). CT-DAD-009 (parte de `access_log`): depois de `SELECT app.ensure_partitions()` (chamada só se `to_regprocedure('app.ensure_partitions(integer)')` existir, porque a função é da T-005), existem as partições de `access_log` do mês UTC corrente e do seguinte, todas com `relrowsecurity` e `relforcerowsecurity` |
 | `scope-suite.test.ts` (CT-API-018) | `buildScopeCases(routes, fixtures)` gera `memberships.revoke:401` e `memberships.revoke:cross-operator-404`, e a suíte `apps/api/test/scope.e2e.test.ts` passa; com a rota de fixture `sim-cards.get` sem entrada em `scope-fixtures.ts` → lança `rota sem fixture de isolamento: sim-cards.get` |
 | `permissions.test.ts` (CT-SEG-009 parte) | `ROLE_PERMISSIONS` é igual à tabela da seção 5 copiada no teste; `canInvite` cobre os 9 pares papel × papel do F0; o teste de matriz falha se uma rota `session` não tiver linha |
 
@@ -345,17 +356,17 @@ Primeiro comando da transação de rota com chave: `INSERT INTO app.idempotency_
 
 ```bash
 pnpm install && cp .env.example .env && pnpm db:up
-pnpm db:migrate                  # Applied: 20261014120000_identidade.sql
+pnpm db:migrate                  # Applied: 20261014130000_identidade.sql
 pnpm db:check                    # Catálogo OK: nenhuma violação de CAT-01..CAT-07.
 pnpm db:types:check && pnpm contracts:check
 pnpm --filter @tracksys/api test # scope.e2e + matriz
-pnpm verify                      # inclui T-001, T-004 e T-006
-pnpm exec dbmate --migrations-dir ./packages/db/migrations --no-dump-schema rollback && pnpm db:migrate
+pnpm verify                      # inclui T-001, T-004 e T-006 (e db:rollback + db:migrate)
+pnpm db:rollback && pnpm db:migrate
 ```
 
 ## Definição de pronto
 
-- Testes de `tests/acceptance/T-006/` mesclados antes do PR de implementação e intactos depois; todos os comandos acima verdes, local e no CI.
+- Testes de `tests/acceptance/T-006/` no 1º commit do PR, lidos pelo fundador antes da implementação e intactos depois; todos os comandos acima verdes, local e no CI.
 - Revisão adversarial de outro fornecedor e leitura humana linha a linha registradas; o PR lista REQ/CT, risco N0 e as respostas dos [VALIDAR — T-006].
 - Nenhum token, senha, cookie ou e-mail completo em log (CANARIO ausente do stdout/stderr dos testes).
 
@@ -370,7 +381,10 @@ pnpm exec dbmate --migrations-dir ./packages/db/migrations --no-dump-schema roll
 | `clientKind` por hook do Better Auth? | Não: o handler de login grava `clientKind` e o prazo de 12 h logo após o sucesso; sessão com `clientKind` NULL recebe 401 (falha fechada). |
 | Usuário com 2FA no app? | No F0, 403 `two_factor_app_unsupported`: só a equipe usa TOTP, pelo console. O F1 revê para `installer`/`search_team`. |
 | `memberships_for_user` não é da T-005 (04 §3.7)? | É daqui: lê `membership`, que nasce nesta tarefa. A T-005 cria as demais funções de 04 §4.4. Políticas G de `operator`/`tenant` e o gatilho de imutabilidade são criados de forma idempotente para não depender da ordem de merge. |
-| `idempotency_record` sem expurgo? | Chave vencida é reaproveitada pelo `ON CONFLICT … WHERE expires_at <= now()` (CT-API-009 passa sem DELETE). O expurgo de volume entra em `app.retention_purge` (T-005). |
+| `idempotency_record` sem expurgo? | Chave vencida é reaproveitada pelo `ON CONFLICT … WHERE expires_at <= now()` (CT-API-009 passa sem DELETE). O expurgo de volume entra no tipo `idempotency_record` de `app.retention_purge` (T-027, F1). |
+| O ISO-06 congelado da T-001 colide com a `app.audit_log` real? | Não. O meta-teste do catálogo usa tabelas `app.tmp_*` (ex.: `tmp_append_only`) criadas e desfeitas na mesma transação, com a allowlist estendida só no teste. Esta tarefa **não** leva o rótulo `acceptance-change` e não altera `tests/acceptance/T-001/**`. |
+| Por que `20261014130000` e não `20261014120000`? | A T-005 usa `20261014120000_ingestao.sql`; o dbmate identifica a migration pela versão numérica, e duas iguais fariam uma ser ignorada. As duas são idempotentes nos objetos compartilhados, então a ordem de merge não importa. |
+| `access_log` sem `operator_id` passa na CAT-03? | Só com a entrada em `withoutOperatorId` da seção 2, no mesmo PR. |
 | `tenant_member`, `installer`, `search_team` no F0? | Constam no CHECK da tabela, sem permissão e fora do enum de convite. |
 | Contadores de limite no banco? | Não no F0–F1: um processo `api`, memória (08 §9). |
 | Partições de `access_log` depois de dezembro? | `app.ensure_partitions` (T-005) cria `access_log_pAAAAMM` com o mesmo nome e limites UTC. |

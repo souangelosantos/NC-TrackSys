@@ -4,11 +4,11 @@
 
 | Campo | Valor |
 |---|---|
-| Fase | F1 (quinzena 01–15/11/2026 (SLO medido desde 01/12/2026)) |
-| Requisitos | REQ-NEG-012 (itens G1-3 e G1-6 do gate G1; G1-2 vem da T-024), REQ-OPS-010 a REQ-OPS-015, REQ-OPS-018, REQ-OPS-019, REQ-OPS-021, REQ-OPS-022, REQ-OPS-024, REQ-SEG-028, REQ-QLD-017, REQ-ARQ-015 |
-| Invariantes | INV-05, INV-11 |
+| Fase | F1 (quinzena 01–15/11/2026; SLO medido desde 01/12/2026) |
+| Requisitos | REQ-NEG-012 (itens G1-3 e G1-6 do gate G1; G1-2 vem da T-024), REQ-OPS-010 a REQ-OPS-015, REQ-OPS-018, REQ-OPS-019, REQ-OPS-021, REQ-OPS-022, REQ-OPS-024, REQ-SEG-028, REQ-QLD-017, REQ-ARQ-015, REQ-DAD-012 (só o teste de desempenho CT-DAD-012; os índices nascem na T-005 e na T-008), REQ-ING-016 (backfill automático; a reconciliação é da T-015), REQ-ING-021 (métricas Prometheus; a sonda de atraso da ingestão é da T-013) |
+| Invariantes | INV-01, INV-05, INV-11 |
 | Risco de revisão | N0 |
-| Depende de | T-003, T-013 |
+| Depende de | T-003, T-013, T-005 e T-015 (backfill, métricas e CT-DAD-012) |
 | Estimativa | 3 sessões de agente |
 | Bloqueado por decisão | DEC-12, DEC-13 |
 | Status | Resumido — DoR pendente |
@@ -19,7 +19,7 @@ Levar a operação ao nível do contrato: VM standby com réplica por streaming,
 
 ## Contexto obrigatório
 
-[13 — Infra e operação](../docs/spec/13-infra-e-operacao.md); [ADR-005](../docs/adr/ADR-005-infra-oracle-always-free.md); [ADR-010](../docs/adr/ADR-010-operacao-assistida-por-ia.md); [Anexo C](../docs/anexos/C-operacional.md)
+[13 — Infra e operação](../docs/spec/13-infra-e-operacao.md); [05 §12 e §17](../docs/spec/05-ingestao-e-telemetria.md) (backfill e métricas da ingestão); [04 §7.3](../docs/spec/04-dominio-e-dados.md) (consulta canônica do histórico); [ADR-005](../docs/adr/ADR-005-infra-oracle-always-free.md); [ADR-010](../docs/adr/ADR-010-operacao-assistida-por-ia.md); [Anexo C](../docs/anexos/C-operacional.md)
 
 ## Escopo — fazer
 
@@ -27,6 +27,9 @@ Levar a operação ao nível do contrato: VM standby com réplica por streaming,
 2. Uptime Kuma na standby, UptimeRobot e cálculo de minuto ruim.
 3. Gateway de incidentes (Cloudflare Worker) e agente SRE somente leitura, com avaliação antes de ligar (REQ-QLD-017).
 4. Ensaio de contingência com o plantonista.
+5. Backfill automático da ingestão (REQ-ING-016, parte F1) [ADOTADO NA v2.0]: o job `ingest.reconcile` projeta em modo `backfill` o que faltar na inbox (flag 8, sem push nem efeito, INV-05) e o CLI de backfill aceita até 7 dias; a reconciliação, as consultas e o relatório ficam com a T-015.
+6. Métricas Prometheus da ingestão (REQ-ING-021, parte F1): exposição da porta `Metrics` no `api` e no `worker` com as métricas e limiares de aviso e page de [05 §17](../docs/spec/05-ingestao-e-telemetria.md) (CT-ING-021); a sonda de atraso no Uptime Kuma/Pushover já vem da T-013.
+7. Teste de desempenho CT-DAD-012 [ADOTADO NA v2.0]: 30 dias sintéticos de 300 veículos (~2,5 M posições), `EXPLAIN` da consulta canônica de [04 §7.3](../docs/spec/04-dominio-e-dados.md) com varredura do `*_pkey` em no máximo 2 partições e ≤ 100 ms.
 
 ## Fora do escopo
 
@@ -39,3 +42,4 @@ Levar a operação ao nível do contrato: VM standby com réplica por streaming,
 2. Testes de aceite com Dado/Quando/Então e arquivos em `tests/acceptance/T-028/`, congelados antes da implementação (risco N0: revisão adversarial por agente de outro fornecedor e leitura humana linha a linha).
 3. Comandos de verificação e seção "Decisões já tomadas" com pelo menos 6 respostas.
 4. Conferir se os requisitos listados ainda batem com os capítulos ([16 — Rastreabilidade](../docs/spec/16-rastreabilidade.md)).
+5. Com os itens 5 a 7 do escopo (acrescentados na v2.0), a estimativa pode passar de 3 sessões: se passar, dividir o cartão ([14 §4](../docs/spec/14-qualidade-e-processo-ia.md)) antes do DoR, com backfill, métricas e CT-DAD-012 num cartão próprio.

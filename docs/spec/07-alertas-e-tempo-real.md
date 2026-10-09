@@ -36,7 +36,7 @@
 
 Regras do catálogo:
 1. `{veículo}` = apelido do veículo, senão a placa; `{hora}` = `HH:mm` em America/Sao_Paulo [PREMISSA: fuso único por operadora até existir campo de fuso]. Texto sem coordenadas nem endereço (aparece na tela bloqueada).
-2. **Disponibilidade:** o tipo só existe para o veículo se o perfil do dispositivo primário tem a capacidade exigida igual a `'yes'`. Capacidade `'unknown'` ou `'no'` → tipo indisponível ("Indisponível neste rastreador" nas preferências); alarme recebido mesmo assim fica em `position.extra` e soma `alerts_unexpected_alarm_total{alarm}`, sem abrir alerta (INV-03). **Vocabulário:** capacidade é sempre `'yes'`/`'no'`/`'unknown'` no `capability_profile` ([04](04-dominio-e-dados.md), T-002), nunca booleano nem NULL; texto antigo com `true`/`false`/`null` para capacidade lê-se `'yes'`/`'no'`/`'unknown'`.
+2. **Disponibilidade:** o tipo só existe para o veículo se o perfil do dispositivo primário tem a capacidade exigida igual a `'yes'`. Capacidade `'unknown'` ou `'no'` → tipo indisponível ("Indisponível neste rastreador" nas preferências); alarme recebido mesmo assim fica em `position.extra` e soma `alerts_unexpected_alarm_total{alarm}`, sem abrir alerta (INV-03). **Vocabulário:** capacidade é sempre `'yes'`/`'no'`/`'unknown'` no `capability_profile` ([04](04-dominio-e-dados.md) §3.3, T-002), nunca booleano nem NULL; só `'yes'` habilita o alerta, e `'unknown'` é tratada como ausente (INV-03); texto antigo com `true`/`false`/`null` para capacidade lê-se `'yes'`/`'no'`/`'unknown'`.
 3. **Ignição desligada por padrão:** ligada, notificaria cada uso legítimo do dono; o modo vigilância cobre o carro estacionado. O app oferece ligar no primeiro acesso ([10](10-apps-e-ux.md)).
 4. Avisos de encerramento (severidade `info`): "{veículo} voltou a comunicar às {hora}." (`offline`, `signal_lost_moving`) e "{veículo}: energia do veículo restabelecida às {hora}." (`power_cut`), só para quem recebeu o push de abertura.
 
@@ -113,7 +113,7 @@ Um modo ativo por veículo (índice único parcial `watch_mode (vehicle_id) WHER
 
 1. `{revision}` é a do `device.state.updated.v1` que abriu, ou a de `device_state` na avaliação de silêncio: a mesma entrada gera a mesma chave (INV-01 aplicado aos alertas).
 2. No máximo 1 episódio aberto por `(device_id, type)`: índice único parcial `alert (device_id, type) WHERE ended_at IS NULL` (proposta para [04](04-dominio-e-dados.md)).
-3. Reconhecer grava `acknowledged_at`/`acknowledged_by` e só fecha onde a tabela diz.
+3. Reconhecer grava `acknowledged_at`/`acknowledged_by` e só fecha onde a tabela diz. Exceção para todos os tipos: a transferência do veículo ([04 §9.1](04-dominio-e-dados.md) passo 7) encerra os episódios abertos em T com `closeReason = 'vehicle_transferred'` e `notifyClose = false` (T-011).
 4. `started_at` = instante do fato (`observedAt`, `fixTime` ou limiar cruzado); `ended_at` = instante do fato que fechou.
 5. `alert.evidence`: `{openRevision, closeRevision, trigger, processingMode, stale, signalCount, lastSignalAt, closeReason, lastLocation: {latitude, longitude, fixTime} | null, timings: {originAt, receivedAt, projectedAt, openedAt}}`.
 
@@ -164,7 +164,7 @@ A preferência só decide a entrega ao usuário. O episódio é sempre registrad
 3. Colunas: severidade, tipo (rótulo PT-BR), veículo (apelido e placa), cliente, início em BRT e duração, idade do último contato, reconhecido por e quando.
 4. Ações: **Reconhecer** (`POST /api/v1/alerts/{id}/acknowledge`, `{"note": "…"}` opcional até 500 caracteres; idempotente; grava `audit_log` `alert.acknowledge`; só `operator_admin`, `operator_agent` e `search_team`, usuário do cliente → 403 `FORBIDDEN` ([09 §3](09-api-e-contratos.md); permissão `alert.ack` só da equipe) [ADOTADO NA v2.0: T-011; escolha reversível, [15 §5](15-decisoes-riscos-premissas.md)]); ver no mapa; WhatsApp ou telefone do cliente por deep link ([10](10-apps-e-ux.md)); abrir atendimento com `alert_id` (F1).
 5. Atualização ao vivo pelo evento SSE `alert` (§11); alerta `critical` novo toca som com a aba aberta ([10](10-apps-e-ux.md)).
-6. No F0 a fila existe como API (T-011) e evento SSE; a tela C08 do console é F1 ([10](10-apps-e-ux.md) §9) e não tem cartão no F0.
+6. No F0 a fila existe como API (T-011) e evento SSE; a tela C08 do console é F1 ([10](10-apps-e-ux.md) §9), na T-029.
 
 ## 10. Medição de latência
 

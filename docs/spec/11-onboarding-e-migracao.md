@@ -168,7 +168,7 @@ Job `onboarding.wave.tick` a cada 30 s por onda `running` (`singletonKey` = id d
 
 Sem tabelas de onda (são F1). Uma linha por envio em `docs/runbooks/gates/G0.md`: veículo pelo IMEI mascarado (`***0017`), tipo (`migrar` ou `rollback`), hora do SMS, hora do 1º contato ou da confirmação do rollback, resultado e duração. Placa, nome e CPF ficam fora do repositório, porque agentes leem o repositório (REQ-QLD-016): o titular aparece por código (`T01`…`T10`) e a correspondência com placa e nome fica no cofre do fundador [ADOTADO NA v2.0: T-014, T-015].
 
-1. **Antes:** termo de participação assinado (G0-9); cliente, veículo, rastreador, chip e vínculo com `cut_point` no console ([10](10-apps-e-ux.md) C03–C06); `traccar_device_id` preenchido; DEC-04 resolvida e `gps.` resolvendo para a VM com sonda TCP verde; alvo de rollback anotado (§7 passo 2).
+1. **Antes:** termo de participação assinado (G0-9); cliente, veículo, rastreador, chip e vínculo com `cut_point` no console ([10](10-apps-e-ux.md) C03–C06); `traccar_device_id` preenchido pelo subcomando `pilot provision` da T-014 ([02](02-escopo-e-fases.md) §2.3) [ADOTADO NA v2.0]; DEC-04 resolvida e `gps.` resolvendo para a VM com sonda TCP verde; alvo de rollback anotado (§7 passo 2).
 2. Enviar `set_server_domain` pelo portal emnify/Meta Telecom (ou API, com DEC-01) e anotar a hora.
 3. Acompanhar C05: "Último contato" sai de "nunca" para "agora" em ≤ 10 min → migrado.
 4. Sem contato em 10 min: enviar `rollback`; a Lider confirma o veículo no tracker-net em ≤ 10 min (G0-8).

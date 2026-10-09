@@ -296,7 +296,7 @@ O perfil vem de `device.capability_profile_id`; a seção `normalization` vive d
 
 ## 14. Retenção da inbox
 
-Job diário `ingest.retention` (pg-boss, `7 3 * * *` UTC, o horário de [04](04-dominio-e-dados.md) §8.1), em lotes de 10.000 linhas com pausa de 100 ms: `payload = NULL` quando `received_at < now() − 7 dias`; `DELETE` quando `received_at < now() − 90 dias`. `payload_sha256` fica com a identidade de dedupe até o DELETE, para que o conflito de hash do §5 continue detectável sem o payload [ADOTADO NA v2.0]. Vale para todos os status, salvo `pending`, que nunca é apagada. No F0, este job não tem cartão ([02](02-escopo-e-fases.md) §2.3). No mês 12 a inbox guarda ~135 milhões de identidades (~1,5 milhão por dia); o dimensionamento de disco entra em [04](04-dominio-e-dados.md) e [13](13-infra-e-operacao.md).
+Job diário `ingest.retention` (pg-boss, `7 3 * * *` UTC, o horário de [04](04-dominio-e-dados.md) §8.1), em lotes de 10.000 linhas com pausa de 100 ms: `payload = NULL` quando `received_at < now() − 7 dias`; `DELETE` quando `received_at < now() − 90 dias`. `payload_sha256` fica com a identidade de dedupe até o DELETE, para que o conflito de hash do §5 continue detectável sem o payload [ADOTADO NA v2.0]. Vale para todos os status, salvo `pending`, que nunca é apagada. Dono: T-027, no F1 [ADOTADO NA v2.0: adiado do F0; até lá o payload da inbox fica além de 7 dias, risco aceito em [15](15-decisoes-riscos-premissas.md) §3] ([02](02-escopo-e-fases.md) §2.3). No mês 12 a inbox guarda ~135 milhões de identidades (~1,5 milhão por dia); o dimensionamento de disco entra em [04](04-dominio-e-dados.md) e [13](13-infra-e-operacao.md).
 
 ## 15. Spike do J16 (T-002): o que capturar
 
@@ -423,7 +423,7 @@ CT-ING-022 — Dado o processo `api` morto (SIGKILL) depois do INSERT na inbox e
 **Aceite.** CT-ING-015 — Dado uma falha permanente injetada na projeção, Quando o tempo passa, Então há 5 tentativas com esperas de ~2, 8, 32 e 120 s (± 25%), a linha termina `quarantined` com `projection_failed` e o fake de Pushover/Sentry recebe 1 aviso; Dado uma posição em quarentena `unknown_device` com `alarm = sos` reprocessada após o cadastro do dispositivo, Então `position` ganha a linha com flag 16 e o fake de FCM recebe 0 chamadas.
 
 ### REQ-ING-016 — Reconciliação e backfill
-**Fase:** F0 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** INV-01, INV-05
+**Fase:** F0, F1 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** INV-01, INV-05 · [ADOTADO NA v2.0: reconciliação, consultas e relatório no F0 (T-015); backfill e CT-ING-016 no F1 (T-028), porque o CT grava o backfill no banco]
 **Regra.** O job `ingest.reconcile` DEVE comparar a janela do §12 com a inbox e projetar o que faltar em modo `backfill`; o CLI de backfill DEVE aceitar até 7 dias.
 **Aceite.** CT-ING-016 — Dado o fake de Traccar com 120 posições do dispositivo D entre 10:00 e 11:00Z, das quais 30 nunca chegaram pelo forward, Quando `ingest.reconcile` roda às 11:25Z, Então a inbox passa a ter 120 linhas, as 30 novas têm flag 8, nenhum push é enviado, e uma segunda execução não cria linhas.
 
@@ -433,7 +433,7 @@ CT-ING-022 — Dado o processo `api` morto (SIGKILL) depois do INSERT na inbox e
 **Aceite.** CT-ING-017 — Dado um dispositivo sem `capability_profile_id` e `attributes.blocked = true`, Então `relay_state = 'unknown'`; Dado perfil J16 com `relay_state_reported = "yes"`, Então `relay_state = 'blocked'` e `relay_observed_at = observedAt`; Dado `power_source = 'charge'` e `charge = false`, Então `power_state = 'battery'`.
 
 ### REQ-ING-018 — Retenção da inbox
-**Fase:** F0 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** INV-01
+**Fase:** F1 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** INV-01 · [ADOTADO NA v2.0: adiado do F0 para a T-027; até lá o payload da inbox fica além de 7 dias]
 **Regra.** O job do §14 DEVE anular o payload após 7 dias, manter `payload_sha256` com a identidade e apagar a linha após 90 dias, em lotes (mesma regra de CT-DAD-013, [04](04-dominio-e-dados.md)).
 **Aceite.** CT-ING-018 — Dado linhas com `received_at` há 6, 8 e 91 dias, Quando `ingest.retention` roda, Então a de 6 dias mantém o payload, a de 8 tem `payload` NULL e `payload_sha256` intacto, a de 91 não existe; e reenviar a chave da linha de 8 dias responde `duplicate`.
 

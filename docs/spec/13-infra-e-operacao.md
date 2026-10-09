@@ -67,8 +67,8 @@ Nunca rodar `netfilter-persistent reload` com o Docker no ar: apaga as cadeias d
 |---|---|---|---|---|
 | `db` (`172.30.0.5`) | `tracksys-db:17` (`infra/db/Dockerfile`) | 5 GB / — ; `shm_size: 1g`, `oom_score_adj: -500`, `stop_grace_period: 120s` | `${TAILSCALE_IPV4}:5432` | `pg_isready -U postgres -d tracksys` |
 | `traccar` (`.6`) | `traccar/traccar:6.x@sha256:…` (fixada no spike) | 1,5 GB / — | `5023` | `GET http://127.0.0.1:8082/api/server` → 200 [VALIDAR — DEC-02] |
-| `api` (`.10`) | `tracksys-app:${TRACKSYS_VERSION}` (`infra/app/Dockerfile`, alvo `app`) | 1 GB / 1,5 | — | `GET /health/ready` na 3001 (interna, com `checks`); a 3000 responde só `{"status"}` ao público e é a usada pelo smoke e pelas sondas (§7, §10) |
-| `worker` (`.11`) | `tracksys-app:${TRACKSYS_VERSION}` (mesma imagem, `command` do processo worker) | 1 GB / 1,0 | — | `GET /health/ready` na 3002 |
+| `api` (`.10`) | `tracksys-app:${TRACKSYS_VERSION}` (`infra/app/Dockerfile`, alvo `app`) | 1 GB / 1,5 | — | `GET http://127.0.0.1:3001/health/ready` (interna, com `checks`); a 3000 responde só `{"status"}` ao público e é a usada pelo smoke e pelas sondas (§7, §10) |
+| `worker` (`.11`) | `tracksys-app:${TRACKSYS_VERSION}` (mesma imagem, `command` do processo worker) | 1 GB / 1,0 | — | `GET http://127.0.0.1:3002/health/ready` |
 | `caddy` (`.2`) | `tracksys-caddy:${TRACKSYS_VERSION}` (`infra/caddy/Dockerfile`, com o build de `apps/console`) | 128 MB / 0,5 | `80`, `443` | `GET http://127.0.0.1:2019/config/` |
 | `migrate` (perfil `ops`) | `tracksys-migrate:${TRACKSYS_VERSION}` (`infra/app/Dockerfile`, alvo `migrate`: `dbmate` + verificador de catálogo; `migrate up` e `migrate check`) | 512 MB | — | Roda só no deploy |
 
@@ -76,7 +76,7 @@ Nunca rodar `netfilter-persistent reload` com o Docker no ar: apaga as cadeias d
 2. **Autoheal** (`infra/scripts/autoheal.sh`, timer de 30 s): reinicia contêiner `unhealthy` (≤ 90 s do 1º healthcheck falho, REQ-ARQ-005); no máximo 3 reinícios por contêiner em 15 min, depois para e abre a regra AL-12. Nenhum contêiner monta o socket do Docker.
 3. **Caddy** (`infra/caddy/Caddyfile`): `servers { protocols h1 h2 }` (sem HTTP/3, só TCP); sem log de acesso (o `api` grava `access_log`); em `api.`, `/internal/*` e `/metrics` respondem 404 e o proxy envia `header_up X-Client-Port {http.request.remote.port}`; em `app.`, `file_server` de `/srv/console` com `try_files {path} /index.html`, `version.json` e os headers de [08 §9](08-identidade-e-seguranca.md). `CADDY_ROLE=standby` serve só `status.` (proxy para `uptime-kuma:3001`).
 4. `infra/docker-compose.standby.yml` acrescenta `uptime-kuma` (`louislam/uptime-kuma:2@sha256:…` [VALIDAR versão estável], 512 MB) e `sre-agent` (imagem do `worker`, entrypoint `node dist/sre-agent/main.js`, 384 MB) e põe o `db` em modo réplica. Após o failover a standby soma 9,6 GB de limites; sobram ~2,4 GB para SO e page cache.
-5. `migrate` é o único serviço com a URL do `tracksys_owner` (REQ-ARQ-006).
+5. `migrate` é o único serviço com a URL do `tracksys_owner` (REQ-ARQ-006): `MIGRATE_DATABASE_URL` do `prod.env`, injetada como `DATABASE_URL` só nesse contêiner (§6).
 
 ## 4. Banco
 
@@ -157,6 +157,7 @@ Segredos em `infra/secrets/prod.env.sops` e `standby.env.sops`, decifrados pelo 
 | `EXTERNAL_EFFECTS` | worker | `on` \| `off`, obrigatória e sem padrão (ausente ou outro valor → saída 78). [ADOTADO NA v2.0: `off` troca os adaptadores de FCM, emnify, Asaas, e-mail e todo o cliente do Traccar (comandos e também leituras, como `GET /api/server`, que passa a `unknown`) por adaptadores nulos que só registram (`external_effects_suppressed_total{adapter}`); entrega de push fica `suppressed` com `error = 'external_effects_off'`; obrigatório no restore de ensaio (INV-05, T-013).] |
 | `EMAIL_DRIVER`, `EMAIL_FROM`, `RESEND_API_KEY`, `EMAIL_FILE_DIR` | worker | E-mails de convite, redefinição de senha e aviso de bloqueio de login ([08 §2](08-identidade-e-seguranca.md)). `EMAIL_DRIVER` = `resend` \| `file`; `file` grava em `EMAIL_FILE_DIR` (padrão `.tmp/emails`) e é proibido com `NODE_ENV=production` (saída 78); `RESEND_API_KEY` obrigatória com `resend`, no SOPS. [ADOTADO NA v2.0: Resend como provedor de e-mail (T-006; [15 §5](15-decisoes-riscos-premissas.md)).] |
 | `TRUSTED_PROXY_CIDRS` | api | CIDRs separados por vírgula de onde `X-Forwarded-For` e `X-Client-Port` são aceitos ([08 §4](08-identidade-e-seguranca.md) item 6); padrão vazio (nenhum proxy confiável). Produção: `172.30.0.2/32` (IP fixo do `caddy`, §3) [ADOTADO NA v2.0: T-006] |
+| `MIGRATE_DATABASE_URL` | Compose (`migrate`) | URL do `tracksys_owner`, injetada como `DATABASE_URL` só no contêiner `migrate` (T-003, T-013); nunca em `api` nem `worker`, que usam `DATABASE_URL_APP` e `DATABASE_URL_INGEST` ([03 §13](03-arquitetura.md)) |
 | `TAILSCALE_IPV4`, `PEER_TAILSCALE_IP`, `CADDY_ROLE` | Compose | IPs `100.x.y.z`; `primary` \| `standby` |
 | `WALG_S3_PREFIX`, `AWS_ENDPOINT`, `AWS_REGION`, `AWS_S3_FORCE_PATH_STYLE`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `WALG_LIBSODIUM_KEY`, `WALG_LIBSODIUM_KEY_TRANSFORM`, `WALG_COMPRESSION_METHOD` | db | §8 |
 | `TRACCAR_DB_PASSWORD`, `REPLICA_PASSWORD`, `OPS_RO_PASSWORD`, `OPS_AUDIT_PASSWORD` | db, traccar, scripts | ≥ 32 caracteres |
@@ -272,7 +273,7 @@ Manutenção: CLI `ops:maintenance --start <RFC 3339> --end <RFC 3339> --reason 
 
 1. Rótulos proibidos: `vehicle_id`, `device_id`, `user_id`, `imei`, `ip`. `operator_id` só em métricas de ingestão e migração. Orçamento: ≤ 5.000 séries ativas (limite free de 10.000 [VALIDAR]).
 2. **Logs:** JSON no stdout (REQ-ARQ-014), rotação local do Docker (50 MB por contêiner); Alloy `loki.source.docker` envia ao Grafana Cloud Loki com um estágio `loki.process` de redação (sequências de 15 dígitos viram `***` + 4 últimos; pares decimais de latitude/longitude e `Bearer …` são removidos) como segunda linha de defesa. Traccar só em `info` sem dump; Caddy sem log de acesso; Postgres sem parâmetros (§4.2).
-3. **Sentry** (`api`, `worker`, console; no F0 a T-013 liga só `api` e `worker`; o SDK do console ainda não tem cartão dono e, até ter, o console não envia erros; quem o ligar acrescenta o host de ingestão ao CSP de [08 §9](08-identidade-e-seguranca.md)): `sendDefaultPii: false`; `beforeSend` remove corpo, query string e headers `authorization`, `cookie`, `x-ingest-token`, `asaas-access-token`; `release = TRACKSYS_VERSION`; amostragem de traces 5%.
+3. **Sentry** (`api`, `worker`, console; no F0 a T-013 liga `api` e `worker`; o SDK do console é da T-007 [ADOTADO NA v2.0]: inicialização mínima com `VITE_SENTRY_DSN` opcional, e sem DSN o console não envia erros; o host de ingestão do Sentry entra no CSP de [08 §9](08-identidade-e-seguranca.md) com a T-013): `sendDefaultPii: false`; `beforeSend` remove corpo, query string e headers `authorization`, `cookie`, `x-ingest-token`, `asaas-access-token`; `release = TRACKSYS_VERSION`; amostragem de traces 5%.
 4. **Painéis** versionados em `infra/grafana/dashboards/`: "SLO" (minutos ruins do mês, orçamento restante, p95 de alerta, sondas), "Ingestão", "Banco" (conexões, lag, WAL, disco, autovacuum) e "Host e contêineres".
 
 ## 12. Regras de alerta

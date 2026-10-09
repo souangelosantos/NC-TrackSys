@@ -3,16 +3,16 @@
 | Campo | Valor |
 |---|---|
 | Fase | F0 (semana S3: 21–27/10/2026; marco 27/10: alerta provocado chega ao celular, com a T-012) |
-| Requisitos | REQ-ALR-001 a REQ-ALR-010 (abertura, fechamento, episódio e evidência; a entrega push é da T-012); REQ-ALR-014 (fila e reconhecimento, exceto o evento SSE, que é da T-008); REQ-ALR-015 (marcos t0–t3) |
+| Requisitos | REQ-ALR-001 a REQ-ALR-010 (abertura, fechamento, episódio e evidência; a entrega push é da T-012); REQ-ALR-014 (fila, reconhecimento e o adaptador SQL do evento SSE `alert`; o hub, a porta `AlertSource` e o LISTEN `alert_changed` são da T-008); REQ-ALR-015 (marcos t0–t3); REQ-DAD-018 (só o passo 7 de 04 §9.1: alertas e vigilância na transferência; a rota é da T-007) |
 | Invariantes | INV-01, INV-03, INV-04, INV-05, INV-07, INV-08 (vigilância nunca dispara comando) |
 | Risco de revisão | **N1** — revisão cruzada de outro fornecedor; fundador lê o resumo dirigido |
-| Depende de | T-005 (outbox, `device_state`, `insertOutboxEvent`, `list_silent_devices`, `list_operator_ids`, `outbox_claim`), T-002 (capacidades do J16). **De fato:** T-006 (sessão, contexto RLS por requisição e `audit_log`, usados pelas rotas) — entregue no S2 |
-| Estimativa | 3 sessões de agente (1: migration, pg-boss, relay e domínio puro; 2: consumidor, laços de silêncio e expiração; 3: rotas e aceite) |
+| Depende de | T-005 (outbox, relay e `OUTBOX_ROUTES`, `device_state`, `insertOutboxEvent`, `list_silent_devices`, `list_operator_ids`, `outbox_claim`), T-002 (capacidades do J16). **De fato:** T-006 (sessão, contexto RLS por requisição e `audit_log`, usados pelas rotas), T-007 (`vehicle-transfer.ts`, que esta tarefa estende com o passo 7 de 04 §9.1) e T-008 (`presence.ts`, portas `AlertSource` e `WatchModeStatusReader`, hub SSE) — entregues no S2; T-004 (schema `pgboss`, `migrate: false`) |
+| Estimativa | 3 sessões de agente (1: migration, pg-boss, rota da outbox e domínio puro; 2: consumidor, laços de silêncio e expiração; 3: rotas e aceite) |
 | Bloqueado por decisão | DEC-02 (gatilhos de `power_cut` e `sos`, intervalos do J16). Padrão seguro: capacidade `unknown` → tipo indisponível; limiares de 180 s e 1.800 s |
 
 ## Objetivo
 
-Abrir e fechar, de forma idempotente e com evidência, os episódios de alerta do F0 — `ignition_on`, `watch_mode_breach`, `power_cut`, `sos`, `offline` e `signal_lost_moving` — a partir do `device.state.updated.v1` gravado pela ingestão e de um laço de silêncio, sem nunca abrir alerta de capacidade não confirmada (INV-03) nem gerar efeito em fato antigo ou reprocessado (INV-05). Entrega também o modo vigilância (cerca âncora de 150 m), a fila de alertas da central com reconhecimento auditado, o relay da outbox sobre pg-boss e os marcos de latência t0–t3 que a T-012 completa com o envio ao FCM.
+Abrir e fechar, de forma idempotente e com evidência, os episódios de alerta do F0 — `ignition_on`, `watch_mode_breach`, `power_cut`, `sos`, `offline` e `signal_lost_moving` — a partir do `device.state.updated.v1` gravado pela ingestão e de um laço de silêncio, sem nunca abrir alerta de capacidade não confirmada (INV-03) nem gerar efeito em fato antigo ou reprocessado (INV-05). Entrega também o modo vigilância (cerca âncora de 150 m), a fila de alertas da central com reconhecimento auditado, a rota da outbox para `alerts.evaluate` (o relay é da T-005) e os marcos de latência t0–t3 que a T-012 completa com o envio ao FCM.
 
 ## Contexto obrigatório
 
@@ -25,18 +25,20 @@ Abrir e fechar, de forma idempotente e com evidência, os episódios de alerta d
 ## Escopo — fazer
 
 1. Migration `20261021120000_alertas.sql` com o SQL exato da seção (1).
-2. pg-boss 10 (2): script `pnpm db:boss` (dono cria e migra o schema `pgboss`, cria as filas de `packages/db/src/queues.ts` e concede ao `tracksys_app`); `verify` e CI passam a rodar `pnpm db:boss` logo após `pnpm db:migrate`.
-3. Relay da outbox no worker (3) e rota `device.state.updated.v1 → alerts.evaluate`.
-4. Domínio puro em `packages/domain/src/alerts/` (4): catálogo, disponibilidade, regras, episódios, vigilância, presença e textos.
+2. pg-boss 10 (2): o schema `pgboss` e o runtime com `migrate: false` vêm da T-004 (migration `20261010120000_pgboss.sql`; ADR-002). A fila `alerts.evaluate` nasce na migration desta tarefa com `SELECT pgboss.create_queue(...)`, como na T-006; `packages/db/src/queues.ts` lista os nomes. O script `db:boss` só entra como plano B (decisão 4).
+3. Rota `device.state.updated.v1 → alerts.evaluate` em `apps/worker/src/outbox/routes.ts` (`OUTBOX_ROUTES`) (3); o relay, `runRelayOnce` e `createRelay` são da T-005.
+4. Domínio puro em `packages/domain/src/alerts/` (4): catálogo, disponibilidade, regras, episódios, vigilância e textos; a presença reutiliza `presence.ts`, criado pela T-008.
 5. Consumidor `alerts.evaluate` (5), laço de silêncio com incidente de plataforma (6) e laço de expiração de 24 h.
 6. Rotas de vigilância, fila e reconhecimento (7) e contratos `alert.opened.v1`/`alert.closed.v1`.
-7. Pager do fundador (Pushover) e interface `Metrics` em memória (8); fakes de Pushover e de `GET /api/server` do Traccar em `packages/testkit`.
-8. Testes de aceite em `tests/acceptance/T-011/` e testes puros em `packages/domain/test/alerts.test.ts`.
+7. Adaptadores reais das portas da T-008 no `api` (seção 7.1): `SqlAlertSource` sobre `app.alert` no lugar do `NullAlertSource` (snapshot e evento SSE `alert`) e `SqlWatchModeStatusReader` no lugar do padrão `{ available: false, active: false }` de `availableActions.watchMode`.
+8. Pager do fundador (Pushover) e interface `Metrics` em memória (8); fakes de Pushover e de `GET /api/server` do Traccar em `packages/testkit`.
+9. Passo 7 de [04 §9.1](../docs/spec/04-dominio-e-dados.md) na transferência (seção 7.2): ao transferir V1 (`vehicles.transfer`, T-007), encerrar em T os alertas abertos de V1 e desativar a vigilância de V1, na mesma transação.
+10. Testes de aceite em `tests/acceptance/T-011/` e testes puros em `packages/domain/test/alerts.test.ts`.
 
 ## Fora do escopo
 
 - `alert_delivery`, `push_token`, `alert_preference`, rotas `/me/*`, consumidor `alerts.deliver` e FCM: T-012.
-- Evento SSE `alert` e snapshot de alertas abertos: T-008 (aqui só `pg_notify('alert_changed', …)`). Tela da fila no console: sem cartão no F0 (registrado no PR).
+- Hub SSE, porta `AlertSource`, `NullAlertSource` e LISTEN `alert_changed`: T-008 (aqui o `pg_notify('alert_changed', …)` e o adaptador SQL da seção 7.1). Tela da fila no console: sem cartão no F0 (registrado no PR). Telas A05 e A06 do app: T-012.
 - `low_battery`, `overspeed`, `geofence`, destaque de crítico sem reconhecimento (REQ-ALR-020 a 023): F1.
 - Exposição Prometheus das métricas e alertas do Grafana: tarefa de observabilidade. Qualquer comando físico (INV-08, INV-11).
 
@@ -44,16 +46,19 @@ Abrir e fechar, de forma idempotente e com evidência, os episódios de alerta d
 
 ```
 packages/db/migrations/20261021120000_alertas.sql
-packages/db/src/queues.ts, packages/db/scripts/boss-setup.ts, package.json (script db:boss; verify), .github/workflows/ci.yml
+packages/db/src/queues.ts   (plano B, só se a decisão 4 exigir: packages/db/scripts/boss-setup.ts, package.json com db:boss, .github/workflows/ci.yml)
 packages/contracts/src/events/{alert-opened,alert-closed}.v1.ts, packages/contracts/src/http/{alerts,watch-mode}.ts
-packages/domain/src/alerts/{catalog,availability,rules,episodes,watch-mode,presence,texts,index}.ts
+packages/domain/src/alerts/{catalog,availability,rules,episodes,watch-mode,texts,index}.ts
+packages/domain/src/alerts/presence.ts   (reutilizar: criado pela T-008; não recriar)
 packages/domain/test/alerts.test.ts
-apps/worker/src/outbox/{relay,routes}.ts
+apps/worker/src/outbox/routes.ts   (alterar: acrescentar a rota; relay.ts é da T-005)
+apps/api/src/fleet/vehicle-transfer.ts   (alterar: passo 7 de 04 §9.1; criado pela T-007)
 apps/worker/src/alerts/{evaluate.consumer,silence.loop,expiry.loop,platform-incident}.ts
 apps/worker/src/ops/pager.ts, apps/worker/src/observability/metrics.ts, apps/worker/src/main.ts
-apps/api/src/alerts/{alerts.module,alerts.controller,watch-mode.controller}.ts
+apps/api/src/alerts/{alerts.module,alerts.controller,watch-mode.controller,sql-alert-source,sql-watch-mode-status-reader}.ts
+apps/api/src/realtime/realtime.module.ts, apps/api/src/telemetry/telemetry.module.ts   (alterar: trocar NullAlertSource e o leitor padrão pelos adaptadores SQL)
 packages/testkit/src/fakes/{pushover,traccar}.ts
-tests/acceptance/T-011/{schema,rules,evaluate,silence,routes,relay}.test.ts
+tests/acceptance/T-011/{schema,rules,evaluate,silence,routes,relay,transfer}.test.ts
 ```
 
 ## Especificação detalhada
@@ -63,6 +68,7 @@ tests/acceptance/T-011/{schema,rules,evaluate,silence,routes,relay}.test.ts
 ```sql
 -- migrate:up
 -- T-011 — Alertas e modo vigilância (04 §3.6; 07 §3–§6). INV-01, INV-03, INV-05, INV-07.
+SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '60s';
 -- rls: A
 CREATE TABLE app.alert (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -103,21 +109,26 @@ CREATE POLICY watch_mode_isolation ON app.watch_mode FOR ALL
   USING (operator_id = app.current_operator_id() AND (app.current_scope() = 'operator' OR tenant_id = ANY (app.current_tenant_ids())))
   WITH CHECK (operator_id = app.current_operator_id() AND (app.current_scope() = 'operator' OR tenant_id = ANY (app.current_tenant_ids())));
 GRANT SELECT, INSERT, UPDATE ON app.alert, app.watch_mode TO tracksys_app;
+SELECT pgboss.create_queue('alerts.evaluate', '{"policy":"standard","retryLimit":5,"retryDelay":2,"retryBackoff":true,"expireInSeconds":120}'::json);
 
 -- migrate:down
+SELECT pgboss.delete_queue('alerts.evaluate');
 DROP TABLE app.watch_mode;
 DROP TABLE app.alert;
 ```
 
+Catálogo: `alert` e `watch_mode` têm `operator_id` e `tenant_id` NOT NULL (CAT-03 sem entrada na allowlist); as FKs para `app.vehicle` ligam `operator_id → operator_id` e `tenant_id → tenant_id` na mesma posição e a FK para `app.device` (que não tem `tenant_id`) liga `operator_id → operator_id` (CAT-04). Nenhuma entrada nova em `packages/db/catalog-allowlist.json`.
+
 ### (2) pg-boss 10
 
-- `packages/db/src/queues.ts`: `export const QUEUES = ['alerts.evaluate'] as const` (a T-012 acrescenta `alerts.deliver`). Política `standard`, `retryLimit: 5`, `retryDelay: 2`, `retryBackoff: true`, `expireInSeconds: 120`.
-- `boss-setup.ts` (`pnpm db:boss`), com `DATABASE_URL` do dono: `start()` com migração ligada, `createQueue` de cada fila (cria partição: exige dono [VALIDAR — pg-boss 10]), `stop()`, e então `GRANT USAGE ON SCHEMA pgboss`, `SELECT, INSERT, UPDATE, DELETE ON ALL TABLES`, `USAGE, SELECT ON ALL SEQUENCES` e `EXECUTE ON ALL FUNCTIONS IN SCHEMA pgboss TO tracksys_app`. Idempotente.
-- Runtime (`worker` e `api`): `APP_DATABASE_URL`, schema `pgboss`, migração desligada (opção da versão 10 [VALIDAR — ADR-002]). O `api` não consome filas.
+- `packages/db/src/queues.ts`: `export const QUEUES = ['alerts.evaluate'] as const` (a T-012 acrescenta `alerts.deliver`). Opções da fila iguais às do `create_queue` da migration: política `standard`, `retryLimit: 5`, `retryDelay: 2`, `retryBackoff: true`, `expireInSeconds: 120`. Um teste compara a lista com `SELECT name FROM pgboss.queue`.
+- A fila nasce na migration (seção 1), aplicada pelo dono `tracksys_owner` (`DATABASE_URL`), que também cria a partição da fila; os `GRANT` no schema `pgboss` e os privilégios padrão vêm da migration da T-004. Nenhum `CREATE` para `tracksys_app`.
+- Runtime (`worker` e `api`): `DATABASE_URL_APP` (`tracksys_app`), schema `pgboss`, `migrate: false` (T-004). O `api` não consome filas.
+- Plano B (decisão 4), só se `pgboss.create_queue` não existir na versão fixada: `boss-setup.ts` (`pnpm db:boss`) com `DATABASE_URL` do dono chama `createQueue` de cada fila de `queues.ts` e reaplica os `GRANT` da T-004; idempotente; `verify` e CI passam a rodá-lo logo após `pnpm db:migrate`. Registrar no PR.
 
-### (3) Relay da outbox
+### (3) Rota da outbox
 
-`LISTEN outbox_new` numa conexão dedicada + varredura a cada 5 s. Cada rodada, numa transação do `tracksys_app`: `SELECT * FROM app.outbox_claim(500)` e, para cada linha com rota em `routes.ts`, `send(fila, { outboxId, type, operatorId, tenantId, entityId }, { singletonKey: '<fila>:<outboxId>' })` usando o mesmo client (opção `db` do `send` [VALIDAR — pg-boss 10]); linha sem rota só é marcada publicada. Plano B se `db` não existir: `send` antes do claim, com o mesmo `singletonKey`; o consumidor já é idempotente por `episode_key`.
+O relay vem da T-005 (`apps/worker/src/outbox/relay.ts`). Esta tarefa acrescenta `'device.state.updated.v1': 'alerts.evaluate'` a `OUTBOX_ROUTES` e cria a fila na sua migration com `pgboss.create_queue`. Payload do job (REQ-ARQ-010, formato da T-005): `{ eventId: outboxId, type, operatorId, tenantId, entityId }`, com `singletonKey = 'alerts.evaluate:<outboxId>'`; o consumidor já é idempotente por `episode_key`.
 
 ### (4) Domínio puro (`@tracksys/domain`)
 
@@ -128,14 +139,14 @@ DROP TABLE app.alert;
 | `evaluateStateEvent(event, ctx)` | `ctx = { profile, openAlerts, watchMode, currentState, now }` → `{ open[], bump[], close[], unexpectedAlarms[] }` com as regras e chaves de [07 §2, §3, §5, §6](../docs/spec/07-alertas-e-tempo-real.md); só `isPrimary = true` |
 | `evaluateSilence(candidate, ctx)` | `signal_lost_moving` se `motion = 'moving'`, `ignition IS DISTINCT FROM false` e silêncio > `max(180, 3 × moving_interval_s)` s; `offline` se silêncio > 1.800 s e sem `signal_lost_moving` aberto; `started_at` = `last_contact_at` + limiar, ou `fim do incidente + 10 min` se maior |
 | `isStale(severity, originAt, openedAt)` | `critical` > 60 min; demais > 10 min |
-| `presenceOf(state, profile, now)` | `lost_moving`, `offline`, `delayed` (> `stopped_interval_s` + 60 s), `online` ([07 §11](../docs/spec/07-alertas-e-tempo-real.md) item 4) |
+| `presenceOf(state, profile, now)` | Reutilizado de `alerts/presence.ts` (T-008), sem mudar assinatura nem limiares (inclusivos, decisão 3 da T-008); esta tarefa só o importa |
 | `renderAlertText(type, { vehicleLabel, at, closing? })` | Título e corpo PT-BR; `{hora}` em `HH:mm` America/Sao_Paulo; sem coordenadas |
 
 Evidência gravada: `{openRevision, closeRevision, trigger, processingMode, stale, signalCount, lastSignalAt, closeReason, lastLocation, timings: {originAt, receivedAt, projectedAt, openedAt}}`, com `originAt = source.serverTime` (silêncio: limiar cruzado), `receivedAt = source.receivedAt`, `projectedAt = occurredAt` do evento e `openedAt` = relógio do worker.
 
 ### (5) Consumidor `alerts.evaluate`
 
-Por job: `withContext(app, { scope: 'operator', operatorId })` → lê o payload da outbox por `outboxId` e valida com `DeviceStateUpdatedV1` → `pg_advisory_xact_lock(hashtextextended('alerts:' || deviceId, 0))` → carrega perfil (`device` → `capability_profile`), alertas abertos do dispositivo (`FOR UPDATE`), vigilância ativa do veículo e `device_state` atual → `evaluateStateEvent` → aplica: `INSERT … ON CONFLICT (episode_key) DO NOTHING RETURNING id`; se inseriu, `insertOutboxEvent('alert.opened.v1')` e `pg_notify('alert_changed', '{"a","o","t","v"}')`; sinal repetido soma `signalCount` e `lastSignalAt` sem evento; fechamento grava `ended_at`, `closeRevision`, `closeReason`, `alert.closed.v1` com `notifyClose = true` só para `contact_resumed` e `power_restored`. Reordenação: se `device_state.revision` > revisão do evento e o estado atual contradiz a abertura, abre e fecha na mesma transação com `superseded`. Alarme de tipo indisponível → `metrics.inc('alerts_unexpected_alarm_total', { alarm })`, sem alerta.
+Por job: `withContext(app, { scope: 'operator', operatorId })` → lê o payload da outbox pelo `eventId` do job (id da linha da outbox) e valida com `DeviceStateUpdatedV1` → `pg_advisory_xact_lock(hashtextextended('alerts:' || deviceId, 0))` → carrega perfil (`device` → `capability_profile`), alertas abertos do dispositivo (`FOR UPDATE`), vigilância ativa do veículo e `device_state` atual → `evaluateStateEvent` → aplica: `INSERT … ON CONFLICT (episode_key) DO NOTHING RETURNING id`; se inseriu, `insertOutboxEvent('alert.opened.v1')` e `pg_notify('alert_changed', '{"a","o","t","v"}')` (o mesmo NOTIFY sai no fechamento e no reconhecimento, [07 §3](../docs/spec/07-alertas-e-tempo-real.md) item 5); sinal repetido soma `signalCount` e `lastSignalAt` sem evento; fechamento grava `ended_at`, `closeRevision`, `closeReason`, `alert.closed.v1` com `notifyClose = true` só para `contact_resumed` e `power_restored`. Reordenação: se `device_state.revision` > revisão do evento e o estado atual contradiz a abertura, abre e fecha na mesma transação com `superseded`. Alarme de tipo indisponível → `metrics.inc('alerts_unexpected_alarm_total', { alarm })`, sem alerta.
 
 ### (6) Laço de silêncio, incidente e expiração
 
@@ -147,10 +158,19 @@ Por job: `withContext(app, { scope: 'operator', operatorId })` → lê o payload
 
 | Rota | Comportamento |
 |---|---|
-| `POST /api/v1/vehicles/{vehicleId}/watch-mode` body `{"radiusM"?: 100–500}` | Papéis `tenant_owner`, `tenant_member` com acesso, `operator_admin`, `operator_agent` (outros → 403 `FORBIDDEN_ROLE`). Fora do escopo → 404. Dispositivo primário sem fix válido nas últimas 24 h → 409 `WATCH_MODE_NO_FIX`; `ignition = true` ou `motion = 'moving'` → 409 `WATCH_MODE_VEHICLE_ON`; raio inválido → 422. Já ativo → 200; senão 201. Corpo `{watchModeId, anchor:{latitude, longitude}, radiusM, activatedAt}`; âncora = `device_state.lat_e7/lon_e7`. `audit_log` `watch_mode.activate` |
+| `POST /api/v1/vehicles/{vehicleId}/watch-mode` body `{"radiusM"?: 100–500}` | Papéis `tenant_owner`, `tenant_member` com acesso, `operator_admin`, `operator_agent` (outros → 403 `FORBIDDEN`, [09 §3](../docs/spec/09-api-e-contratos.md); o pipeline da T-006 já responde assim a papel sem permissão). Fora do escopo → 404. Dispositivo primário sem fix válido nas últimas 24 h → 409 `WATCH_MODE_NO_FIX`; `ignition = true` ou `motion = 'moving'` → 409 `WATCH_MODE_VEHICLE_ON`; raio inválido → 422. Já ativo → 200; senão 201. Corpo `{watchModeId, anchor:{latitude, longitude}, radiusM, activatedAt}`; âncora = `device_state.lat_e7/lon_e7`. `audit_log` `watch_mode.activate` |
 | `DELETE /api/v1/vehicles/{vehicleId}/watch-mode` | 204 (também sem modo ativo); fecha violação aberta com `deactivated`; `audit_log` `watch_mode.deactivate` |
 | `GET /api/v1/alerts?status=open\|acknowledged\|closed&severity=&vehicleId=&from=&to=&cursor=` | `open` = sem `ended_at` e sem reconhecimento; `acknowledged` = sem `ended_at` e reconhecido; `closed` = com `ended_at`. Ordem: não reconhecidos, severidade (`critical` > `warning` > `info`), `started_at` crescente. Página de 50 com `nextCursor` opaco. Item: `alertId, type, typeLabel, severity, status, vehicleId, vehicleLabel, plate, tenantId, tenantName, startedAt, endedAt, acknowledgedAt, acknowledgedBy, lastContactAt` |
-| `POST /api/v1/alerts/{id}/acknowledge` body `{"note"?: ≤ 500}` | Só `operator_admin`, `operator_agent`, `search_team` (cliente → 403 `ALERT_ACK_FORBIDDEN`). Fora do escopo → 404. Idempotente (2º pedido devolve o mesmo estado). Fecha com `acknowledged` só `sos`, `watch_mode_breach` e `power_cut` de perfil sem `power_source`. `audit_log` `alert.acknowledge` com `reason = note`. 200 com o item |
+| `POST /api/v1/alerts/{id}/acknowledge` body `{"note"?: ≤ 500}` | Só `operator_admin`, `operator_agent`, `search_team` (cliente → 403 `FORBIDDEN`; permissão `alert.ack` só da equipe, [08 §3](../docs/spec/08-identidade-e-seguranca.md)). Fora do escopo → 404. Idempotente (2º pedido devolve o mesmo estado). Fecha com `acknowledged` só `sos`, `watch_mode_breach` e `power_cut` de perfil sem `power_source`. `audit_log` `alert.acknowledge` com `reason = note`. 200 com o item |
+
+### (7.1) Adaptadores das portas da T-008 (`apps/api`)
+
+- `SqlAlertSource` implementa a porta `AlertSource` da T-008 (`apps/api/src/realtime/alert-source.ts`): `openAlerts(ctx, vehicleIds)` lê `app.alert` sem `ended_at` dos veículos pedidos, sob o contexto da conexão SSE (`withContext(…, { readOnly: true })`); `alertById(ctx, alertId)` relê um alerta depois do NOTIFY `alert_changed` e devolve `null` se a RLS o esconde (o hub descarta). Se a porta da T-008 só tiver `openAlerts`, acrescente `alertById` de forma aditiva. Saída no formato `AlertEvent` da T-008: `status` = `closed` (com `ended_at`), `acknowledged` (com `acknowledged_at`) ou `open`; `title`/`body` de `renderAlertText`; nenhuma coordenada. O `realtime.module.ts` passa a injetar `SqlAlertSource` no lugar do `NullAlertSource`.
+- `SqlWatchModeStatusReader` implementa `WatchModeStatusReader` da T-008: `active` = existe `watch_mode` do veículo com `deactivated_at IS NULL`; `available` = `active` ou as pré-condições do POST da seção 7 valem (papel com `watch_mode.manage`, fix válido nas últimas 24 h, `ignition IS DISTINCT FROM true` e `motion <> 'moving'`). Mesma transação de leitura do item de veículo; nunca troca de contexto.
+
+### (7.2) Transferência: passo 7 de 04 §9.1 (`apps/api/src/fleet/vehicle-transfer.ts`)
+
+Na transação da transferência da T-007 (escopo `operator`, depois do passo (5) de V1 arquivado e antes do `audit_log`): `UPDATE app.alert SET ended_at = greatest(T, started_at), evidence = evidence || '{"closeReason":"vehicle_transferred"}' WHERE vehicle_id = V1 AND ended_at IS NULL RETURNING …`; para cada linha, `insertOutboxEvent('alert.closed.v1')` com `closeReason = 'vehicle_transferred'` e `notifyClose = false`, e o mesmo `pg_notify('alert_changed', …)` da seção 5; `UPDATE app.watch_mode SET deactivated_at = T WHERE vehicle_id = V1 AND deactivated_at IS NULL`. Nada é copiado para V1' (o novo titular começa sem alerta nem vigilância). Comandos pendentes e links revogados do passo 7 são do F1 (T-020, T-025).
 
 ### (8) Pager, métricas e env
 
@@ -162,7 +182,7 @@ Base comum: `seedVerticalSlice` (T-005), V1 com apelido "Gol prata", perfil de t
 
 `rules.test.ts` (puro): disponibilidade com `sos = 'unknown'` → indisponível e `'yes'` → disponível; distâncias de CT-ALR-004 (133 m dentro, 200 m fora) com `haversineM`; `renderAlertText('ignition_on', { vehicleLabel: 'Gol prata', at: <hoje>T00:14:03Z })` → "Ignição ligada" — "Gol prata: ignição ligada às 21:14."; `isStale('warning', t, t + 25 min) = true`.
 
-`schema.test.ts`: catálogo sem violação (CAT-01..CAT-07); ISO-01 a ISO-05 para `alert` e `watch_mode`; segundo alerta aberto do mesmo `(device_id, type)` com outra chave → 23505; `UPDATE alert SET type = 'sos'` → 23000; `tracksys_app` com `DELETE` → 42501.
+`schema.test.ts`: catálogo sem violação (CAT-01..CAT-07, com a CAT-03 e a CAT-04 da T-001 endurecida) e `catalog-allowlist.json` sem entrada nova; ISO-01 a ISO-05 para `alert` e `watch_mode`; segundo alerta aberto do mesmo `(device_id, type)` com outra chave → 23505; `UPDATE alert SET type = 'sos'` → 23000; `tracksys_app` com `DELETE` → 42501; `SELECT name FROM pgboss.queue` contém `alerts.evaluate` e casa com `QUEUES`; `tracksys_app` sem privilégio `CREATE` no schema `pgboss`.
 
 `evaluate.test.ts`
 - CT-ALR-001: perfil `sos = 'unknown'` e posição com `alarm = "sos"` → 0 alertas e `alerts_unexpected_alarm_total{alarm="sos"} = 1`; `sos = 'yes'` → 1 alerta `sos` `critical`.
@@ -181,20 +201,25 @@ Base comum: `seedVerticalSlice` (T-005), V1 com apelido "Gol prata", perfil de t
 
 `routes.test.ts` (HTTP, sessões de teste da T-006)
 - CT-ALR-003: V1 parado, ignição `false`, fix válido há 2 h em (−5,0892110, −42,8018920); `dono.a1` faz POST `{}` → 201 com essa âncora, `radiusM = 150` e `audit_log` `watch_mode.activate`; repetir → 200 com o mesmo `watchModeId`; ignição `true` → 409 `WATCH_MODE_VEHICLE_ON`; `dono.a2` → 404.
-- CT-ALR-014 (exceto SSE): na Alfa, `offline` (warning) 10:00, `signal_lost_moving` (critical) 10:05, `ignition_on` (warning) 10:01, e 1 alerta da Beta; `agente.alfa` lista `status=open` → 3 itens na ordem `signal_lost_moving`, `offline`, `ignition_on`; reconhece o primeiro → `acknowledged_by = agente.alfa`, `audit_log` `alert.acknowledge`, `ended_at` NULL e o item sai de `open` e aparece em `acknowledged`; `dono.a1` reconhecendo → 403.
+- CT-ALR-014 (parte HTTP): na Alfa, `offline` (warning) 10:00, `signal_lost_moving` (critical) 10:05, `ignition_on` (warning) 10:01, e 1 alerta da Beta; `agente.alfa` lista `status=open` → 3 itens na ordem `signal_lost_moving`, `offline`, `ignition_on`; reconhece o primeiro → `acknowledged_by = agente.alfa`, `audit_log` `alert.acknowledge`, `ended_at` NULL e o item sai de `open` e aparece em `acknowledged`; `dono.a1` reconhecendo → 403 `FORBIDDEN`.
+- CT-ALR-014 (parte SSE, com o hub da T-008 e o `SqlAlertSource`): SSE de `agente.alfa` aberto antes do cenário → o snapshot de uma nova conexão traz `ready.openAlerts = 3`; o reconhecimento do `signal_lost_moving` chega como `event: alert` com `status = "acknowledged"` em ≤ 2 s; o SSE de `admin.beta` não recebe nenhum `alert` da Alfa em 5 s; o SSE de `dono.a2` não recebe o alerta de V1.
+- `availableActions.watchMode` (adaptador da seção 7.1): no cenário do CT-ALR-003, `GET /api/v1/vehicles/{V1}` de `dono.a1` antes do POST → `{ "available": true, "active": false }`; depois do POST → `{ "available": true, "active": true }`; com ignição `true` e sem modo ativo → `{ "available": false, "active": false }`.
+- Papel sem permissão: usuário `search_team` em `POST /api/v1/vehicles/{V1}/watch-mode` → 403 `FORBIDDEN`.
 
-`relay.test.ts`: 1 linha `device.state.updated.v1` na outbox → `runRelayOnce` cria 1 job em `alerts.evaluate` e marca `published_at`; 2ª rodada cria 0 jobs; `telemetry.position.accepted.v1` é marcado publicado sem job.
+`relay.test.ts` (só a rota nova; o relay é testado na T-005): `OUTBOX_ROUTES['device.state.updated.v1'] = 'alerts.evaluate'`; 1 linha `device.state.updated.v1` na outbox → `runRelayOnce(client, OUTBOX_ROUTES)` cria 1 job em `alerts.evaluate` com payload `{ eventId, type, operatorId, tenantId, entityId }` e `singletonKey = 'alerts.evaluate:<outboxId>'`; 2ª rodada cria 0 jobs.
+
+`transfer.test.ts` (passo 7 de 04 §9.1, HTTP com a rota `vehicles.transfer` da T-007): V1 de A1 com `ignition_on` aberto e vigilância ativa; `agente.alfa` transfere V1 para A2 → 201; o alerta fica com `ended_at = transferredAt` e `evidence.closeReason = 'vehicle_transferred'`, 1 `alert.closed.v1` com `notifyClose = false`, `watch_mode` de V1 com `deactivated_at = transferredAt`; V1' sem alerta aberto nem vigilância; `GET /api/v1/alerts?status=open` de `agente.alfa` não traz o alerta de V1; nenhuma linha em tabela de comando (INV-08).
 
 ## Comandos de verificação
 
 ```bash
 pnpm install
-pnpm db:reset && pnpm db:migrate && pnpm db:boss
+pnpm db:reset && pnpm db:migrate                 # a fila alerts.evaluate nasce na migration (plano B: + pnpm db:boss)
 pnpm db:check                                   # Catálogo OK: nenhuma violação de CAT-01..CAT-07.
 pnpm --filter @tracksys/domain test
 pnpm test:acceptance -- tests/acceptance/T-011
 pnpm verify                                     # T-001, T-002, T-005 e T-011 verdes
-pnpm exec dbmate --migrations-dir ./packages/db/migrations --no-dump-schema rollback && pnpm db:migrate
+pnpm db:rollback && pnpm db:migrate                  # prova o down desta migration (o pnpm verify também prova)
 ```
 
 ## Definição de pronto
@@ -210,7 +235,7 @@ pnpm exec dbmate --migrations-dir ./packages/db/migrations --no-dump-schema roll
 | 1. Contexto RLS dos jobs e do laço: `tenant` ou `operator`? | `operator` da operadora do evento/candidato: o consumidor precisa ler `device` e `capability_profile` (tipo C/F). A escrita em `alert` (tipo A) continua barrada para outra operadora. |
 | 2. [07](../docs/spec/07-alertas-e-tempo-real.md) diz capacidade `true`/`null` | Leia `'yes'`/`'unknown'` (T-002). Só `'yes'` habilita o tipo. |
 | 3. Quem reconhece alerta? | Só a equipe da operadora no F0 (a central trata SOS); cliente recebe 403. Mudança é reversível e fica registrada no PR. |
-| 4. pg-boss já existe? | Não; entra aqui (primeiro consumidor). Filas e partições criadas pelo dono em `db:boss`; runtime sem migrar. Sem Redis nem RabbitMQ (ADR-002). |
+| 4. pg-boss já existe? | Sim: o schema `pgboss` e o runtime com `migrate: false` vêm da T-004 (migration `20261010120000_pgboss.sql`; ADR-002). As filas desta tarefa nascem na migration com `SELECT pgboss.create_queue(...)`, como na T-006. O script `db:boss` só entra como plano B se a função SQL não existir na versão fixada. Pontos a conferir na versão fixada, com o plano B de cada um registrado no PR: `create_queue` cria a partição (por isso roda na migration, como dono) e a opção `db` do `send` (seção 3). Sem Redis nem RabbitMQ (ADR-002). |
 | 5. Gatilho `watch_mode_immutable` não está em [04](../docs/spec/04-dominio-e-dados.md) | Entra por REQ-DAD-001 (colunas de escopo e de âncora imutáveis); a desativação só muda `deactivated_at`. |
 | 6. `alert.opened.v1` de modo não ao vivo ou `stale` é gravado? | Sim, com `processingMode` e `stale` no payload; a T-012 não cria `alert_delivery` para eles (INV-05). |
 | 7. Silêncio de um dispositivo sem perfil | `moving_interval_s` ausente → 30 s (limiar 180 s); `offline` sempre 1.800 s [VALIDAR — DEC-02]. |

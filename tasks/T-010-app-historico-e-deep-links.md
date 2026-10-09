@@ -33,7 +33,7 @@ Completar o app do F0 com o que o cliente usa depois de ver o mapa: o trajeto de
 
 ## Fora do escopo
 
-- A05 Alertas, A06 Vigilância e A09 Notificações (T-012 e pendência registrada na T-009).
+- A05 Alertas, A06 Vigilância e A09 Notificações (T-012 [ADOTADO NA v2.0]; a A05 reutiliza as ações A07 e A08 deste cartão).
 - "Solicitar relatório" acima de 90 dias e exportação (F1, [ADR-009](../docs/adr/ADR-009-retencao-quente-frio.md)).
 - Publicação em produção nas lojas (F1, G1-5); pipeline iOS automatizado (F0 é manual); flavors (F2).
 - Cache offline de histórico; tela C07 do console (T-008); WhatsApp Cloud API (F2).
@@ -182,7 +182,7 @@ echo "AAB sem segredos conhecidos."
 
 `write_key_properties.sh` (criar em `apps/mobile/tool/`) decodifica `ANDROID_KEYSTORE_B64` para `$RUNNER_TEMP/upload.jks` e grava `apps/mobile/android/key.properties`; falta de qualquer variável → sai com 1 nomeando a variável, nunca o valor.
 
-`docs/runbooks/mobile-release.md`: nomes dos segredos e variáveis (sem valores); geração da chave de upload e guarda fora do repositório; 1º envio do AAB manual pelo Play Console (exigência para app novo [VALIDAR — regra vigente]); criação da faixa de teste fechado com ≥ 12 testadores por 14 dias seguidos [VALIDAR — regra do Google Play para conta pessoal], política de privacidade e Segurança dos dados ([Anexo B](../anexos/B-juridico.md)); como cortar versão (`git tag mobile-v0.1.0` + push da tag); como interromper uma versão; iOS no F0: arquivar no Xcode (ou Codemagic [VALIDAR — custo]) com os mesmos `--dart-define`, enviar ao App Store Connect, testadores internos e externos no TestFlight (revisão beta da Apple [VALIDAR prazo]; depende de DEC-03); gravação dos vídeos do G0-3/G0-4.
+`docs/runbooks/mobile-release.md`: nomes dos segredos e variáveis (sem valores); geração da chave de upload e guarda fora do repositório; 1º envio do AAB manual pelo Play Console (exigência para app novo [VALIDAR — regra vigente]); criação da faixa de teste fechado com ≥ 12 testadores por 14 dias seguidos [VALIDAR — regra do Google Play para conta pessoal], política de privacidade e Segurança dos dados ([Anexo B](../docs/anexos/B-juridico.md)); como cortar versão (`git tag mobile-v0.1.0` + push da tag); como interromper uma versão; iOS no F0: arquivar no Xcode (ou Codemagic [VALIDAR — custo]) com os mesmos `--dart-define`, enviar ao App Store Connect, testadores internos e externos no TestFlight (revisão beta da Apple [VALIDAR prazo]; depende de DEC-03); gravação dos vídeos do G0-3/G0-4.
 
 ## Testes de aceite (congelados)
 

@@ -3,11 +3,11 @@
 | Campo | Valor |
 |---|---|
 | Fase | F0 (S3–S4: 1º veículo e rollback em 22/10/2026; demais até 29/10/2026 12:00 BRT) |
-| Requisitos | REQ-ONB-008, REQ-ONB-009, REQ-ONB-015 (modelos e renderização; a pré-checagem de onda é F1), REQ-ONB-016 (domínio e plano B no piloto); itens G0-8 e G0-9 de REQ-NEG-010 |
+| Requisitos | REQ-ONB-008, REQ-ONB-009, REQ-ONB-015 (modelos e renderização; a pré-checagem de onda é F1), REQ-ONB-016 (domínio e plano B no piloto); itens G0-8 e G0-9 de REQ-NEG-010; provisionamento no Traccar pelo subcomando `pilot provision` (sem REQ próprio: dono fixado em [02 §2.3](../docs/spec/02-escopo-e-fases.md), "Donos de fronteira") [ADOTADO NA v2.0] |
 | Invariantes | INV-03 (`domain_support` desconhecido não vira "sim"; contato ausente não vira "migrado"), INV-06 (a 1ª posição pertence ao vínculo vigente), INV-11 (agente não envia SMS nem comando), INV-12 (horários em UTC) |
 | Risco de revisão | N1 |
-| Depende de | T-005, DEC-02, DEC-04. Usa artefatos já entregues: T-002 (`fixtures/j16/sms/templates.json`, perfil J16, alvo de rollback em `lider.md`), T-007 (API de rastreadores e tela C05), T-013 (sonda TCP de `gps.`) |
-| Estimativa | 2 sessões de agente (14a modelos de SMS e lógica pura; 14b CLI do piloto, registro no `G0.md` e runbook) + execução do fundador com a Lider (22/10: ~3 h; 28–29/10: ~1 h por veículo) |
+| Depende de | T-005, DEC-02, DEC-04. Usa artefatos já entregues: T-002 (`fixtures/j16/sms/templates.json`, perfil J16, alvo de rollback em `lider.md`), T-007 (API de rastreadores e tela C05; `provisioning` derivado de `traccar_device_id`), T-004 (imagem `tracksys-app` e variáveis `TRACCAR_API_*` do `worker`), T-013 (sonda TCP de `gps.`) |
+| Estimativa | 3 sessões de agente (14a modelos de SMS e lógica pura; 14b CLI do piloto, registro no `G0.md` e runbook; 14c `pilot provision`) + execução do fundador com a Lider (22/10: ~3 h; 28–29/10: ~1 h por veículo) |
 | Bloqueado por decisão | DEC-02 (padrão seguro: modelo `draft` ou `domain_support ≠ "yes"` → nenhum SMS a veículo real; o software fica pronto e é ensaiado no J16 de bancada). DEC-04 (o `gps.` definitivo existe antes do 1º SMS a veículo real; com domínio provisório o preflight recusa) |
 | Tipo | **Mista:** o agente entrega modelos, CLI, testes e runbook; o fundador e a Lider executam os SMS (agente sem acesso ao portal emnify nem credencial de produção, REQ-QLD-016, INV-11) |
 
@@ -20,6 +20,7 @@ Levar 5 a 10 rastreadores J16 reais do servidor da SmartGPS para `gps.<TRACKSYS_
 - [11 §4.6, §5, §6, §7 passos 1–8](../docs/spec/11-onboarding-e-migracao.md): procedimento do piloto, modelos de SMS, domínio e plano B, cronograma da Lider.
 - [02 §2.1, §2.2, §2.4, §2.5 (G0-8, G0-9)](../docs/spec/02-escopo-e-fases.md): piloto e bloqueio, prazo duro, plano de corte.
 - [Anexo C §1 e §3](../docs/anexos/C-operacional.md): runbook do plantonista (versão F0) e checklist de go-live.
+- [02 §2.3](../docs/spec/02-escopo-e-fases.md) ("Donos de fronteira": provisionamento no Traccar), [05 §6](../docs/spec/05-ingestao-e-telemetria.md) (`device.traccar_device_id` nulo → quarentena `device_identity_mismatch`) e [04 §3](../docs/spec/04-dominio-e-dados.md) (`app.device`).
 
 ## Escopo — fazer
 
@@ -27,16 +28,18 @@ Levar 5 a 10 rastreadores J16 reais do servidor da SmartGPS para `gps.<TRACKSYS_
 1. Modelos de SMS versionados e renderização segura (seção 1).
 2. Lógica pura do piloto: decisão de 1º contato, rollback e formatação (seção 2).
 3. Módulo de leitura e escrita das seções do piloto no `G0.md` (seção 3).
-4. CLI `pnpm pilot` com `preflight`, `migrate`, `rollback` e `status` (seção 4).
-5. Runbook `docs/runbooks/onboarding/migracao-piloto.md` e front matter de `docs/runbooks/onboarding/lider.md` (seção 5).
-6. Testes de aceite em `tests/acceptance/T-014/`.
+4. CLI `pnpm pilot` com `preflight`, `migrate`, `rollback`, `status` e `provision` (seções 4 e 4.1).
+5. `provisionDevice` no `worker` (seção 4.1): cria o rastreador pela API do Traccar e grava `device.traccar_device_id` como `tracksys_app` com contexto da operadora; o job automático do F1 (T-024) reutiliza a mesma função.
+6. Runbook `docs/runbooks/onboarding/migracao-piloto.md` (com a seção "Provisionar à mão (demonstração de 20/10)") e front matter de `docs/runbooks/onboarding/lider.md` (seção 5).
+7. Testes de aceite em `tests/acceptance/T-014/`.
 
 **Fundador e Lider (com o runbook, seção 6):** termos, cadastro, ensaio na bancada, veículo de 22/10 com rollback, demais veículos até 29/10 12:00 BRT, acompanhamento de 48 h.
 
 ## Fora do escopo
 
 - Tabelas de onda, importador, SMS pela API emnify, rollback automático, avisos M1–M4: F1 (REQ-ONB-002 a REQ-ONB-014).
-- Cadastro de cliente, veículo, rastreador e vínculo (T-007) e provisionamento no Traccar (T-005/T-007).
+- Cadastro de cliente, veículo, rastreador e vínculo (T-007). Job automático de provisionamento no `worker` (`provisioning` `pending → done` sem intervenção) e estado `failed`: F1, com o importador (T-024).
+- Qualquer escrita no banco do Traccar (proibida, `AGENTS.md`): só a API REST dele.
 - Convite dos titulares para o app (T-007/T-009) e texto do termo de participação ([Anexo B](../docs/anexos/B-juridico.md)).
 - Qualquer comando físico pela plataforma (bloqueio só após o G-CMD, REQ-NEG-011).
 
@@ -50,11 +53,14 @@ packages/domain/src/index.ts                      (alterar: exportar os módulos
 infra/scripts/pilot/pilot.ts                      (CLI; roda com tsx)
 infra/scripts/pilot/api-client.ts                 (fetch + Zod; token só em memória)
 infra/scripts/pilot/probes.ts                     (DNS e TCP com node:dns e node:net)
+apps/worker/src/fleet/provision-device.ts         (provisionDevice: API do Traccar + UPDATE como tracksys_app)
+apps/worker/src/cli/pilot-provision.ts            (entrada do subcomando; empacotada na imagem tracksys-app)
+packages/testkit/src/fakes/traccar.ts             (alterar, ou criar se a T-011 ainda não entrou: GET/POST /api/devices)
 package.json                                      (alterar: script "pilot": "tsx infra/scripts/pilot/pilot.ts")
 docs/runbooks/onboarding/migracao-piloto.md
 docs/runbooks/onboarding/lider.md                 (alterar: front matter no topo; conteúdo da T-002 preservado)
 docs/runbooks/gates/G0.md                         (criar as 2 seções se não existirem; nada é apagado)
-tests/acceptance/T-014/{sms-templates,pilot-logic,preflight,g0-log,first-contact}.test.ts
+tests/acceptance/T-014/{sms-templates,pilot-logic,preflight,g0-log,first-contact,provision}.test.ts
 tests/acceptance/T-014/fixtures/{G0.md,lider.md,templates-teste.json}
 ```
 
@@ -139,6 +145,20 @@ Esquema do front matter (Zod, em `pilot.ts` da CLI): `targetHost` hostname ou IP
 
 **`pilot status`** — para cada veículo com linha `migrado` mais recente que qualquer `rollback`, mostra `***0017  migrado  último contato há 40 s` (transmitindo = contato há ≤ 10 min) e o total: "N veículos transmitindo (G0-1 exige ≥ 5)".
 
+### (4.1) `pilot provision` — provisionamento no Traccar
+
+`pnpm pilot provision --operator <uuid> --device <uuid> [--dry-run]` chama `provisionDevice` de `apps/worker/src/fleet/provision-device.ts`. Na VM, o fundador roda o mesmo código pela imagem já publicada: `dc run --rm --no-deps worker node dist/cli/pilot-provision.js --operator <uuid> --device <uuid>` (ambiente do `worker`: `DATABASE_URL_APP`, `TRACCAR_API_URL`, `TRACCAR_API_USER`, `TRACCAR_API_PASSWORD`, `EXTERNAL_EFFECTS=on`). O agente nunca roda em produção (REQ-QLD-016).
+
+1. **Ambiente (Zod):** `DATABASE_URL_APP` obrigatório e com usuário `tracksys_app` (outro usuário, inclusive `tracksys_owner` ou superusuário → sai 78 com "papel recusado", antes de qualquer chamada); `DATABASE_URL`, `DATABASE_URL_ADMIN` e `MIGRATE_DATABASE_URL` são ignorados mesmo se presentes. `EXTERNAL_EFFECTS=off` → sai 1 com `EXTERNAL_EFFECTS_DISABLED` (ensaio de restore, T-013).
+2. **Leitura:** `withContext(pool, { scope: 'operator', operatorId })` e `SELECT id, imei, model, status, traccar_device_id FROM app.device WHERE id = $1 FOR UPDATE`. Sem linha (inexistente ou de outra operadora, pela RLS) → sai 1 "rastreador não encontrado nesta operadora", 0 chamadas ao Traccar. `status = 'retired'` → sai 1.
+3. **Já provisionado:** `traccar_device_id` preenchido → `GET {TRACCAR_API_URL}/api/devices?id=<id>`; `uniqueId` igual ao IMEI → `OK já provisionado ***0017 → traccar <id>` e sai 0; diferente ou ausente → sai 1 `traccar_id_mismatch`, sem alterar nada.
+4. **Criação idempotente:** `GET /api/devices?uniqueId=<imei>` (Basic com `TRACCAR_API_USER`/`TRACCAR_API_PASSWORD`, tempo limite 10 s); existe → reutiliza o `id`; senão `POST /api/devices` com `{"name": "<model> ***<4 últimos>", "uniqueId": "<imei>", "category": "car"}` e lê o `id` da resposta [VALIDAR — versão do Traccar fixada na T-003: filtro `uniqueId` e campos obrigatórios].
+5. **Gravação:** na mesma transação, `UPDATE app.device SET traccar_device_id = $id, updated_at = now() WHERE id = $device AND traccar_device_id IS NULL`; 1 linha → COMMIT e `OK provisionado ***0017 → traccar <id>`; `provisioning` passa a `done` (derivado pela T-007). Erro do Traccar (4xx/5xx/tempo) → ROLLBACK, `traccar_device_id` continua NULL, sai 1 com o status HTTP.
+6. `--dry-run`: faz só os `GET` e imprime o que faria; nenhum `POST` nem `UPDATE`.
+7. Saída e log nunca têm IMEI completo, senha do Traccar nem cabeçalho `Authorization`.
+
+**Demonstração de 20/10 (antes desta tarefa entrar):** o fundador faz o mesmo passo à mão com o J16 de bancada — cria o dispositivo pela interface do Traccar e grava o id com SQL como `tracksys_app` com contexto da operadora (igual ao corte 5 de [02 §2.4](../docs/spec/02-escopo-e-fases.md); nunca como `tracksys_owner`), seguindo a seção "Provisionar à mão" do runbook.
+
 ### (5) Runbook e configuração
 
 `docs/runbooks/onboarding/lider.md` ganha, no topo, front matter plano (`chave: valor`, sem aninhamento; parser próprio, sem dependência nova): `operator: lider`, `targetHost`, `targetPort` (`5023` [VALIDAR — DEC-02]), `serviceIp` (`ip-svc` da T-003), `rollbackHost`, `rollbackPort` (resultado do `query_server` da T-002), `smsTemplatesRef: j16/v1`, `dec04Resolved: false`, `adr005RevisedForIp: false`. Sem senha.
@@ -150,7 +170,7 @@ Esquema do front matter (Zod, em `pilot.ts` da CLI): `targetHost` hostname ou IP
 | Quando | Passo | Pronto quando |
 |---|---|---|
 | até 20/10 | Escolher 5–10 veículos (frota, funcionários, voluntários); termo do [Anexo B](../docs/anexos/B-juridico.md) assinado por titular, informando se o veículo fica sem bloqueio remoto (sim, salvo servidor secundário provado na T-002 [VALIDAR — DEC-02]); linha em `## Termos` | Termos = titulares |
-| até 20/10 | Cadastro no console (C03–C06): cliente, veículo, rastreador, chip e vínculo com a resposta do relé/ponto de corte; `provisioning = done` | `pilot preflight` passa nos itens 2–3 |
+| até 20/10 | Cadastro no console (C03–C06): cliente, veículo, rastreador, chip e vínculo com a resposta do relé/ponto de corte; `pilot provision` na VM para cada rastreador (até a T-014 entrar, o passo à mão do runbook) → `provisioning = done` | `pilot preflight` passa nos itens 2–3 |
 | antes do 1º SMS real | DEC-02 e DEC-04 resolvidas; `gps.` definitivo com TTL 60 s, sem proxy, no `ip-svc`; sonda TCP verde (T-013); `lider.md` com `dec04Resolved: true`; runbook do plantonista F0 ([Anexo C §1](../docs/anexos/C-operacional.md): sem bloqueio pela plataforma, contingência por SMS como hoje) entregue à Lider | `pilot preflight` 100% `OK` |
 | 21/10 (ensaio) | J16 de bancada: `pilot migrate` para o domínio definitivo; rollback com alvo = `ip-sby` e `sudo timeout 900 nc -lk 5023 >/dev/null` na `tracksys-s` (vê-se a sessão em `ss -Htn state established '( sport = :5023 )'`); depois migrar de novo | Ensaio anotado no PR (fora da tabela do G0) |
 | 22/10, 13:00–17:00 BRT | 1 veículo da frota da Lider: `pilot migrate` → `migrado` → SMS de rollback pelo portal → `pilot rollback` → a Lider confirma no tracker-net → `--result` → `pilot migrate` de novo no mesmo dia | 3 linhas no `G0.md`; rollback ≤ 10 min (G0-8) |
@@ -177,6 +197,7 @@ Resposta por resultado:
 - `pilot-logic.test.ts` (CT-ONB-008 e CT-ONB-009 na parte de decisão) — Dado SMS às `13:00:00Z` e `lastContactAt = 13:03:20Z`, Quando `now = 13:03:25Z`, Então `migrated` com `elapsedS = 200` e `formatElapsed = "3 min 20 s"`. Dado `lastContactAt = 12:59:59Z` (contato anterior ao SMS) e `now = 13:05:00Z`, Então `waiting` com `remainingS = 300`. Dado `lastContactAt` nulo e `now = 13:10:00Z`, Então `no_contact`. Dado contato às `13:11:00Z`, Então `no_contact` com `lateContactAt = 13:11:00Z`. Dado rollback às `17:00:00Z` (14:00 BRT) e confirmação `back_on_source` às `17:06:00Z`, Então `ok` com 360 s; às `17:10:01Z`, Então `ok: false`, `reason = 'late'`; `not_back`, Então `reason = 'not_back'`. `maskImei('860000000000017') = '***0017'`.
 - `preflight.test.ts` (CT-ONB-008 2ª parte, CT-ONB-016 na parte do piloto) — Fake HTTP da API e sondas injetadas; `fixtures/G0.md` com `T01 | ***0017 | 2026-10-20T14:00:00Z`; `fixtures/lider.md` com `targetHost: gps.tracksys.example`, `serviceIp: 203.0.113.10`, `dec04Resolved: true`; rastreador `***0017` com vínculo, `provisioning: 'done'`, `lastContactAt: null`, perfil `domain_support: "yes"`; DNS `203.0.113.10` TTL 60; TCP abre. Quando `pilot preflight`, Então sai 0, 10 linhas `OK` e os 2 textos de SMS. Dado o rastreador `***0025` sem termo, Então sai 1, `FALHOU termo` e a saída não contém `SERVER`. Dado `provisioning: 'pending'`, Então `FALHOU provisionamento`. Dado `lastContactAt` há 2 min, Então `FALHOU contato-atual`. Dado `domain_support: "unknown"`, Então `FALHOU dominio` com "plano B". Dado TTL 300, Então `FALHOU dns`. Dado `dec04Resolved: false`, Então `FALHOU dec-04`. Em todos os casos a saída não contém o token do fake nem 15 dígitos seguidos.
 - `g0-log.test.ts` — Dado `fixtures/G0.md` com a seção `## Cortes` e sem `## Migração do piloto`, Quando `appendRow` grava `***0017 | migrar | 2026-10-22T13:00:00Z | 2026-10-22T13:03:20Z | migrado | 3 min 20 s`, Então a seção é criada com o cabeçalho exato e o texto anterior fica idêntico; Quando `replaceRow` troca `aguardando` por `migrado` com o mesmo SMS, Então a seção continua com 1 linha desse SMS; `parsePilotRows` devolve `{vehicle: '***0017', kind: 'migrar', smsAt: '2026-10-22T13:00:00Z', outcomeAt: '2026-10-22T13:03:20Z', outcome: 'migrado'}`.
+- `provision.test.ts` (provisionamento, 02 §2.3) — Banco local migrado, `seedVerticalSlice` (T-005) e fake de Traccar de `packages/testkit` com usuário e senha de teste. Dado R3 (Alfa, `stock`, `traccar_device_id` NULL), Quando `provisionDevice` roda com `DATABASE_URL_APP`, Então o fake recebe 1 `GET ?uniqueId=` e 1 `POST /api/devices` com `uniqueId` = IMEI de R3 e Basic correto, `app.device.traccar_device_id` = id devolvido e a saída é `OK provisionado ***0003 → traccar <id>`; 2ª execução → 0 `POST` e "já provisionado"; fake já com o `uniqueId` → 0 `POST` e o id existente gravado; `--dry-run` → 0 `POST` e coluna NULL; `POST` respondendo 500 → sai 1 e coluna NULL; R3 com `--operator` da Beta → sai 1 e 0 chamadas ao fake; `DATABASE_URL_APP` com usuário `tracksys_owner` → sai 78 e 0 chamadas; `EXTERNAL_EFFECTS=off` → sai 1 e 0 chamadas; `traccar_device_id` gravado que o fake devolve com outro `uniqueId` → sai 1 `traccar_id_mismatch`. Depois de provisionar, uma posição de R3 com `position.deviceId` = id enviada a `POST /internal/v1/traccar/positions` fica `processed` (antes: quarentena `device_identity_mismatch`). Nenhuma saída contém 15 dígitos seguidos nem a senha.
 - `first-contact.test.ts` (CT-ONB-008 1ª parte, INV-06) — Dado `seedVerticalSlice` (T-005) com V1 vinculado a A1 e sem contato, Quando uma posição de V1 com `serverTime = <hoje>T13:03:20Z` é enviada a `POST /internal/v1/traccar/positions`, Então `GET /api/v1/devices/{V1}` como `agente.alfa` traz `lastContactAt = <hoje>T13:03:20Z`, a 1ª linha de `app.position` de V1 tem o `tenant_id` de A1 e `decideFirstContact` com SMS às `13:00:00Z` dá `migrated` em 200 s.
 
 Execução (fundador; anexar ao PR e ao `G0.md`): saída do `pilot preflight` do veículo de 22/10; as 3 linhas de 22/10 (CT-ONB-009, G0-8); `dig +noall +answer gps.<domínio>` com TTL ≤ 60 e o `ip-svc` (CT-ONB-016); `pilot status` às 12:00 BRT de 29/10.
@@ -188,7 +209,7 @@ pnpm install
 pnpm lint && pnpm typecheck
 pnpm db:up && pnpm db:migrate
 pnpm test:acceptance -- tests/acceptance/T-014
-TRACKSYS_API_URL=https://api.tracksys.example pnpm pilot --help     # lista preflight, migrate, rollback, status
+TRACKSYS_API_URL=https://api.tracksys.example pnpm pilot --help     # lista preflight, migrate, rollback, status, provision
 pnpm verify
 ```
 
@@ -196,6 +217,7 @@ pnpm verify
 
 - [ ] Testes da T-014 verdes; `pnpm verify` verde no PR.
 - [ ] `lider.md` com front matter; `migracao-piloto.md` revisado pelo fundador.
+- [ ] Rastreadores do piloto com `provisioning = done` pelo `pilot provision` (saída anexada ao PR, só IMEI mascarado).
 - [ ] Ensaio na bancada (21/10) e veículo de 22/10 com rollback ≤ 10 min registrados (G0-8).
 - [ ] ≥ 5 veículos transmitindo em 29/10/2026 12:00 BRT, ou adiamento do G0 registrado em `## Cortes`.
 - [ ] PR `feat(onboarding): migração manual por SMS e rollback do piloto (T-014)` com REQ/INV/risco e revisão cruzada.
@@ -213,3 +235,5 @@ pnpm verify
 | Posso migrar vários veículos em paralelo? | Não no F0: um por vez, para o rollback caber no expediente da central. |
 | Datas e horários? | UTC (RFC 3339) em arquivo e saída da CLI; BRT só como referência humana no runbook (INV-12). |
 | Dependência nova para YAML, prompts ou DNS? | Nenhuma: front matter plano com parser próprio, `node:readline`, `node:dns`, `node:net`. |
+| Onde roda o `pilot provision` e com que papel? | Na VM, pela imagem do `worker` (já tem o cliente do Traccar e `DATABASE_URL_APP`), como `tracksys_app` com contexto da operadora. Nunca `tracksys_owner` nem `DATABASE_URL_ADMIN`; o banco do Traccar nunca é escrito, só a API REST. [ADOTADO NA v2.0, 02 §2.3] |
+| Por que não um job automático já no F0? | São 5–10 rastreadores, um por vez; o subcomando idempotente basta e não cria fila nova. O job do F1 (T-024) reutiliza `provisionDevice`. |

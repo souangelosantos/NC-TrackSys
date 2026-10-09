@@ -8,7 +8,7 @@
 | Requisitos | REQ-UX-020, REQ-UX-023, REQ-UX-029, REQ-SEG-017, REQ-SEG-018, REQ-API-013 |
 | Invariantes | INV-05, INV-07, INV-08 |
 | Risco de revisão | N0 |
-| Depende de | T-008, T-009, T-020 |
+| Depende de | T-008, T-009, T-017 (tabela `occurrence`), T-020 |
 | Estimativa | 2–3 sessões de agente |
 | Bloqueado por decisão | nenhuma |
 | Status | Resumido — DoR pendente |
@@ -23,7 +23,7 @@ Dar à central e à equipe de busca o fluxo de furto/roubo: abrir ocorrência, r
 
 ## Escopo — fazer
 
-1. Tabelas `occurrence` e `share_link`.
+1. Tabela `share_link`; a `occurrence` já nasce na T-017 (com o índice de uma ocorrência aberta por veículo) e aqui só ganha rotas e regras.
 2. Rotas de ocorrência, link e sessão pública; página pública sem analytics de terceiros.
 3. Visão web responsiva da equipe de busca.
 4. Exportação assíncrona de histórico (REQ-API-013).

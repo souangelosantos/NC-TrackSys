@@ -5,7 +5,7 @@
 | Campo | Valor |
 |---|---|
 | Fase | F1 (quinzena 01–30/11/2026) |
-| Requisitos | REQ-ONB-002 a REQ-ONB-007, REQ-ONB-010 a REQ-ONB-014, REQ-ONB-017, REQ-ONB-018, REQ-ONB-020 |
+| Requisitos | REQ-ONB-002 a REQ-ONB-007, REQ-ONB-010 a REQ-ONB-014, REQ-ONB-017, REQ-ONB-018, REQ-ONB-020; job automático de provisionamento no Traccar (sem REQ próprio; [03 §4](../docs/spec/03-arquitetura.md) módulo `fleet`) [ADOTADO NA v2.0] |
 | Invariantes | INV-03, INV-07, INV-10 |
 | Risco de revisão | N0 |
 | Depende de | T-007, T-014, T-022 (só para veículos com bloqueio) |
@@ -19,7 +19,7 @@ Importar a base da operadora a partir da planilha exportada do tracker-net (XLSX
 
 ## Contexto obrigatório
 
-[11 — Onboarding e migração](../docs/spec/11-onboarding-e-migracao.md); [02 §4](../docs/spec/02-escopo-e-fases.md) (REQ-NEG-015); [T-014](T-014-migracao-manual-sms-e-rollback.md) (procedimento manual do piloto)
+[11 — Onboarding e migração](../docs/spec/11-onboarding-e-migracao.md); [02 §4](../docs/spec/02-escopo-e-fases.md) (REQ-NEG-015); [02 §2.3](../docs/spec/02-escopo-e-fases.md) (provisionamento no Traccar); [03 §4](../docs/spec/03-arquitetura.md) (módulo `fleet` no worker); [T-014](T-014-migracao-manual-sms-e-rollback.md) (procedimento manual do piloto e subcomando `pilot provision`)
 
 ## Escopo — fazer
 
@@ -27,6 +27,7 @@ Importar a base da operadora a partir da planilha exportada do tracker-net (XLSX
 2. Importador com relatório de erros por linha e idempotência por linha.
 3. Ondas com pré-checagem (domínio definitivo, senha SMS, perfil homologado para quem tem bloqueio).
 4. Mensagem pronta de aviso aos clientes da operadora.
+5. Job automático do `worker` que provisiona no Traccar todo rastreador criado no console ou pelo importador: cria o dispositivo pela API do Traccar e grava `device.traccar_device_id` como `tracksys_app` com contexto da operadora (`provisioning` de `pending` para `done`), idempotente por rastreador. Substitui, no F1, o subcomando manual `pilot provision` da T-014; o item `traccar_not_provisioned` da pré-checagem da onda (CT-ONB-010) continua valendo.
 
 ## Fora do escopo
 

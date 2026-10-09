@@ -5,11 +5,11 @@
 | Campo | Valor |
 |---|---|
 | Fase | F1 (quinzena 16–30/11/2026) |
-| Requisitos | REQ-NEG-011, REQ-NEG-015, REQ-QLD-014 |
+| Requisitos | REQ-NEG-011, REQ-NEG-015, REQ-QLD-014, REQ-CMD-018 (parte de bancada: kit `homologation:check`; o schema do perfil é da T-016) |
 | Invariantes | INV-08, INV-10 |
 | Risco de revisão | N0 |
 | Depende de | T-020, T-021, T-002 |
-| Estimativa | 1 (agente) + bancada do fundador sessões de agente |
+| Estimativa | 1 sessão de agente + bancada do fundador |
 | Bloqueado por decisão | DEC-07 |
 | Status | Resumido — DoR pendente |
 
@@ -27,6 +27,7 @@ Transformar o perfil J16 de `draft` em `homologated` com evidência: suíte CT-C
 2. Consultas que extraem `command_event` e velocidade no momento da decisão.
 3. Regra de onda que exclui veículo com bloqueio enquanto o perfil não está homologado (REQ-NEG-015).
 4. Mudança de `capability_profile.status` só pelo fundador, com `evidence_ref`.
+5. Kit de bancada `pnpm --filter @tracksys/testkit homologation:check <dir>` sobre `cycles.csv` e `manifest.json` ([06 §13](../docs/spec/06-comandos-e-bloqueio.md); CT-CMD-018, parte de bancada) e runbook `docs/runbooks/gates/G-CMD.md` (a T-016 deixa os dois fora do escopo dela).
 
 ## Fora do escopo
 

@@ -102,8 +102,8 @@ Toda resposta 4xx/5xx usa `Content-Type: application/problem+json`, com `type` =
 | `SPEED_ABOVE_LIMIT` | 409 | Reservado: hoje a política de 06 arma (`awaiting_speed`) em vez de recusar | `speedKmh`, `maxMovingCutKmh` | 06 |
 | `COMMAND_ALREADY_ACTIVE` · `COMMAND_IN_FLIGHT` | 409 | Já existe `block`/`unblock` ativo; o ativo já saiu para o rastreador (com `Retry-After`) | `activeCommandId` | 06 |
 | `COMMAND_NOT_CANCELLABLE` | 409 | Cancelamento depois de DISPATCHING | — | 06 |
-| `CUT_POINT_MISSING` · `PROFILE_NOT_HOMOLOGATED` | 422 | Vínculo sem `cut_point`; perfil sem homologação com relé (INV-10). Nomes canônicos: os `COMMAND_CUT_POINT_MISSING`, `COMMAND_PROFILE_NOT_HOMOLOGATED` etc. de [06 §14](06-comandos-e-bloqueio.md) mapeiam para os códigos desta tabela (T-018) | — | 06 |
-| `COMMAND_NOT_ALLOWED` | 422 | Política recusa | `reason`: `block_terms_missing`, `block_scope_disabled`, `relay_unsupported`, `tenant_closed` (lista em 06) | 06 |
+| `CUT_POINT_MISSING` · `PROFILE_NOT_HOMOLOGATED` | 422 | Vínculo sem `cut_point`; perfil sem homologação com relé (INV-10). Os motivos do domínio de [06 §14](06-comandos-e-bloqueio.md) (T-016) mapeiam para os códigos desta tabela (T-018) | — | 06 |
+| `COMMAND_NOT_ALLOWED` | 422 | Política recusa | `reason`: `block_terms_missing`, `block_scope_disabled`, `relay_unsupported`, `tenant_closed`, `no_primary_device` (veículo sem vínculo primário aberto; T-018) (lista em 06) | 06 |
 | `PRECONDITION_FAILED` | 412 | `If-Match` diferente do `ETag` atual | — | 09 |
 | `PAYLOAD_TOO_LARGE` | 413 | Corpo acima do limite | `maxBytes` | 09 |
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | `Content-Type` não aceito na rota | — | 09 |
@@ -136,7 +136,7 @@ Obrigatória em:
 Outros POST aceitam a chave opcionalmente, com a mesma semântica. Formato: 16 a 64 caracteres `[A-Za-z0-9_-]`; comandos exigem UUID.
 
 ```sql
--- rls: A (tenant_id NULL em operação de nível operadora → entrada em nullableTenantId); criada pela T-006, DDL canônico em 04
+-- rls: A · DDL canônica em [04](04-dominio-e-dados.md) §3.7 (T-006); tenant_id NULL em operação de nível operadora → entrada em nullableTenantId
 CREATE TABLE app.idempotency_record (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   operator_id uuid NOT NULL REFERENCES app.operator (id), tenant_id uuid NULL,
@@ -155,7 +155,7 @@ CREATE TABLE app.idempotency_record (
 2. Primeiro comando da transação da rota: `INSERT ... ON CONFLICT (user_id, operation, key) DO NOTHING RETURNING id`. Requisição concorrente com a mesma chave espera no índice único até a primeira terminar (arbitragem pelo banco, sem lock em memória).
 3. Sem linha devolvida: lê a existente. Mesmo hash → repete o status original com a representação atual de `resource_id` (ou o `problem` gravado) e `Idempotent-Replayed: true`. Hash diferente → 409 `IDEMPOTENCY_CONFLICT`.
 4. Com linha: executa, grava `response_status`, `resource_type`, `resource_id` e faz COMMIT. Erro de validação ou exceção → ROLLBACK e a chave fica livre. Recusa de negócio persistida (ex.: comando `REJECTED` com 409) grava `problem` sem `correlationId`.
-5. `expires_at = created_at + 24 h`; chave vencida é reaproveitada pelo `ON CONFLICT … WHERE expires_at <= now()` (T-006); o expurgo de volume é de hora em hora por `app.retention_purge('idempotency_record', 50000)` ([04 §4.4](04-dominio-e-dados.md); a função ainda não tem cartão no F0). Comandos não usam esta tabela: `command` guarda `idempotency_key` UNIQUE por `(operator_id, tenant_id)` e `request_sha256`; a mesma chave vinda de outro usuário recebe 409 `IDEMPOTENCY_CONFLICT`, o que mantém o escopo por usuário.
+5. `expires_at = created_at + 24 h`; chave vencida é reaproveitada pelo `ON CONFLICT … WHERE expires_at <= now()` (T-006); o expurgo de volume é de hora em hora por `app.retention_purge('idempotency_record', 50000)` (tipo `idempotency_record` de `app.retention_purge`, [04](04-dominio-e-dados.md) §4.4; função da T-027, no F1 [ADOTADO NA v2.0: adiado do F0]; até lá, a chave vencida só é reaproveitada). Comandos não usam esta tabela: `command` guarda `idempotency_key` UNIQUE por `(operator_id, tenant_id)` e `request_sha256`; a mesma chave vinda de outro usuário recebe 409 `IDEMPOTENCY_CONFLICT`, o que mantém o escopo por usuário.
 6. Comando: a checagem de idempotência vem antes da verificação do step-up, então a repetição devolve o comando existente sem consumir outro desafio ([08 §6.3](08-identidade-e-seguranca.md)).
 
 ## 5. Concorrência otimista

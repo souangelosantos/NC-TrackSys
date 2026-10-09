@@ -13,7 +13,7 @@
 
 ## Objetivo
 
-Deixar a VM primária da Oracle reproduzível por script e no ar com `db` (arquivando WAL), `traccar` e `caddy`, firewall em duas camadas, SSH só pela Tailscale, segredos cifrados com SOPS + age e os subdomínios `gps.`, `api.` e `app.` resolvendo para ela. Ao final, o J16 de bancada consegue transmitir para a porta 5023 (marco de 13/10/2026) e os serviços `api`, `worker` e `migrate` já estão declarados no Compose com os limites de [03 §11](../docs/spec/03-arquitetura.md), prontos para receber as imagens da T-004.
+Deixar a VM primária da Oracle reproduzível por script e no ar com `db` (arquivando WAL), `traccar` e `caddy`, firewall em duas camadas, SSH só pela Tailscale, segredos cifrados com SOPS + age e os subdomínios `gps.`, `api.` e `app.` resolvendo para ela. Ao final, o J16 de bancada consegue transmitir para a porta 5023 (marco de 13/10/2026) e os serviços `api`, `worker` e `migrate` já estão declarados no Compose com os limites de [03 §11](../docs/spec/03-arquitetura.md), prontos para receber a imagem única `tracksys-app` da T-004 (`infra/app/Dockerfile`) e o alvo `migrate` da T-013.
 
 ## Contexto obrigatório
 
@@ -131,9 +131,9 @@ Projeto `tracksys`; rede `tracksys` bridge `172.30.0.0/24`; `restart: unless-sto
 | `db` | `.5` | build `./db`, `image: tracksys-db:17` | `5g` / — ; `shm_size: 1g`; `oom_score_adj: -500`; `stop_grace_period: 120s` | `${TAILSCALE_IPV4}:5432:5432` | `pg_isready -U postgres -d tracksys` | — |
 | `traccar` | `.6` | `traccar/traccar:<tag>@sha256:<digest>` | `1536m` / — | `5023:5023` | `wget -qO- http://127.0.0.1:8082/api/server` [VALIDAR — T-002 ferramenta disponível na imagem; senão `curl -fs`] | — |
 | `caddy` | `.2` | build `./caddy`, `image: tracksys-caddy:${TRACKSYS_VERSION}` | `128m` / `0.5` | `80:80`, `443:443` | `wget -qO- http://127.0.0.1:2019/config/` | — |
-| `api` | `.10` | build `context: ..`, `dockerfile: apps/api/Dockerfile`, `image: tracksys-api:${TRACKSYS_VERSION}` | `1g` / `1.5`; `NODE_OPTIONS=--max-old-space-size=768` | nenhuma | `node -e "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"` | `app` |
-| `worker` | `.11` | build `dockerfile: apps/worker/Dockerfile`, `image: tracksys-worker:${TRACKSYS_VERSION}` | `1g` / `1.0`; `--max-old-space-size=512` | nenhuma | idem na porta 3002 | `app` |
-| `migrate` | — | `image: tracksys-api:${TRACKSYS_VERSION}`, `command: ["pnpm", "db:migrate"]`, `environment: DATABASE_URL: ${MIGRATE_DATABASE_URL}` | `512m` | nenhuma | — | `ops` |
+| `api` | `.10` | build `context: ..`, `dockerfile: infra/app/Dockerfile`, `target: app`; `image: tracksys-app:${TRACKSYS_VERSION}` | `1g` / `1.5`; `NODE_OPTIONS=--max-old-space-size=768` | nenhuma | `node -e "fetch('http://127.0.0.1:3001/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"` (porta interna, com `checks`; a 3000 pública responde só `{"status"}`) | `app` |
+| `worker` | `.11` | `image: tracksys-app:${TRACKSYS_VERSION}` (mesma imagem do `api`, sem `build` próprio), `command` do processo worker | `1g` / `1.0`; `--max-old-space-size=512` | nenhuma | idem na porta 3002 | `app` |
+| `migrate` | — | build `context: ..`, `dockerfile: infra/app/Dockerfile`, `target: migrate` (alvo criado pela T-013); `image: tracksys-migrate:${TRACKSYS_VERSION}`; `environment: DATABASE_URL: ${MIGRATE_DATABASE_URL}`; argumento `up` ou `check` no `docker compose run` | `512m` | nenhuma | — | `ops` |
 
 Detalhes:
 - `db`: `command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]`; volumes `db-data:/var/lib/postgresql/data`, `./db/postgresql.conf:/etc/postgresql/postgresql.conf:ro`, `/run/tracksys/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro`.
@@ -246,7 +246,7 @@ CI (`.github/workflows/ci.yml`, acrescentar):
 
 ### (7) Runbook do fundador — `docs/runbooks/infra/provisionar-vm.md`
 
-Passos numerados, cada um com comando exato e o que conferir: (1) DEC-12 e conta; (2) chave age do fundador (`age-keygen`, 2 cópias offline); (3) `render-cloud-init.sh` com a chave Tailscale de uso único; (4) `oci-bootstrap.sh`; (5) registros A de `gps.`, `api.`, `app.` → `ip-svc` e `status.` → `ip-sby`, TTL 60 s, proxy desligado; (6) bucket, chave S3 compatível do usuário IAM restrito ao bucket e `WALG_LIBSODIUM_KEY` (`openssl rand -hex 32`); (7) `prod.env.sops` (`sops --encrypt --in-place`); (8) `provision.sh --role primary` (e `--role standby` na `tracksys-s`); (9) `bootstrap-stack.sh`; (10) bloco de verificação na VM; (11) antes da T-013, subida manual da aplicação: `docker compose build api worker && docker compose run --rm migrate && docker compose up -d --wait api worker` (nomear o serviço ativa o perfil).
+Passos numerados, cada um com comando exato e o que conferir: (1) DEC-12 e conta; (2) chave age do fundador (`age-keygen`, 2 cópias offline); (3) `render-cloud-init.sh` com a chave Tailscale de uso único; (4) `oci-bootstrap.sh`; (5) registros A de `gps.`, `api.`, `app.` → `ip-svc` e `status.` → `ip-sby`, TTL 60 s, proxy desligado; (6) bucket, chave S3 compatível do usuário IAM restrito ao bucket e `WALG_LIBSODIUM_KEY` (`openssl rand -hex 32`); (7) `prod.env.sops` (`sops --encrypt --in-place`); (8) `provision.sh --role primary` (e `--role standby` na `tracksys-s`); (9) `bootstrap-stack.sh`; (10) bloco de verificação na VM; (11) antes do `deploy.sh` da T-013, subida manual da aplicação: `docker compose build api migrate && docker compose run --rm migrate up && docker compose run --rm migrate check && docker compose up -d --wait api worker` (nomear o serviço ativa o perfil; exige o alvo `migrate` que a T-013 acrescenta ao `infra/app/Dockerfile`).
 
 ## Testes de aceite (congelados)
 
@@ -256,6 +256,7 @@ Locais (rodam no CI, sem nuvem):
 - Dado `docker compose -f infra/docker-compose.yml --env-file infra/env/ci.env config --format json`, Então existem os serviços `db`, `traccar`, `caddy`, `api`, `worker`, `migrate`; `mem_limit` (bytes) = 5368709120, 1610612736, 134217728, 1073741824, 1073741824, 536870912; `cpus` de `api`, `worker`, `caddy` = 1.5, 1.0, 0.5.
 - Então as únicas portas publicadas são `80`, `443`, `5023` e `5432` com `host_ip = 100.64.0.10`; `api` e `worker` não publicam porta.
 - Então todo healthcheck tem `interval = 10s`, `timeout = 3s`, `retries = 3`; todo serviço tem `restart = unless-stopped`; nenhum volume monta `docker.sock`; só `migrate` referencia `MIGRATE_DATABASE_URL`.
+- Então `api` e `worker` usam `image = tracksys-app:v0.0.0-ci`, `migrate` usa `tracksys-migrate:v0.0.0-ci` com `build.target = migrate`, o healthcheck do `api` cita `127.0.0.1:3001/health/ready` e nenhum serviço referencia `apps/api/Dockerfile` ou `apps/worker/Dockerfile`.
 
 `tests/acceptance/T-003/firewall.test.ts` (CT-OPS-002 e CT-SEG-024 na parte estática)
 - Dado `PUBLIC_IFACE=enp0s6 infra/scripts/firewall.sh --print`, Então a saída contém `:INPUT DROP`, aceita `-i tailscale0`, `--dport 80`, `--dport 443`, `--dport 5023` e `udp --dport 41641 -s 10.0.0.0/24`, e não contém regra que aceite `--dport 22` fora de `tailscale0`.
@@ -315,7 +316,8 @@ pnpm verify
 
 | Dúvida provável | Resposta |
 |---|---|
-| Os Dockerfiles de `api` e `worker` não existem ainda. O Compose quebra? | Não. `api` e `worker` ficam no perfil `app` e `migrate` no perfil `ops`; `docker compose config` não exige o build. A T-004 cria os Dockerfiles; a T-013 tira o perfil `app`. |
+| O Dockerfile da aplicação não existe ainda. O Compose quebra? | Não. `api` e `worker` ficam no perfil `app` e `migrate` no perfil `ops`; `docker compose config` não exige o build. A T-004 cria `infra/app/Dockerfile` (imagem única `tracksys-app`, estágio final `app`); a T-013 acrescenta o alvo `migrate` e tira o perfil `app` ([13 §3](../docs/spec/13-infra-e-operacao.md)). |
+| Healthcheck do `api` na 3000 ou na 3001? | Na 3001 (interna, com `checks`), como o `worker` na 3002. A 3000 pública responde só `{"status"}` ([03](../docs/spec/03-arquitetura.md) REQ-ARQ-005) e é a das sondas e do smoke da T-013. |
 | Arquivar WAL já, sem base diária? | Sim ([13 §18](../docs/spec/13-infra-e-operacao.md): a T-003 já sobe arquivando). A base diária, a retenção e o restore são da T-013. |
 | Domínio definitivo ainda não existe (DEC-04). | Use um domínio provisório só para a bancada em `TRACKSYS_DOMAIN`. Nenhum veículo real recebe SMS com o domínio provisório. Trocar o domínio depois é só mudar a variável e os registros A. |
 | Standby no F0? | Só a VM criada (garante capacidade A1) com Tailscale. Nenhum contêiner nela no F0. |

@@ -23,12 +23,13 @@ Executar no `worker` os comandos aceitos pela API: gravar `command_attempt` ante
 
 ## Escopo — fazer
 
-1. Job pg-boss `command.dispatch` com lock por dispositivo e atualização condicional por `state_version`.
+1. Jobs pg-boss `commands.dispatch` (`singletonKey` = id do comando) e `commands.armed.tick` (+ filho `position_request`), nomes de [06 §3 e §7](../docs/spec/06-comandos-e-bloqueio.md), com lock por dispositivo e atualização condicional por `state_version`. O job nasce do relay da outbox (`command.state.changed.v1`, T-017/T-018); o `api` nunca enfileira.
 2. Adaptador do Traccar com timeout de 10 s e mapeamento de resposta para eventos do domínio (T-016).
 3. Correlação de `commandResult` e de `relay_state`; resposta tardia anexada como evidência sem mudar estado final.
 4. Reconciliação no boot: `DISPATCHING`/`AWAITING_CONFIRMATION` sem resposta viram `UNKNOWN` com alerta ao operador.
 5. Desbloqueio: retentativas e fallback SMS (adaptador emnify com driver nulo enquanto DEC-01 estiver aberta).
 6. `COMMAND_DISPATCH_ENABLED` e `COMMAND_BLOCK_SCOPE` respeitados (REQ-ARQ-016).
+7. Consumidor da outbox `security.step_up_failures.v1` (a T-018 só grava o evento): job de e-mail ao usuário e item `step_up_failures` na fila da central.
 
 ## Fora do escopo
 

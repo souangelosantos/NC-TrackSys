@@ -141,7 +141,7 @@ Entradas: `vehicle.state` do SSE ([07](07-alertas-e-tempo-real.md) §11) e, por 
 | A18 | Familiares | F1 (P2) | Titular convida e revoga `tenant_member` e define `can_command` | [06](06-comandos-e-bloqueio.md) §4.1, [08](08-identidade-e-seguranca.md) |
 | A19 | Serviços (SVA) | F2 | Catálogo habilitado pela operadora: assistência 24h, revisões, custos | [12](12-cobranca-e-svas.md) |
 
-[DECISÃO DO FUNDADOR PENDENTE: A05 (REQ-UX-009, P0) e A06 (REQ-UX-010, P1) são F0 nesta tabela, mas nenhum cartão do F0 as entrega, e a T-012 abre o mapa ao vivo do veículo ao tocar o push, tratando o detalhe do alerta como F1. Recomendação: cartão pequeno no S3 com o detalhe mínimo do alerta (A05, só a partir do push) e o interruptor da vigilância (A06), sobre as rotas da T-011; se não couber até 27/10/2026, registrar o corte no plano de [02](02-escopo-e-fases.md) §2.4, com o comportamento da T-012 valendo no G0 e REQ-UX-009/010 passando para o F1. Registro em [15](15-decisoes-riscos-premissas.md) §5.]
+[ADOTADO NA v2.0: A05 (REQ-UX-009, P0), A06 (REQ-UX-010, P1) e as notificações (REQ-UX-012) entram na T-012, sobre as rotas da T-011: o toque no push abre o detalhe do alerta (A05), e o interruptor da vigilância fica no detalhe do veículo (A06). A06 sai junto com o corte 3 do plano de [02](02-escopo-e-fases.md) §2.4 (modo vigilância). Registro em [15](15-decisoes-riscos-premissas.md) §5; o fundador confirma.]
 
 Rotas internas do app: `/inicio`, `/veiculos/:id`, `/veiculos/:id/historico?dia=AAAA-MM-DD`, `/alertas`, `/alertas/:id`, `/conta`. O link do push `tracksys://alerts/{id}` ([07](07-alertas-e-tempo-real.md) §7) abre `/alertas/:id` com o app encerrado, em segundo plano ou aberto; sessão expirada passa pelo login e volta ao alerta.
 

@@ -24,11 +24,14 @@ Especificação completa: [docs/spec/00-indice.md](docs/spec/00-indice.md). Deci
 | `pnpm install` | Instala dependências (pnpm 10, Node ≥ 22.12; `.nvmrc` = 24) |
 | `cp .env.example .env` | Variáveis locais de desenvolvimento |
 | `pnpm db:up` / `pnpm db:down` / `pnpm db:reset` | Sobe, para e recria o Postgres local (porta 54329) |
-| `pnpm db:migrate` | Aplica as migrations (dbmate, SQL puro) |
-| `pnpm db:check` | Verificador de catálogo CAT-01..CAT-07 (isolamento; a T-001 entrega CAT-01..06 e a CAT-07 entra com a primeira função `SECURITY DEFINER`) |
+| `pnpm db:migrate` / `pnpm db:rollback` | Aplica as migrations / desfaz a última (dbmate, SQL puro, papel dono via `DATABASE_URL`) |
+| `pnpm db:check` | Verificador de catálogo CAT-01..CAT-07 (isolamento; a T-001 entrega CAT-01..06 e a CAT-07 entra com a primeira função `SECURITY DEFINER`, na T-005 ou na T-006); allowlist em `packages/db/catalog-allowlist.json` |
 | `pnpm test:acceptance` | Testes de aceite congelados (`tests/acceptance/`) |
+| `pnpm agent:env-check` | Primeiro comando da sessão: ambiente sem credencial de produção (REQ-QLD-016) |
+| `pnpm db:lint` | Linter de migrations (REQ-DAD-021) |
+| `pnpm docs:check` / `pnpm tasks:lint` | Links, DEC, cartões e `trace.py` (REQ-QLD-001, 002 e 020) |
 | `pnpm lint` / `pnpm format` / `pnpm typecheck` | Biome e TypeScript |
-| `pnpm verify` | Tudo acima, na ordem do CI |
+| `pnpm verify` | `lint`, `typecheck`, `db:migrate`, `db:rollback`, `db:migrate`, `db:check` e `test:acceptance`, nessa ordem (prova o `down`); é a ordem do CI |
 
 ## Invariantes que nenhum código pode violar
 
@@ -58,8 +61,9 @@ Texto completo: [docs/spec/00-indice.md](docs/spec/00-indice.md#invariantes).
 - **Banco:**
   - migrations em `packages/db/migrations`, SQL puro (`-- migrate:up` / `-- migrate:down`), padrão expand/contract;
   - **nunca edite uma migration já aplicada em `main`**;
-  - toda tabela nova no schema `app` nasce com `ENABLE` + `FORCE ROW LEVEL SECURITY`, pelo menos uma política e FK composta para tabelas de cliente/operadora. O `pnpm db:check` barra o contrário. Função `SECURITY DEFINER` só entra na lista fechada de `packages/db/catalog-allowlist.json` (CAT-07), com revisão N0;
-  - acesso a dados sempre dentro de `withContext(...)`. Nunca use o papel dono nem o superusuário na aplicação.
+  - toda migration começa com `SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '60s';` (com `CONCURRENTLY`, `transaction:false` e `SET` de sessão; [04 §10](docs/spec/04-dominio-e-dados.md)) e cada `CREATE TABLE` do schema `app` leva o comentário `-- rls: <tipo>`;
+  - toda tabela nova no schema `app` nasce com `ENABLE` + `FORCE ROW LEVEL SECURITY`, pelo menos uma política, `operator_id` NOT NULL e FK composta para tabelas de cliente/operadora (`operator_id` e `tenant_id` na mesma posição). Tabela sem `operator_id` só com entrada justificada em `withoutOperatorId` da allowlist (CAT-03). O `pnpm db:check` barra o contrário. Função `SECURITY DEFINER` só entra na lista fechada de `packages/db/catalog-allowlist.json` (CAT-07), com revisão N0;
+  - acesso a dados sempre dentro de `withContext(...)`. Nunca use o papel dono nem o superusuário na aplicação: `apps/` usa `DATABASE_URL_APP` (e `DATABASE_URL_INGEST` na ingestão); `DATABASE_URL` (papel dono) é só de dbmate, `db:check` e `db:types`; `DATABASE_URL_ADMIN` (superusuário local) só em testes e semeadura.
 - **Segredos:** nunca no código, em fixtures ou em logs. Nada de IMEI completo, token, senha ou coordenada em log de nível info.
 - **Dependências:** não adicione bibliotecas fora do cartão sem justificar no PR. Não troque versões major.
 - **Proibido** (ADRs e INVs):
@@ -72,7 +76,7 @@ Texto completo: [docs/spec/00-indice.md](docs/spec/00-indice.md#invariantes).
 
 ## Testes e revisão
 
-- **Testes congelados:** os arquivos existentes em `tests/acceptance/**` não podem ser alterados, apagados ou renomeados por um PR de implementação. O CI barra sem o rótulo `acceptance-change`. Faça o código passar no teste; nunca o contrário.
+- **Testes congelados:** os arquivos existentes em `tests/acceptance/**` não podem ser alterados, apagados ou renomeados por um PR de implementação. O CI barra sem o rótulo `acceptance-change` aplicado pelo fundador (REQ-QLD-006, T-019). Faça o código passar no teste; nunca o contrário.
 - **Níveis de risco:**
   - **N0** = comandos/bloqueio, isolamento/RLS/migrations, cobrança/split, autenticação/step-up, failover. Exige revisão adversarial por um agente de **outro fornecedor** e leitura humana linha a linha;
   - **N1** = domínio e integrações;
@@ -80,6 +84,7 @@ Texto completo: [docs/spec/00-indice.md](docs/spec/00-indice.md#invariantes).
 
   Detalhes em [docs/spec/14-qualidade-e-processo-ia.md](docs/spec/14-qualidade-e-processo-ia.md).
 - **Uma tarefa por branch e por PR.** Título em Conventional Commits com o ID da tarefa, ex.: `feat(db): ... (T-001)`. A descrição lista REQ, INV e CT afetados e o nível de risco.
+- **Pergunta ao fundador:** rótulo `question` no PR; a resposta vira linha de "Decisões já tomadas" com `Q#<número>` (REQ-QLD-018).
 
 ## O que fazer quando faltar informação
 

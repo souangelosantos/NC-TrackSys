@@ -12,7 +12,7 @@
 
 ## Objetivo
 
-Criar em `packages/domain/src/commands/` toda a regra de comando físico como código puro (sem IO, relógio por parâmetro): validação de evidência, avaliação por `cut_point`, disponibilidade do bloqueio, máquina de estados com redutor de eventos e efeitos, assimetria de desbloqueio, decisão de confirmação e textos obrigatórios. API (T-018) e worker (T-019) só executam o que este pacote decide. Ao final, as propriedades P-CMD-1 e P-CMD-2 rodam com 1.000 execuções em todo PR e o Stryker barra score de mutação abaixo de 80%.
+Criar em `packages/domain/src/commands/` toda a regra de comando físico como código puro (sem IO, relógio por parâmetro): validação de evidência, avaliação por `cut_point`, disponibilidade do bloqueio, máquina de estados com redutor de eventos e efeitos, assimetria de desbloqueio, decisão de confirmação e textos obrigatórios. API (T-018) e worker (T-020) só executam o que este pacote decide. Ao final, as propriedades P-CMD-1 e P-CMD-2 rodam com 1.000 execuções em todo PR e o Stryker barra score de mutação abaixo de 80%.
 
 ## Contexto obrigatório
 
@@ -31,8 +31,8 @@ Criar em `packages/domain/src/commands/` toda a regra de comando físico como c�
 
 ## Fora do escopo
 
-- Migration, tabelas e qualquer SQL (T-017). Rotas HTTP (T-018). Jobs, Traccar, emnify, push (T-019). Telas (T-020, T-023).
-- Kit de bancada `homologation:check` e runbook do G-CMD (T-019).
+- Migration, tabelas e qualquer SQL (T-017). Rotas HTTP (T-018). Jobs, Traccar, emnify, push (T-020). Telas (T-021).
+- Kit de bancada `homologation:check` e runbook do G-CMD (T-022).
 - Implementar trava no dispositivo (`block_type_gated`): o campo existe no schema, o uso fica para depois do S07 [VALIDAR — DEC-02].
 - Qualquer leitura de cobrança, `invoice` ou `tenant.status = 'suspended_commercial'` como critério (INV-09).
 
@@ -206,8 +206,8 @@ export type BlockScope = { kind: 'none' } | { kind: 'all' } | { kind: 'pilot'; v
 export function parseBlockScope(raw: string): BlockScope        // 'none' | 'all' | 'pilot:<uuid>[,<uuid>]'; outro → Error
 export function isBlockTermsValid(textVersion: string | null, currentVersion: number, ceilingKmh: number): boolean
 export function computeExpiresAt(createdAt: Date, policy: CommandPolicyValues, occurrenceOpen: boolean, requestedVia: 'app' | 'console' | 'contingency'): Date
-export type BlockUnavailable = 'TENANT_CLOSED' | 'COMMAND_DISPATCH_DISABLED' | 'BLOCK_SCOPE_DISABLED' | 'CUT_POINT_MISSING'
-  | 'PROFILE_NOT_HOMOLOGATED' | 'RELAY_UNSUPPORTED' | 'BLOCK_TERMS_MISSING'
+export type BlockUnavailable = 'TENANT_CLOSED' | 'COMMAND_DISPATCH_DISABLED' | 'BLOCK_SCOPE_DISABLED' | 'NO_PRIMARY_DEVICE'
+  | 'CUT_POINT_MISSING' | 'PROFILE_NOT_HOMOLOGATED' | 'RELAY_UNSUPPORTED' | 'BLOCK_TERMS_MISSING'
 export interface AvailabilityInput {
   tenantStatus: 'active' | 'suspended_commercial' | 'closed'; dispatchEnabled: boolean; blockScope: BlockScope
   benchOperatorId: string | null; operatorId: string; vehicleId: string; hasOpenPrimaryAssignment: boolean
@@ -216,13 +216,13 @@ export interface AvailabilityInput {
   blockTermsTextVersion: string | null; currentTermsVersion: number; ceilingKmh: number
 }
 export function checkBlockAvailability(i: AvailabilityInput): { available: true } | { available: false; code: BlockUnavailable }
-export function checkUnblockAvailability(i: AvailabilityInput): { available: true } | { available: false; code: 'TENANT_CLOSED' | 'NO_OPEN_ASSIGNMENT' | 'PROFILE_NOT_HOMOLOGATED' | 'RELAY_UNSUPPORTED' }
+export function checkUnblockAvailability(i: AvailabilityInput): { available: true } | { available: false; code: 'TENANT_CLOSED' | 'NO_PRIMARY_DEVICE' | 'PROFILE_NOT_HOMOLOGATED' | 'RELAY_UNSUPPORTED' }
 ```
 
 - `isBlockTermsValid`: casa `^block-terms-v(\d+)/(\d+)kmh$`; válido se `N = currentVersion` e `kmh ≥ ceilingKmh`.
 - `computeExpiresAt`: `contingency` → `createdAt`; ocorrência aberta → `+ occurrenceArmedTtlS`; senão `+ armedTtlS` (vale para todos os tipos).
-- `checkBlockAvailability`, primeira falha na ordem: `tenantStatus = 'closed'` → `TENANT_CLOSED`; `!dispatchEnabled` → `COMMAND_DISPATCH_DISABLED`; escopo `none`, ou `pilot` sem `vehicleId` → `BLOCK_SCOPE_DISABLED`; `!hasOpenPrimaryAssignment` ou `cutPoint === null` → `CUT_POINT_MISSING`; perfil nulo, ou perfil não "aceito" → `PROFILE_NOT_HOMOLOGATED`, onde aceito = (`status = 'homologated'` e `commandsComplete` e `hasHomologationRef`) **ou** (`operatorId === benchOperatorId` e `status = 'draft'` e `relay = 'yes'` e `commandsComplete`); `relay ≠ 'yes'` → `RELAY_UNSUPPORTED`; termo inválido → `BLOCK_TERMS_MISSING`. `suspended_commercial` não altera nada (INV-09).
-- `checkUnblockAvailability`: `closed` → `TENANT_CLOSED`; sem vínculo primário aberto → `NO_OPEN_ASSIGNMENT`; perfil nulo ou `status = 'draft'` fora da operadora de bancada → `PROFILE_NOT_HOMOLOGATED`; `relay ≠ 'yes'` → `RELAY_UNSUPPORTED`. Escopo, `cut_point`, termo e despacho desligado **não** impedem desbloqueio (06 §2).
+- `checkBlockAvailability`, primeira falha na ordem: `tenantStatus = 'closed'` → `TENANT_CLOSED`; `!dispatchEnabled` → `COMMAND_DISPATCH_DISABLED`; escopo `none`, ou `pilot` sem `vehicleId` → `BLOCK_SCOPE_DISABLED`; `!hasOpenPrimaryAssignment` → `NO_PRIMARY_DEVICE` (veículo sem vínculo primário aberto, nome de [09 §9.1](../docs/spec/09-api-e-contratos.md)); `cutPoint === null` → `CUT_POINT_MISSING`; perfil nulo, ou perfil não "aceito" → `PROFILE_NOT_HOMOLOGATED`, onde aceito = (`status = 'homologated'` e `commandsComplete` e `hasHomologationRef`) **ou** (`operatorId === benchOperatorId` e `status = 'draft'` e `relay = 'yes'` e `commandsComplete`); `relay ≠ 'yes'` → `RELAY_UNSUPPORTED`; termo inválido → `BLOCK_TERMS_MISSING`. `suspended_commercial` não altera nada (INV-09).
+- `checkUnblockAvailability`: `closed` → `TENANT_CLOSED`; sem vínculo primário aberto → `NO_PRIMARY_DEVICE`; perfil nulo ou `status = 'draft'` fora da operadora de bancada → `PROFILE_NOT_HOMOLOGATED`; `relay ≠ 'yes'` → `RELAY_UNSUPPORTED`. Escopo, `cut_point`, termo e despacho desligado **não** impedem desbloqueio (06 §2).
 
 ### 4. Máquina de estados (`state-machine.ts`)
 
@@ -253,7 +253,7 @@ export function attributeEvidence(attempts: readonly { id: string; type: 'block'
 
 `attributeEvidence` (06 §8.3): última tentativa do mesmo tipo com `startedAt ≤ fact.at`, desde que nenhuma tentativa do tipo oposto tenha `startedAt` posterior a ela; senão `null`.
 
-**Redutor** — o worker (T-019) e a API (T-018) não decidem transição fora dele:
+**Redutor** — o worker (T-020) e a API (T-018) não decidem transição fora dele:
 
 ```ts
 export interface AttemptView { seq: number; channel: 'gprs' | 'sms'; startedAt: Date; result: AttemptResult }
@@ -590,6 +590,8 @@ const code = (i: AvailabilityInput) => {
 
 describe('T-016 disponibilidade do bloqueio — CT-CMD-001 e CT-CMD-019 (parte pura)', () => {
   it('tudo válido → disponível', () => expect(code(base())).toBe('OK'))
+  it('sem vínculo primário aberto → NO_PRIMARY_DEVICE', () =>
+    expect(code(base({ hasOpenPrimaryAssignment: false, cutPoint: null }))).toBe('NO_PRIMARY_DEVICE'))
   it('cut_point NULL → CUT_POINT_MISSING', () => expect(code(base({ cutPoint: null }))).toBe('CUT_POINT_MISSING'))
   it('perfil draft fora da bancada → PROFILE_NOT_HOMOLOGATED', () =>
     expect(code(base({ profile: { ...homologated, status: 'draft', hasHomologationRef: false } }))).toBe(
@@ -631,7 +633,7 @@ describe('T-016 disponibilidade do bloqueio — CT-CMD-001 e CT-CMD-019 (parte p
     expect(r).toEqual({ available: true })
     expect(checkUnblockAvailability(base({ hasOpenPrimaryAssignment: false }))).toEqual({
       available: false,
-      code: 'NO_OPEN_ASSIGNMENT',
+      code: 'NO_PRIMARY_DEVICE',
     })
   })
   it('parseBlockScope e isBlockTermsValid', () => {
@@ -993,7 +995,7 @@ import pg from 'pg'
 import { afterAll, describe, expect, it } from 'vitest'
 
 const env = loadDbEnv()
-const app = new pg.Pool({ connectionString: env.APP_DATABASE_URL, max: 1 })
+const app = new pg.Pool({ connectionString: env.DATABASE_URL_APP, max: 1 })
 afterAll(async () => {
   await app.end()
 })
@@ -1065,7 +1067,8 @@ Saída esperada: `mutation score` ≥ 80 no relatório do Stryker; `Test Files 7
 | "2 fixes a 0 km/h" vale com um fix em movimento depois deles? | Não. Contam os **2 fixes mais recentes** de S. Um fix novo em movimento desfaz a condição. |
 | Teto 0 e fix acima de 0: o motivo é `awaiting_speed`? | Não: `awaiting_stop` ("o veículo precisa parar"). "Acima de 0 km/h" não informa nada ao usuário. |
 | Sem linha em `command_policy`, qual política vale? | `PLATFORM_DEFAULT_POLICY` (`version` 0): teto 0, E 60 s, TTL 300/1.800 s, `allow_app_block = false` — os valores que 06 §3.3 dá à v1. A 1ª versão gravada pelo `operator_admin` é a v1 (T-017/T-018). |
-| Códigos de indisponibilidade: os de 06 §14 ou os de 09 §3? | O pacote devolve códigos neutros (`CUT_POINT_MISSING`, `BLOCK_TERMS_MISSING`…). A T-018 mapeia para o catálogo de [09 §3](../docs/spec/09-api-e-contratos.md), que é o dono dos `code` HTTP. |
+| Códigos de indisponibilidade: os de 06 §14 ou os de 09 §3? | O pacote devolve códigos neutros sem prefixo `COMMAND_` (`NO_PRIMARY_DEVICE`, `CUT_POINT_MISSING`, `PROFILE_NOT_HOMOLOGATED`, `BLOCK_TERMS_MISSING`…). A T-018 mapeia para o catálogo de [09 §3](../docs/spec/09-api-e-contratos.md), que é o dono dos `code` HTTP. |
+| Veículo sem vínculo primário aberto devolve `CUT_POINT_MISSING`? | Não. Devolve `NO_PRIMARY_DEVICE`, no bloqueio e no desbloqueio, o mesmo nome do `availableActions` de [09 §9.1](../docs/spec/09-api-e-contratos.md) [ADOTADO NA v2.0]. `CUT_POINT_MISSING` fica só para vínculo aberto com `cut_point` NULL. |
 | Texto de UNKNOWN contém "bloqueado". Isso viola CT-CMD-021? | O texto obrigatório de 06 §15 e 10 §7 contém "estar bloqueado". O teste exige o texto exato, que nenhum título comece com "Bloque" e que nenhum estado fora de CONFIRMED diga "confirmado". Lacuna de redação registrada para 06/10. |
 | Hora BRT com `Intl`? | Não. UTC − 3 h fixo ([10 §2](../docs/spec/10-apps-e-ux.md) [PREMISSA] sem horário de verão). |
 | `formatAge` não existe em `packages/domain/src/ux/`. | Ele é entregue no F0 (REQ-UX-005, T-008/T-009). Se faltar, pare e registre no PR: não duplique a função. |

@@ -26,7 +26,7 @@ Criar, numa única migration, as tabelas que o F1 de comandos precisa — `comma
 ## Escopo — fazer
 
 1. Migration `packages/db/migrations/20261102090000_f1_comandos.sql` com o SQL da seção 1 (bloco A ou B de `device_key`, conforme a regra da seção 1.3).
-2. `packages/db/catalog-allowlist.json`: acrescentar `"command_policy"` em `appendOnly`.
+2. `packages/db/catalog-allowlist.json`: acrescentar `"command_policy"` em `appendOnly`; no bloco A de `device_key` (seção 1.3), acrescentar também `"device_key"` em `withoutOperatorId` com justificativa (CAT-03: chave do aparelho pertence ao usuário e não tem `operator_id`; o isolamento é por `user_id`, política tipo E).
 3. `packages/db/src/commands.ts`: helpers da seção 2, exportados por `packages/db/src/index.ts`.
 4. `packages/db/src/secrets.ts`: cifra e acesso a `operator_secret` (seção 3), exportados por `index.ts`.
 5. Regenerar os tipos Kysely com o script da T-004.
@@ -35,10 +35,10 @@ Criar, numa única migration, as tabelas que o F1 de comandos precisa — `comma
 
 ## Fora do escopo
 
-- Rotas HTTP, step-up, desafio (T-018); jobs do worker (T-019); job `secrets.rewrap` e rota da chave Asaas (T-021).
-- Tabelas `partner`, `referral` (T-028), `share_link` (T-027), `legal_hold`, `platform_support_grant` (T-029), cobrança (T-021).
+- Rotas HTTP, step-up, desafio (T-018); jobs do worker (T-020); job `secrets.rewrap` e rota da chave Asaas (T-023).
+- Tabelas `partner`, `referral` (T-026), `share_link` (T-025), `legal_hold`, `platform_support_grant` (T-027), cobrança (T-023).
 - Linha inicial de `command_policy` para operadoras existentes: sem linha vale `PLATFORM_DEFAULT_POLICY` (T-016).
-- FK de `consent.partner_id` (entra com `partner` na T-028).
+- FK de `consent.partner_id` (entra com `partner` na T-026).
 
 ## Arquivos a criar/alterar
 
@@ -322,7 +322,7 @@ SECRETS_ACTIVE_KEY_VERSION=1
 
 ## Testes de aceite (congelados)
 
-Postgres real, papel `tracksys_app` com `withContext` (T-001) e `ADMIN_DATABASE_URL` só para semear `auth."user"` e perfis. Os blocos completos são escritos no PR do cartão a partir deste plano (DoR item 6); nomes de `describe`/`it` e asserções abaixo são normativos.
+Postgres real, papel `tracksys_app` com `withContext` (T-001) e `DATABASE_URL_ADMIN` só para semear `auth."user"` e perfis. Os blocos completos são escritos no PR do cartão a partir deste plano (DoR item 6); nomes de `describe`/`it` e asserções abaixo são normativos.
 
 `tests/acceptance/T-017/world.ts` exporta `seedCommandWorld(app, admin)` que cria, com UUID aleatório: operadoras Alfa e Beta; clientes A1 e A2 (Alfa) e B1 (Beta); usuários `admin.alfa`, `agente.alfa`, `dono.a1`, `familia.a1`, `dono.a2`, `admin.beta` em `auth."user"` com memberships; veículos V1 (A1), V3 (A2), V2 (B1); rastreadores R1 (V1), R3 (V3), R2 (V2) com perfil `j16-gt06` de teste e vínculos primários abertos (`cut_point = 'fuel_pump'` em R1, NULL em R3). Devolve todos os ids.
 
@@ -402,7 +402,7 @@ pnpm verify
 | `device_key` já existe? | Use a regra da seção 1.3 (grep antes de escrever). Nunca edite a migration da T-006. |
 | Por que `text_sha256` em `consent`? | Prova o texto aceito ([Anexo B §1](../docs/anexos/B-juridico.md): SHA-256 no `consent/manifest.json`); a versão sozinha não prova o conteúdo. |
 | Por que `last4` em `operator_secret`? | `GET /api/v1/billing/account` devolve `apiKeyLast4` sem decifrar ([08 §8](../docs/spec/08-identidade-e-seguranca.md) item 6); a API nunca chama `decryptSecret`. |
-| `consent.partner_id` sem FK? | Nesta migration, sim: `partner` nasce na T-028, que acrescenta a FK composta. O CHECK já exige `partner_id` nas finalidades de parceiro. |
+| `consent.partner_id` sem FK? | Nesta migration, sim: `partner` nasce na T-026, que acrescenta a FK composta. O CHECK já exige `partner_id` nas finalidades de parceiro. |
 | `membership.vehicle_ids` (proposta de 08 §3)? | Fora. No F1, `can_command` vale para todos os veículos do cliente; o limite de segurança no banco continua sendo o cliente. |
 | Helper usa Kysely ou `pg`? | `pg` (`Pick<pg.ClientBase, 'query'>`), igual a `withContext` da T-001; funciona com o cliente que o `api` e o `worker` já recebem. |
 | `pg_notify` com coordenadas? | Nunca. Só ids (`c`, `o`, `t`, `v`); o hub SSE relê sob RLS ([03 §7](../docs/spec/03-arquitetura.md)). |

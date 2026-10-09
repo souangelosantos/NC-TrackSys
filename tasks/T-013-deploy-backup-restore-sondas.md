@@ -3,11 +3,11 @@
 | Campo | Valor |
 |---|---|
 | Fase | F0 (semana S3: 21–27/10/2026; marco 27/10: restore registrado) |
-| Requisitos | REQ-OPS-006, REQ-OPS-007, REQ-OPS-008, REQ-OPS-009, REQ-OPS-016, REQ-OPS-017; REQ-ARQ-014 (redação de logs como segunda linha); REQ-NEG-010 (evidência do G0-7) |
+| Requisitos | REQ-OPS-006, REQ-OPS-007, REQ-OPS-008, REQ-OPS-009, REQ-OPS-016, REQ-OPS-017; REQ-ARQ-012 (limites de recurso e carga de pior caso); REQ-DAD-020 (expand/contract no deploy e no CI); REQ-ING-021 (parte F0: sonda de atraso da ingestão com page no Pushover; as métricas Prometheus completas de [05 §17](../docs/spec/05-ingestao-e-telemetria.md) são da T-028, F1 [ADOTADO NA v2.0]); REQ-ARQ-014 (redação de logs como segunda linha); REQ-NEG-010 (evidência do G0-7) |
 | Invariantes | INV-05 (restore de ensaio sem push, comando ou SMS), INV-07 (verificador de catálogo antes de trocar o código), INV-12 (UTC, segundos) |
 | Risco de revisão | **N1** (tabela 2.3 de [02](../docs/spec/02-escopo-e-fases.md)). **Trechos N0:** `.github/workflows/**`, a migration do schema `ops`, a extensão do CAT-06 e `infra/scripts/deploy.sh` (aplica migrations em produção; REQ-OPS-007 é N0) → revisor de outro fornecedor e leitura humana linha a linha desses arquivos |
 | Depende de | T-003. Usa artefatos já entregues: T-004 (`infra/app/Dockerfile`, `/health/ready`), T-012 (adaptador FCM, `FCM_API_BASE`) |
-| Estimativa | 3 sessões de agente (13a deploy, migration `ops` e CI; 13b backup, restore e `EXTERNAL_EFFECTS`; 13c observabilidade, regras de alerta e sondas) + ~4 h do fundador |
+| Estimativa | 4 sessões de agente (13a deploy, migration `ops` e CI; 13b backup, restore e `EXTERNAL_EFFECTS`; 13c observabilidade, regras de alerta e sondas; 13d `migration-compat`, sonda de ingestão e carga) + ~4 h do fundador |
 | Bloqueado por decisão | DEC-04 (padrão: smoke e sondas usam o `TRACKSYS_DOMAIN` provisório; trocar = variável + registros A). DEC-12 (padrão: F0 sem standby ativa, ensaio de restore na primária, RTO ≤ 2 h) |
 | Tipo | **Mista:** o agente escreve scripts, workflow, configuração e testes locais; o fundador cadastra segredos e executa a verificação na VM (agente sem credencial de produção, REQ-QLD-016) |
 
@@ -20,6 +20,7 @@ Fechar o ciclo de operação do F0 sobre a VM da T-003: release por tag com migr
 - [13 §6 a §8, §10 a §12, §13.1, §18](../docs/spec/13-infra-e-operacao.md): segredos, deploy, backups, SLO, observabilidade, alertas, paging.
 - [Anexo C R8 e §3](../docs/anexos/C-operacional.md): restore real e checklist do G0.
 - [ADR-005](../docs/adr/ADR-005-infra-oracle-always-free.md) §6–§7; [T-003](T-003-vm-primaria-compose-firewall-dns.md) (não repita o que ela entrega).
+- [03 §11](../docs/spec/03-arquitetura.md) e REQ-ARQ-012 (limites e carga de 100 msg/s); [04 §10](../docs/spec/04-dominio-e-dados.md) e REQ-DAD-020 (expand/contract, N/N+1); [05 §17](../docs/spec/05-ingestao-e-telemetria.md) e REQ-ING-021 (limiares de page da ingestão).
 
 ## Escopo — fazer
 
@@ -30,34 +31,41 @@ Fechar o ciclo de operação do F0 sobre a VM da T-003: release por tag com migr
 4. Scripts e timers de backup, retenção, cópia R2, restore real e restore de ensaio; `EXTERNAL_EFFECTS` no worker (seção 4).
 5. Alloy (métricas e logs com redação), textfile de métricas, Sentry com `beforeSend`, regras do F0 e Alertmanager (seção 5).
 6. Runbooks `docs/runbooks/infra/{deploy,backup-restore,sondas-e-alertas}.md` e testes de aceite locais.
+7. REQ-DAD-020: job `migration-compat` no CI e `check-migration-compat.sh` (seção 2.1): migrations do PR aplicadas num banco limpo e a suíte `tests/acceptance` do commit base rodando contra o schema novo.
+8. REQ-ING-021 (parte F0): sonda `probes/ingest-lag.sh` (seção 5.1), com page no Pushover sem depender do Grafana Cloud nem do `worker`.
+9. REQ-ARQ-012: simulador de carga em `packages/testkit` e workflow manual `load-test.yml` (seção 6), com relatório anexado ao PR.
 
 **Fundador (com os runbooks):**
-7. Segredos do GitHub (`TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`), ambiente `production` restrito a tags `v*.*.*`, chave pública do CI no usuário `deploy`.
-8. Bucket R2 com ciclo de vida de 35 dias e bucket lock de 14 dias [VALIDAR]; Grafana Cloud free; UptimeRobot; Pushover; variáveis novas no `prod.env.sops`.
-9. Verificação na VM (bloco "Na VM") com saídas anexadas ao PR; restore de ensaio até 27/10/2026.
+10. Segredos do GitHub (`TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`), ambiente `production` restrito a tags `v*.*.*`, chave pública do CI no usuário `deploy`.
+11. Bucket R2 com ciclo de vida de 35 dias e bucket lock de 14 dias [VALIDAR]; Grafana Cloud free; UptimeRobot; Pushover; variáveis novas no `prod.env.sops`.
+12. Verificação na VM (bloco "Na VM") com saídas anexadas ao PR; restore de ensaio até 27/10/2026; disparo do `load-test.yml` antes de 27/10/2026.
 
 ## Fora do escopo
 
-- VM standby ativa, réplica, Uptime Kuma, status page, gateway de incidentes, agente SRE, `ops.slo_*` e funções `SECURITY DEFINER` do schema `ops`: F1.
+- VM standby ativa, réplica, Uptime Kuma (a sonda de atraso da ingestão do F0 roda por timer na primária, seção 5.1; vai para o Kuma da standby no F1, T-028), status page, gateway de incidentes, agente SRE, `ops.slo_*` e funções `SECURITY DEFINER` do schema `ops`: F1.
 - Spool de auditoria com o banco fora (REQ-OPS-021) e escalonamento automático de 10 min: F1 (gateway).
 - Consultas do G0 e relatório de evidências: T-015 (consome o relatório de restore e o artefato `acceptance-report` desta tarefa).
-- Sentry no console (`apps/console`): fora; registre no PR se a T-007 não o fez.
+- SDK do Sentry no console (`apps/console`): T-007 (`VITE_SENTRY_DSN` opcional). Aqui só o DSN de produção como variável de build do console e o host de ingestão do Sentry no `connect-src` da CSP de `app.` (seção 5).
+- Métricas Prometheus da ingestão no `api` (`ingest_*` de 05 §17 expostas em `/metrics`) e o CT-DAD-012 de desempenho: T-028 (F1).
 
 ## Arquivos a criar/alterar
 
 ```
 .github/workflows/deploy.yml                          (novo)
 .github/workflows/ci.yml                              (alterar: migration-safety; verify gera acceptance-report.json)
-packages/db/migrations/20261021120000_ops_auditoria.sql
+packages/db/migrations/20261021130000_ops_auditoria.sql   (timestamp distinto do 20261021120000_alertas.sql da T-011)
 packages/db/catalog-allowlist.json, packages/db/src/catalog.ts   (CAT-06 cobre ops.audit_log)
 infra/app/Dockerfile                                  (alterar: alvo migrate)  · infra/app/migrate-entrypoint.sh
 infra/docker-compose.yml                              (alterar: sem perfil app; imagens tracksys-app / tracksys-migrate)
 infra/docker-compose.drill.yml · infra/db/pg_hba.drill.conf
-infra/scripts/deploy.sh · smoke.sh · check-migration-safety.sh · disk-cleanup.sh · metrics-textfile.sh
+infra/scripts/deploy.sh · smoke.sh · check-migration-safety.sh · check-migration-compat.sh · disk-cleanup.sh · metrics-textfile.sh
 infra/scripts/lib/{audit,page,metrics}.sh
 infra/scripts/backup/{base-backup,retain,copy-r2,restore,restore-drill}.sh · infra/scripts/backup/drill-sink.mjs
-infra/scripts/probes/uptimerobot-check.sh · infra/scripts/grafana-sync.sh
-infra/systemd/tracksys-{backup,backup-retain,backup-copy,metrics,disk-cleanup}.{service,timer}
+infra/scripts/probes/{uptimerobot-check,ingest-lag}.sh · infra/scripts/grafana-sync.sh
+infra/scripts/load/run-load.sh · infra/docker-compose.load.yml · .github/workflows/load-test.yml
+packages/testkit/src/load/{simulate-ingest,seed-load-fleet}.ts
+infra/caddy/sites/primary.caddy                       (alterar: host de ingestão do Sentry no connect-src de app.)
+infra/systemd/tracksys-{backup,backup-retain,backup-copy,metrics,disk-cleanup,ingest-lag}.{service,timer}
 infra/systemd/alloy.service.d/10-tracksys.conf
 infra/alloy/config.alloy · infra/alloy/redaction.alloy
 infra/grafana/rules/f0.rules.yaml · f0.rules.test.yaml · infra/grafana/alertmanager.yaml.tpl
@@ -68,7 +76,7 @@ apps/worker/src/integrations/null-adapters.ts
 apps/api/src/observability/sentry.ts · apps/worker/src/observability/sentry.ts
 packages/domain/src/observability/scrub-sentry-event.ts
 docs/runbooks/infra/deploy.md · backup-restore.md · sondas-e-alertas.md
-tests/acceptance/T-013/{ops-schema,deploy-script,migration-safety,backup-scripts,drill-compose,external-effects,observability,alert-rules}.test.ts
+tests/acceptance/T-013/{ops-schema,deploy-script,migration-safety,migration-compat,backup-scripts,drill-compose,external-effects,observability,alert-rules,ingest-lag,load-sim}.test.ts
 tests/acceptance/T-013/fixtures/**                    (fakes de docker/git/wal-g/curl, backup-list.json, alloy-redaction.alloy)
 ```
 
@@ -79,6 +87,7 @@ tests/acceptance/T-013/fixtures/**                    (fakes de docker/git/wal-g
 ```sql
 -- migrate:up
 -- T-013 — Auditoria de operação de plataforma (13 §4.4). Fora de app: não guarda dado de operadora ou cliente.
+SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '60s';
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'tracksys_ops_audit') THEN
     RAISE EXCEPTION 'papel tracksys_ops_audit ausente: aplique infra/db/roles.sql (T-003) antes';
@@ -109,7 +118,7 @@ DROP TABLE ops.audit_log;
 DROP SCHEMA ops;                                         -- sem CASCADE: falha se outra tarefa já usa o schema
 ```
 
-CAT-06: `appendOnly` aceita nome qualificado (`"ops.audit_log"`); sem ponto continua `app.<t>` (o teste congelado da T-001 não muda). Para cada entrada existente, violação se `tracksys_app`, `tracksys_ops_audit` ou `tracksys_ops_ro` (os que existirem) tiver `UPDATE` ou `DELETE`; `object` = nome qualificado. Se `pnpm db:reset` não criar `tracksys_ops_audit`/`tracksys_ops_ro` em dev e CI (initdb da T-003), passe `OPS_RO_PASSWORD`/`OPS_AUDIT_PASSWORD` de desenvolvimento no `.env.example` e no `docker-compose.yml` da raiz.
+CAT-06 (redação endurecida da T-001: `UPDATE` inclusive só em uma coluna por `has_any_column_privilege`, `DELETE` ou `TRUNCATE`): `appendOnly` aceita nome qualificado (`"ops.audit_log"`); sem ponto continua `app.<t>` (o teste congelado da T-001 não muda). Para cada entrada existente, violação se `tracksys_app`, `tracksys_ops_audit` ou `tracksys_ops_ro` (os que existirem) tiver qualquer desses privilégios; `object` = nome qualificado. O schema `ops` fica fora de CAT-01..CAT-04 (não é `app`) e não leva entrada em `withoutOperatorId`. Se `pnpm db:reset` não criar `tracksys_ops_audit`/`tracksys_ops_ro` em dev e CI (initdb da T-003), passe `OPS_RO_PASSWORD`/`OPS_AUDIT_PASSWORD` de desenvolvimento no `.env.example` e no `docker-compose.yml` da raiz.
 
 ### (2) Deploy
 
@@ -121,9 +130,11 @@ CAT-06: `appendOnly` aceita nome qualificado (`"ops.audit_log"`); sem ponto cont
 
 `check-migration-safety.sh --base <ref> | --changed-files <arquivo>`: lista os arquivos alterados; para cada `packages/db/migrations/*.sql` alterado ou novo, examina **só** o trecho entre `-- migrate:up` e `-- migrate:down`, sem comentários; padrões destrutivos (sem diferenciar maiúsculas): `DROP COLUMN`, `DROP TABLE`, `RENAME`, `ALTER COLUMN … TYPE`, `SET NOT NULL`. Falha (`exit 1`, citando arquivo e padrão) se houver padrão em arquivo sem sufixo `_contract.sql`, ou arquivo `_contract.sql` no mesmo PR que algum arquivo em `apps/**`; também falha se uma migration já existente em `origin/main` foi modificada.
 
+**(2.1) Compatibilidade N/N+1 (REQ-DAD-020).** `check-migration-compat.sh --base <ref>` (job `migration-compat` do `ci.yml`, em PR que altera `packages/db/migrations/**`): `git worktree add <tmp>/base <ref>`; `pnpm install --frozen-lockfile` no worktree base; banco limpo (`pnpm db:reset`); aplica as migrations do HEAD com `dbmate --migrations-dir <HEAD>/packages/db/migrations --no-dump-schema up`, depois `rollback` e `up` de novo, e `pnpm db:check` do HEAD; por fim roda `pnpm test:acceptance` **do worktree base** contra esse banco (`DATABASE_URL`, `DATABASE_URL_APP`, `DATABASE_URL_INGEST` e `DATABASE_URL_ADMIN` do `.env.example`). Qualquer passo com código ≠ 0 → `exit 1` citando o passo (`up`, `rollback`, `up2`, `db:check`, `base-acceptance`). Migration `_contract.sql` é a exceção prevista em [04 §10](../docs/spec/04-dominio-e-dados.md) item 4: nesse caso o passo `base-acceptance` é pulado com aviso, porque o contract só entra depois que o código anterior parou de usar a coluna (o `check-migration-safety.sh` já barra contract junto com `apps/**`).
+
 `infra/scripts/deploy.sh` (forced-command; caminhos sobrescrevíveis por `TRACKSYS_ROOT=/opt/tracksys`, `TRACKSYS_ETC=/etc/tracksys`, `TRACKSYS_RUN=/run/tracksys` para os testes):
 1. Argumento = `$1` ou, sem argumento, `$SSH_ORIGINAL_COMMAND`. Aceita só `^(build-only )?v[0-9]+\.[0-9]+\.[0-9]+$` ou `^rollback$`; outro → `exit 2` com "comando recusado", auditoria `ops.deploy` `denied`, sem nenhuma outra ação. `flock -n $TRACKSYS_RUN/deploy.lock` (ocupado → `exit 2`).
-2. Passos 1–8 de [13 §7](../docs/spec/13-infra-e-operacao.md), com estas regras adicionais: recusa árvore suja (`git status --porcelain` não vazio); build = `dc build` (imagens `tracksys-app:<tag>`, `tracksys-migrate:<tag>`, `tracksys-caddy:<tag>`); migrations = `dc run --rm migrate up`; catálogo = `dc run --rm migrate check`.
+2. Passos 1–8 de [13 §7](../docs/spec/13-infra-e-operacao.md), com estas regras adicionais: recusa árvore suja (`git status --porcelain` não vazio); build = `dc build` (imagens `tracksys-app:<tag>`, `tracksys-migrate:<tag>`, `tracksys-caddy:<tag>`); migrations = `dc run --rm migrate up`; catálogo = `dc run --rm migrate check`. Ordem expand/contract (REQ-DAD-020): migrations e catálogo **antes** de trocar o código; o rollback de código nunca roda `rollback` de migration ([04 §10](../docs/spec/04-dominio-e-dados.md) item 3), porque toda migration funciona com o código da versão anterior.
 3. Códigos de saída: `0` sucesso; `1` falha no `up`/smoke com rollback concluído (page prioridade 1 "deploy <tag> revertido para <PREV>"); `3` falha antes de trocar o código (fetch, ancestralidade, árvore suja, build, migration ou catálogo; page prioridade 1 "deploy <tag> abortado: <etapa>"; `current-version` intacto); `4` smoke do rollback falhou (page prioridade 2, SEV1).
 4. Auditoria (`lib/audit.sh`): `dc exec -T -u postgres db psql -X -v ON_ERROR_STOP=1 -d tracksys` com `SET ROLE tracksys_ops_audit; INSERT INTO ops.audit_log … ON CONFLICT (id) DO NOTHING` (`id` de `/proc/sys/kernel/random/uuid`, `action` ∈ `ops.deploy`, `ops.deploy_rollback`, `actor_type = 'system'`, `actor_id = 'ci:<GITHUB_RUN_ID>'` ou `'root:<SUDO_USER|root>'`, `host = $(hostname)`, `detail` com tag, `PREV`, etapa e código). Falha na auditoria só gera aviso no stderr (sem spool no F0).
 5. `DEPLOY_FAULT=smoke|catalog` simula a falha da etapa **só** quando o processo é root sem `SUDO_USER` (execução manual pelo fundador na VM; o `sudo` do usuário `deploy` limpa o ambiente) e grava `detail.fault`. Usado no CT-OPS-006/007 na VM sem publicar release quebrada em `main`.
@@ -171,34 +182,52 @@ Relatório (front matter lido pela T-015, chaves exatas): `drill: restore`, `dat
 | `AL-03-SEV1` | mesma expressão `> 0.90` | 5m | `SEV1`, R2 |
 | `AL-04` | `time() - tracksys_backup_last_success_timestamp_seconds > 93600` | 0m | `SEV2`, `emergency="true"`, R8 |
 | `AL-05` | `(pg_stat_archiver_last_archive_age > 300 and on() sum(rate(pg_stat_database_xact_commit{datname="tracksys"}[5m])) > 0) or increase(pg_stat_archiver_failed_count[5m]) > 0` [VALIDAR nomes do exporter] | 0m | `SEV2`, R2 |
-| `AL-07` | `ingest_pending_count > 500` (for 2m) **ou** `ingest_pending_oldest_age_seconds > 300` (for 0m) — 2 regras | — | `SEV2`, R4 |
+| `AL-07` | `ingest_pending_count > 500` (série do textfile da seção 5.1). A idade > 300 s e o último recebimento > 300 s são paginados pela sonda local da seção 5.1, não aqui (sem page dupla) | 2m | `SEV2`, R4 |
 | `AL-08` / `AL-08-SEV1` | `histogram_quantile(0.95, sum by (le) (rate(alert_latency_seconds_bucket[5m]))) > 60` / `> 120` | 5m | `SEV2` / `SEV1`, R4 |
 | `AL-11` | `sum(rate(http_requests_total{job="api",status=~"5.."}[5m])) / sum(rate(http_requests_total{job="api"}[5m])) > 0.02 and sum(increase(http_requests_total{job="api"}[5m])) >= 100` | 0m | `SEV2` |
 | `AL-12` | `increase(container_oom_events_total[15m]) > 0` (o laço de reinício já pagina pelo autoheal da T-003) | 0m | `SEV2` |
 
+- **CSP do console:** `infra/caddy/sites/primary.caddy` acrescenta `{$SENTRY_CSP_HOST}` (origem de ingestão do DSN do console, ex.: `https://o<id>.ingest.us.sentry.io` [VALIDAR]) ao `connect-src` de `app.`; vazio → nada muda. O build do console recebe `VITE_SENTRY_DSN` (SDK da T-007). Host de estilo/tiles extra registrado pela T-008 entra aqui também.
 - `alertmanager.yaml.tpl` (renderizado com `envsubst` por `grafana-sync.sh`; `mimirtool alertmanager load`) [VALIDAR — Alertmanager gerenciado do Grafana Cloud free com `pushover_configs`; senão contact point Pushover do Grafana com o mesmo mapeamento]: rota por rótulos → `emergency="true"` → Pushover prioridade 2 (`retry: 60s`, `expire: 3h`); `SEV1` → prioridade 1; `SEV2` → prioridade 0; `SEV3` → e-mail (`group_interval: 24h`). Título `"<alertname> <severity>"`; corpo com o runbook; nunca IMEI ou coordenada.
 - **UptimeRobot** (free, 5 min; cadastrado pelo fundador): `slo-gps-tcp` (porta, `gps.<domínio>:5023`) e `slo-api-https` (palavra-chave `"status":"ok"` em `https://api.<domínio>/health/ready`), alerta Pushover prioridade 2 no F0 (única sonda externa = AL-01/AL-02) [VALIDAR integração Pushover no plano free; senão e-mail + app UptimeRobot]. `probes/uptimerobot-check.sh` (`UPTIMEROBOT_READ_API_KEY`, `POST https://api.uptimerobot.com/v2/getMonitors` [VALIDAR API]) sai 0 só se os 2 monitores existem, `interval = 300` e estão `up`.
 
-Variáveis novas (`prod.env.example`, vazias; `ci.env`, fictícias): `SENTRY_DSN`, `EXTERNAL_EFFECTS`, `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `GRAFANA_PROM_URL`, `GRAFANA_PROM_USER`, `GRAFANA_LOKI_URL`, `GRAFANA_LOKI_USER`, `GRAFANA_PUSH_TOKEN`, `UPTIMEROBOT_READ_API_KEY`, `ALERT_EMAIL_TO`.
+Variáveis novas (`prod.env.example`, vazias salvo indicação; `ci.env`, fictícias): `SENTRY_DSN`, `VITE_SENTRY_DSN`, `SENTRY_CSP_HOST`, `EXTERNAL_EFFECTS`, `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `GRAFANA_PROM_URL`, `GRAFANA_PROM_USER`, `GRAFANA_LOKI_URL`, `GRAFANA_LOKI_USER`, `GRAFANA_PUSH_TOKEN`, `UPTIMEROBOT_READ_API_KEY`, `ALERT_EMAIL_TO`; e `TRUSTED_PROXY_CIDRS=172.30.0.2/32` (preenchida: IP do `caddy` na rede da T-003; valor de produção de [13 §6](../docs/spec/13-infra-e-operacao.md), registrado em [15 §5](../docs/spec/15-decisoes-riscos-premissas.md); o `api` da T-006 só confia em `X-Forwarded-For` vindo dele). Nomes de banco canônicos da T-001: `DATABASE_URL_APP`, `DATABASE_URL_INGEST` nos apps; `MIGRATE_DATABASE_URL` só no `migrate` (injetado como `DATABASE_URL`); `DATABASE_URL_ADMIN` nunca no `prod.env`.
+
+### (5.1) Sonda de atraso da ingestão (REQ-ING-021, parte F0)
+
+`infra/scripts/probes/ingest-lag.sh` (timer `tracksys-ingest-lag`, a cada 60 s, na primária): consulta como `postgres` pelo socket em `BEGIN READ ONLY` (comando sobrescrevível por `TRACKSYS_PSQL` nos testes), só agregados: `count(*)` e `extract(epoch FROM now() − min(received_at))` de `app.ingest_inbox` com `status = 'pending'`, e `extract(epoch FROM now() − max(received_at))` de toda a inbox. Grava `ingest_pending_count`, `ingest_pending_oldest_age_seconds` (0 sem `pending`) e `ingest_last_received_age_seconds` (ausente com inbox vazia, INV-03) em `/var/lib/tracksys/metrics/ingest.prom` por `lib/metrics.sh`. Page pelo `lib/page.sh` (Pushover prioridade 1, título `AL-07 ingestão atrasada`, corpo só com números e o runbook) quando `ingest_pending_oldest_age_seconds > 300`, ou quando `ingest_last_received_age_seconds > 300` com `tracksys_tcp_established{port="5023"} ≥ 1` no textfile da seção 5 ([05 §17](../docs/spec/05-ingestao-e-telemetria.md)). Uma page por episódio: estado em `$TRACKSYS_RUN/ingest-lag.state`; nova page só depois de 15 min sem condição. Funciona com o `worker` parado e sem Grafana Cloud. No F1, a T-028 passa a calcular as métricas no `api` (05 §17) e tira estas três do textfile.
+
+### (6) Carga de pior caso (REQ-ARQ-012)
+
+- `packages/testkit/src/load/seed-load-fleet.ts`: semeia, num banco **descartável**, a operadora sintética `Carga` com 3.000 rastreadores (IMEIs `35933990000xxxx`, `traccar_device_id` 100001…103000, vínculos primários abertos): a linha de `app.operator` nasce pelo `DATABASE_URL_ADMIN` (permitido só em testes e semeadura, T-001); o resto pelo `tracksys_app` com contexto da operadora (nunca o dono).
+- `packages/testkit/src/load/simulate-ingest.ts` (`pnpm --filter @tracksys/testkit sim:ingest -- --devices 3000 --interval-s 30 --duration-s 900 --url <POST interno> --token-file <arquivo>`): agenda cada rastreador com fase aleatória, envia envelopes Traccar válidos (posição nova por envio, `serverTime` = agora) com `X-Ingest-Token`; mede latência por requisição; grava `load-report.json` com `sent`, `p95Ms`, `status` por código e `durationS`.
+- `infra/docker-compose.load.yml`: sobrepõe `infra/docker-compose.yml` com os limites de [03 §11](../docs/spec/03-arquitetura.md) **inalterados**, `cpuset: "0,1"` em todos os serviços (2 núcleos, como a VM de 2 OCPU), sem `caddy` nem `traccar` (o simulador fala direto com o POST interno na rede Docker), volume próprio do `db`.
+- `infra/scripts/load/run-load.sh`: sobe o projeto `tracksys-load`, migra, semeia, roda o simulador, espera 120 s, conta `pending` em `app.ingest_inbox`, lê `docker inspect` (`.State.OOMKilled`, `RestartCount`) de cada serviço, acrescenta ao relatório `oomKilled`, `restarts`, `pendingAfter120s` e `result` (`ok` se `p95Ms ≤ 500`, 0 OOM, 0 respostas 503 e `pendingAfter120s = 0`), derruba com `down -v`.
+- `.github/workflows/load-test.yml`: só `workflow_dispatch`, `runs-on: ubuntu-24.04-arm` (arm64, como a VM), `timeout-minutes: 40`, roda `run-load.sh` e publica `load-report.json`. Nunca roda contra a VM de produção nem contra o banco real.
 
 ## Testes de aceite (congelados)
 
 Locais (`tests/acceptance/T-013/`, rodam no CI sem nuvem; scripts com `TRACKSYS_ROOT/ETC/RUN` em diretório temporário e `PATH` com os fakes de `fixtures/bin/` que gravam cada chamada):
 
-- `ops-schema.test.ts` — Dado o schema migrado, Então `ops.audit_log` existe e `pnpm db:check` sai 0. Dado `tracksys_ops_audit`, Quando insere 2 vezes o mesmo `id` `0e7c9a7e-5b1a-4c55-9d1e-3f2a6b1c0d01` com `ON CONFLICT (id) DO NOTHING`, Então há 1 linha; Quando `UPDATE ops.audit_log SET result = 'success'`, Então SQLSTATE 42501; `tracksys_app` em `SELECT 1 FROM ops.audit_log` → 42501. Dado, numa transação desfeita, `GRANT UPDATE ON ops.audit_log TO tracksys_ops_audit`, Então `runCatalogChecks` contém `CAT-06 ops.audit_log`. Inserção com `action = 'deploy'` → 23514.
+- `ops-schema.test.ts` — Dado o schema migrado, Então `ops.audit_log` existe e `pnpm db:check` sai 0. Dado `tracksys_ops_audit`, Quando insere 2 vezes o mesmo `id` `0e7c9a7e-5b1a-4c55-9d1e-3f2a6b1c0d01` com `ON CONFLICT (id) DO NOTHING`, Então há 1 linha; Quando `UPDATE ops.audit_log SET result = 'success'`, Então SQLSTATE 42501; `tracksys_app` em `SELECT 1 FROM ops.audit_log` → 42501. Dado, numa transação desfeita, `GRANT UPDATE ON ops.audit_log TO tracksys_ops_audit`, Então `runCatalogChecks` contém `CAT-06 ops.audit_log`; o mesmo com `GRANT UPDATE (result) ON ops.audit_log TO tracksys_ops_audit` (só uma coluna) e com `GRANT TRUNCATE ON ops.audit_log TO tracksys_ops_ro`. Inserção com `action = 'deploy'` → 23514.
 - `deploy-script.test.ts` (CT-OPS-006, CT-OPS-007 na parte local) — Dado `current-version = v0.3.0` e `SSH_ORIGINAL_COMMAND='bash'`, Então `exit 2`, stderr "comando recusado" e 0 chamadas a `docker`. Dado `v0.3.1` com o fake de `docker compose up --wait` saindo 1, Então há um 2º `up` com `TRACKSYS_VERSION=v0.3.0`, `current-version = v0.3.0`, o fake de `curl` registra 1 POST ao Pushover com `priority=1` e `exit 1`. Dado `v0.4.0` com o fake de `migrate check` saindo 1, Então nenhum `up` é chamado, `current-version = v0.3.0`, 1 page e `exit 3`. Dado `v0.3.2` saudável, Então `current-version = v0.3.2`, `previous-version = v0.3.0` e o fake de `psql` recebe 1 `INSERT INTO ops.audit_log` com `ops.deploy` e `success`. Dado tag fora de `origin/main`, Então `exit 3` sem build. Dado árvore suja, Então `exit 3`. Dado `DEPLOY_FAULT=smoke` com `SUDO_USER=deploy`, Então a variável é ignorada.
 - `migration-safety.test.ts` (CT-OPS-007) — Dado `20261101000000_remove_nickname.sql` com `ALTER TABLE app.vehicle DROP COLUMN nickname` no `up`, Então `exit 1` citando `DROP COLUMN`; renomeado para `20261101000000_remove_nickname_contract.sql` e sem `apps/**` na lista, Então `exit 0`; com `apps/api/src/main.ts` na lista, Então `exit 1`. Dado `DROP TABLE app.x` só depois de `-- migrate:down`, Então `exit 0`. Dado `20261007120000_fundacao_isolamento.sql` modificado, Então `exit 1`.
+- `migration-compat.test.ts` (CT-DAD-020, parte local) — Com fakes de `git`, `pnpm` e `dbmate` em `fixtures/bin/`: Dado `--base origin/main` e uma migration nova no HEAD, Então a ordem das chamadas é `git worktree add`, `pnpm install --frozen-lockfile` (base), `pnpm db:reset`, `dbmate … up` com o diretório de migrations do HEAD, `dbmate … rollback`, `dbmate … up`, `pnpm db:check` (HEAD) e `pnpm test:acceptance` com `--dir` do worktree base; com o fake de `pnpm test:acceptance` saindo 1, Então `exit 1` citando `base-acceptance`; com o fake de `rollback` saindo 1, Então `exit 1` citando `rollback` e nenhum `test:acceptance`; só `*_contract.sql` novo, Então `base-acceptance` pulado com aviso e `exit 0`. Real, no CI: o job `migration-compat` do próprio PR desta tarefa sai 0.
 - `backup-scripts.test.ts` (CT-OPS-008 na parte local) — Dado `fixtures/backup-list.json` com 15 bases diárias de 07/10/2026 (quarta) a 21/10/2026 e as de 11/10 e 18/10 permanentes, Quando `retain.sh` roda com `date` fixado em 25/10/2026 07:00Z (domingo), Então o fake de `wal-g` recebe `backup-mark` da base de 25/10, nenhum `backup-mark -i` (nenhuma permanente com mais de 28 dias) e `delete retain FULL 7 --confirm`; com `date` em 16/11/2026 (segunda), Então `backup-mark -i` da base de 11/10. `copy-r2.sh` contém `rclone copy` e não contém `rclone sync`. `base-backup.sh` com sucesso grava `backup.prom` com `tracksys_backup_last_success_timestamp_seconds` inteiro e sem arquivo `.tmp` restante.
 - `drill-compose.test.ts` (CT-OPS-009 na parte estática) — Dado `docker compose -f infra/docker-compose.drill.yml --env-file infra/env/ci.env config --format json`, Então `drill-internal` tem `internal: true`; `worker` e `sink` estão só nela; `db` está nas 2 redes e seu `command` contém `archive_mode=off`; nenhum serviço publica porta. Dado o `drill.env` gerado por `restore-drill.sh --render-env-only` a partir de `infra/env/ci.env`, Então contém `EXTERNAL_EFFECTS=off`, `COMMAND_DISPATCH_ENABLED=false`, `EMNIFY_SMS_ENABLED=false`, `FCM_API_BASE=http://sink:8080`, `TRACCAR_API_URL=http://sink:8080` e `SENTRY_DSN=` vazio.
 - `external-effects.test.ts` (INV-05) — Dado o worker com `EXTERNAL_EFFECTS=off`, `FCM_API_BASE` apontando para o fake de FCM da T-012 e 1 entrega `pending` de `ignition_on`, Quando o job de entrega roda, Então o fake recebe 0 requisições, a entrega fica `suppressed` com `error = 'external_effects_off'`, o log tem `external_effect_suppressed` e `external_effects_suppressed_total{adapter="fcm"} = 1`. Dado `EXTERNAL_EFFECTS=talvez`, Então o worker sai com 78 citando `EXTERNAL_EFFECTS`.
 - `observability.test.ts` (CT-OPS-016) — Dado o contêiner `grafana/alloy` fixado com `fixtures/alloy-redaction.alloy` (importa `infra/alloy/redaction.alloy`, lê um arquivo e envia a `loki.echo`) e a linha `imei=359339000000001 lat=-5.0891021 lon=-42.8018503 auth=Bearer abc.def`, Então a saída contém `***0001` e não contém `359339000000001`, `-5.0891021`, `-42.8018503` nem `abc.def`. Dado um evento com header `Authorization: Bearer abc`, `request.data = {"senha":"x"}` e `query_string = "token=y"`, Quando `scrubSentryEvent`, Então não restam `authorization`, `data` nem `query_string`. Dado `api` e `worker` no harness da T-005, Quando `/metrics` (3001 e 3002) é lido, Então nenhum rótulo se chama `vehicle_id`, `device_id`, `user_id`, `imei` ou `ip`.
-- `alert-rules.test.ts` (CT-OPS-017) — `promtool test rules f0.rules.test.yaml` (imagem `prom/prometheus` fixada) sai 0, e o arquivo de teste contém: disco em 81% por 6 min → `AL-03` com `severity=SEV2`; 79% → nenhum alerta; 4% de 5xx com 300 requisições em 5 min → `AL-11`; 4% com 60 requisições → nenhum; backup há 27 h → `AL-04` com `emergency="true"`; p95 de 130 s por 6 min → `AL-08-SEV1`. `amtool config routes test` sobre o template renderizado com `ci.env`: `severity=SEV2` → `pushover-p0`; `severity=SEV1` → `pushover-p1`; `emergency=true,severity=SEV2` → `pushover-p2`; `severity=SEV3` → `email`.
+- `ingest-lag.test.ts` (CT-ING-021, parte F0) — Dado o banco local migrado com o `worker` parado, `TRACKSYS_PSQL` apontando para o `psql` do `DATABASE_URL_ADMIN` e 1 linha `pending` em `app.ingest_inbox` com `received_at = now() − 301 s` (falha injetada), Quando `ingest-lag.sh` roda, Então `ingest.prom` tem `ingest_pending_oldest_age_seconds` ≥ 301 e `ingest_pending_count 1`, e o fake de `curl` registra exatamente 1 POST ao Pushover com `priority=1` e título `AL-07 ingestão atrasada`, sem IMEI nem coordenada no corpo; 2ª rodada 60 s depois → 0 POST novo; sem `pending` e `received_at` recente → `ingest_pending_oldest_age_seconds 0` e 0 POST; inbox vazia → `ingest_last_received_age_seconds` ausente do arquivo e 0 POST; último recebimento há 301 s com `tracksys_tcp_established{port="5023"} 3` no textfile → 1 page; com `0` sessões → 0 page.
+- `load-sim.test.ts` (REQ-ARQ-012, parte local) — `simulate-ingest` com 20 rastreadores, intervalo 2 s e 10 s contra o `api` do harness da T-005 → `sent` = 100 ± 5, todas as respostas 202, as posições viram `processed` e o `load-report.json` passa no schema Zod do relatório; `docker compose -f infra/docker-compose.yml -f infra/docker-compose.load.yml --env-file infra/env/ci.env config --format json` → `mem_limit` e `cpus` de `db`, `api` e `worker` iguais aos de 03 §11, `cpuset = "0,1"` em todos e nenhum `caddy`/`traccar`.
+- `alert-rules.test.ts` (CT-OPS-017) — `promtool test rules f0.rules.test.yaml` (imagem `prom/prometheus` fixada) sai 0, e o arquivo de teste contém: disco em 81% por 6 min → `AL-03` com `severity=SEV2`; 79% → nenhum alerta; 4% de 5xx com 300 requisições em 5 min → `AL-11`; 4% com 60 requisições → nenhum; backup há 27 h → `AL-04` com `emergency="true"`; p95 de 130 s por 6 min → `AL-08-SEV1`; `ingest_pending_count` 600 por 3 min → `AL-07`; `ingest_pending_oldest_age_seconds` 400 sozinho → nenhum alerta do Grafana (a page é da sonda 5.1). `amtool config routes test` sobre o template renderizado com `ci.env`: `severity=SEV2` → `pushover-p0`; `severity=SEV1` → `pushover-p1`; `emergency=true,severity=SEV2` → `pushover-p2`; `severity=SEV3` → `email`.
 
 Na VM (fundador; saídas anexadas ao PR):
 - CT-OPS-006: `v0.x.0` publicado e saudável (`current-version` igual); `ssh deploy@tracksys-p bash` → "comando recusado"; como root `DEPLOY_FAULT=smoke deploy.sh v0.x.1` → `api` e `worker` voltam a `v0.x.0` em ≤ 5 min, 1 page; `deploy.sh v0.x.1` sem falha → `current-version = v0.x.1`.
 - CT-OPS-007: como root `DEPLOY_FAULT=catalog deploy.sh v0.x.2` → `exit 3`, versão anterior servindo, 1 page.
 - CT-OPS-008: `pg_stat_archiver` a cada minuto por 10 min com `now() − last_archived_time` ≤ 120 s; 2 bases noturnas seguidas em `wal-g backup-list`; o mesmo objeto de WAL na R2 em ≤ 2 h; `rclone cat` de um objeto não começa com o cabeçalho de WAL legível.
 - CT-OPS-009 / G0-7: `restore-drill.sh` às 13:00 UTC até 27/10/2026 → relatório com `result: ok`, `durationSeconds ≤ 7200`, `lossSeconds ≤ 300`, `externalCalls: 0`; copiado para `docs/runbooks/restore/`.
+- CT-ARQ-012: `load-test.yml` disparado pelo fundador antes de 27/10/2026 → `load-report.json` com `result: ok` (p95 ≤ 500 ms em 100 msg/s por 15 min, 0 OOM, 0 respostas 503, 0 `pending` 120 s após o fim), anexado ao PR.
+- CT-ING-021 na VM: `systemctl list-timers tracksys-ingest-lag.timer` ativo e `ingest.prom` atualizado há < 120 s; nenhuma falha é provocada em produção (o caminho de page é provado pelo teste local).
 - CT-OPS-017 / sondas: `uptimerobot-check.sh` sai 0; Pushover de emergência às 03:00 BRT reconhecido; `AL-03` provocado com `fallocate` até 81% por 5 min → 1 page prioridade 0 "AL-03 SEV2"; Sentry recebe erro de teste sem `authorization`.
 
 ## Comandos de verificação
@@ -212,6 +241,8 @@ docker compose -f infra/docker-compose.drill.yml --env-file infra/env/ci.env con
 docker run --rm -v "$PWD/infra":/infra koalaman/shellcheck:v0.10.0 $(cd infra && git ls-files '*.sh' | sed 's|^|/infra/|')
 docker run --rm -v "$PWD/infra/grafana":/g --entrypoint promtool prom/prometheus:v3.<x>@sha256:<digest> test rules /g/rules/f0.rules.test.yaml
 infra/scripts/check-migration-safety.sh --base origin/main
+infra/scripts/check-migration-compat.sh --base origin/main   # CT-DAD-020: up, rollback, up, db:check e acceptance da base contra o schema novo
+docker compose -f infra/docker-compose.yml -f infra/docker-compose.load.yml --env-file infra/env/ci.env config --quiet
 docker buildx build --platform linux/amd64,linux/arm64 --target migrate -f infra/app/Dockerfile .
 pnpm verify
 ```
@@ -222,7 +253,8 @@ pnpm verify
 - [ ] 1º deploy por tag pela Action concluído; rollback e abort provados na VM (CT-OPS-006/007).
 - [ ] WAL arquivando sem falha há ≥ 48 h; 2 bases noturnas; cópia R2 < 26 h.
 - [ ] `docs/runbooks/restore/2026-10-2X.md` com `result: ok` no repositório até 27/10/2026 (G0-7).
-- [ ] UptimeRobot e Pushover testados; regras do F0 carregadas no Grafana Cloud.
+- [ ] UptimeRobot e Pushover testados; regras do F0 carregadas no Grafana Cloud; timer `tracksys-ingest-lag` ativo na primária.
+- [ ] `load-report.json` com `result: ok` anexado (CT-ARQ-012); job `migration-compat` verde no PR (CT-DAD-020).
 - [ ] PR `feat(infra): deploy, backup WAL-G, restore e sondas (T-013)` com REQ/INV/risco e revisão cruzada (N0 nos trechos indicados).
 
 ## Decisões já tomadas (não pergunte, siga)
@@ -240,3 +272,6 @@ pnpm verify
 | Escalonamento de SEV1 após 10 min sem recuperação? | F1 (gateway). No F0, AL-02 (UptimeRobot) e AL-04 já saem em prioridade 2. |
 | A T-008 registrou host extra na CSP do console? | Ajuste `infra/caddy/sites/primary.caddy` nesta tarefa e cite o PR da T-008. |
 | Agente pode cadastrar segredos ou rodar `deploy.sh` na VM? | Não (REQ-QLD-016). Escreve, testa com fakes, `shellcheck` e `--render-env-only`; o fundador executa. |
+| A sonda de atraso da ingestão do F0 é o Uptime Kuma? | Não: o Kuma roda na standby, que não tem contêiner no F0 (T-003). No F0 a sonda é o timer `tracksys-ingest-lag` na primária (seção 5.1), com page direto no Pushover; no F1 a T-028 a leva para o Kuma e para as métricas do `api`. |
+| Carga de 100 msg/s na VM de produção? | Nunca: semearia 3.000 rastreadores falsos no banco real e disputaria memória com o piloto. Roda no `load-test.yml` (arm64, 2 núcleos por `cpuset`, limites de 03 §11). A VM real é medida pelo uso do piloto (AL-11, AL-12). |
+| Suíte da base contra o schema novo quebra porque o teste congelado conhece a estrutura antiga? | É exatamente o que o CT-DAD-020 quer pegar: a migration não é expand. Reescreva como expand/contract (04 §10); nunca altere teste congelado para passar. |

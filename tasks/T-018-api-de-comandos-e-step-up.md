@@ -36,9 +36,9 @@ Expor no `api` todas as rotas de pedido de comando físico e de step-up: disponi
 
 ## Fora do escopo
 
-- Despacho, confirmação, ARMED tick, retentativa e SMS (T-019). Telas (T-020, T-023).
-- `POST /api/v1/me/consents` para `sva_referral` (T-028). Registro do termo pela central para titular sem app ([06 §12](../docs/spec/06-comandos-e-bloqueio.md) item 4, proposta não aprovada).
-- Rotas de ocorrência (T-027); aqui só se **lê** se há ocorrência `open` no veículo.
+- Despacho, confirmação, ARMED tick, retentativa e SMS (T-020). Telas (T-021).
+- `POST /api/v1/me/consents` para `sva_referral` (T-026). Registro do termo pela central para titular sem app ([06 §12](../docs/spec/06-comandos-e-bloqueio.md) item 4, proposta não aprovada).
+- Rotas de ocorrência (T-025); aqui só se **lê** se há ocorrência `open` no veículo.
 - Recusa imediata com `TELEMETRY_STALE` para rastreador `offline` ([09 §9.3](../docs/spec/09-api-e-contratos.md), proposta): o pedido segue a política de 06 (ARMED).
 
 ## Arquivos a criar/alterar
@@ -163,13 +163,13 @@ Ordem fixa, numa transação `withContext` do usuário:
 | 10 | `insertCommand` (T-017) com `policy_snapshot` (política vigente de `currentPolicy`), `evidence_snapshot`, `expires_at = computeExpiresAt(...)`, `occurrence_id` da ocorrência `open` (se houver) e `assignment_id`; `transitionCommand` REQUESTED → READY/ARMED com `actor = user:<id>`; `audit_log` `command.request` `success` com `correlation_id` | 23505 em `command_active_relay_key` (corrida) → 409 `COMMAND_ALREADY_ACTIVE` |
 | 11 | COMMIT → 202 | — |
 
-Toda recusa dos passos 4–9 grava `audit_log` `command.request` com `result = 'denied'` e `reason` = código, numa transação que commita, e não cria linha em `command`. O `api` não chama pg-boss nem o Traccar: o evento `command.state.changed.v1` da outbox (T-017) é o gatilho do despacho (T-019).
+Toda recusa dos passos 4–9 grava `audit_log` `command.request` com `result = 'denied'` e `reason` = código, numa transação que commita, e não cria linha em `command`. O `api` não chama pg-boss nem o Traccar: o evento `command.state.changed.v1` da outbox (T-017) é o gatilho do despacho (T-020).
 
 #### 3.4 Step-up
 
 - **App (`stepUp.kind = 'device_key'`)**: sessão `clientKind = 'app'`; trecho normativo de [08 §6.3](../docs/spec/08-identidade-e-seguranca.md): `SELECT … FROM app.command_challenge WHERE id = $1 FOR UPDATE`; confere `user_id` = sessão, `consumed_at IS NULL`, `expires_at ≥ now()`, `vehicle_id`/`type`/`reason_code` iguais ao caminho e ao corpo, `device_key_id` = `stepUp.deviceKeyId`, chave ativa do mesmo usuário; marca `consumed_at = now()` **antes** de verificar a assinatura; verifica ECDSA P-256/SHA-256 (DER, base64url) de `tracksys-cmd-v1|{challengeId}|{nonce}|{vehicleId}|{type}|{reasonCode}` (uuids minúsculos, nonce base64url). Motivos de 403 `STEP_UP_INVALID`: `challenge_expired`, `challenge_used`, `intent_mismatch`, `key_revoked`, `signature_invalid`. Desafio inexistente ou de outro usuário → `intent_mismatch`. Sucesso atualiza `device_key.last_used_at`.
 - **Console (`stepUp.kind = 'console_totp'`)**: sessão `clientKind = 'console'`, 2FA ativo do usuário e `session.stepUpAt ≥ now() − 300 s`; senão 403 `STEP_UP_REQUIRED`, `requiredMethod: 'totp'`.
-- 5 falhas de step-up do mesmo usuário em 10 min → job de e-mail ao usuário e item `step_up_failures` na fila da central (via outbox `security.step_up_failures.v1`, consumidor em T-019; aqui só o evento).
+- 5 falhas de step-up do mesmo usuário em 10 min → job de e-mail ao usuário e item `step_up_failures` na fila da central (via outbox `security.step_up_failures.v1`, consumidor em T-020; aqui só o evento).
 
 #### 3.5 Evidência no pedido (`evidence.repository.ts`)
 
@@ -207,12 +207,12 @@ O hub ([07 §11](../docs/spec/07-alertas-e-tempo-real.md)) mantém `LISTEN comma
 |---|---|---|---|
 | `CUT_POINT_MISSING` | 422 | `CUT_POINT_MISSING` | — |
 | `PROFILE_NOT_HOMOLOGATED` | 422 | `PROFILE_NOT_HOMOLOGATED` | — |
-| `RELAY_UNSUPPORTED`, `BLOCK_SCOPE_DISABLED`, `BLOCK_TERMS_MISSING`, `TENANT_CLOSED`, `NO_OPEN_ASSIGNMENT` | 422 | `COMMAND_NOT_ALLOWED` | `reason`: `relay_unsupported`, `block_scope_disabled`, `block_terms_missing`, `tenant_closed`, `no_open_assignment` (**novo**) |
+| `RELAY_UNSUPPORTED`, `BLOCK_SCOPE_DISABLED`, `BLOCK_TERMS_MISSING`, `TENANT_CLOSED`, `NO_PRIMARY_DEVICE` (veículo sem vínculo primário aberto) | 422 | `COMMAND_NOT_ALLOWED` | `reason`: `relay_unsupported`, `block_scope_disabled`, `block_terms_missing`, `tenant_closed`, `no_primary_device` (**novo**) |
 | `COMMAND_DISPATCH_DISABLED` (só `block`) | 503 | `COMMAND_DISPATCH_DISABLED` | — |
 | Autorização | 403 | `FORBIDDEN` | `reason` = `ForbiddenReason` |
 | Contingência > 72 h | 422 | `CONTINGENCY_TOO_OLD` (**novo**) | `maxAgeS: 259200` |
 
-Acrescente ao `problem-codes.ts` e à tabela de 09 §3 no mesmo PR o código `CONTINGENCY_TOO_OLD` e a `reason` `no_open_assignment`.
+Acrescente ao `problem-codes.ts` e à tabela de 09 §3 no mesmo PR o código `CONTINGENCY_TOO_OLD` e a `reason` `no_primary_device`.
 
 ### 5. Variáveis de ambiente (`apps/api/src/config/env.ts`)
 
@@ -226,7 +226,7 @@ Mudança de `COMMAND_BLOCK_SCOPE` em produção só por deploy com revisão N0 (
 
 ## Testes de aceite (congelados)
 
-Harness HTTP da T-006 (`api` em processo, `inject`), Postgres real, sem `vi.mock` de banco. Chaves P-256 geradas no teste com `generateKeyPairSync('ec', { namedCurve: 'prime256v1' })` e assinatura `sign('sha256', …, { key, dsaEncoding: 'der' })`. Desafio vencido = linha inserida pelo teste com `created_at = now() − 61 s` e `expires_at = now() − 1 s`; TOTP antigo = `stepUpAt` ajustado em `auth.session` pelo `ADMIN_DATABASE_URL`. Os blocos completos são escritos no PR do cartão a partir deste plano; nomes e asserções abaixo são normativos.
+Harness HTTP da T-006 (`api` em processo, `inject`), Postgres real, sem `vi.mock` de banco. Chaves P-256 geradas no teste com `generateKeyPairSync('ec', { namedCurve: 'prime256v1' })` e assinatura `sign('sha256', …, { key, dsaEncoding: 'der' })`. Desafio vencido = linha inserida pelo teste com `created_at = now() − 61 s` e `expires_at = now() − 1 s`; TOTP antigo = `stepUpAt` ajustado em `auth.session` pelo `DATABASE_URL_ADMIN`. Os blocos completos são escritos no PR do cartão a partir deste plano; nomes e asserções abaixo são normativos.
 
 `tests/acceptance/T-018/world.ts` reaproveita `seedCommandWorld` da T-017 e acrescenta: perfil `j16-gt06` v2 `homologated` (relay `yes`, seção `commands` completa, `relay_state_reported = 'yes'`, `homologation_ref` e `evidence_ref` de teste) em R1; política v1 da Alfa com teto 40 e `allow_app_block = true`; aceite `block-terms-v1/40kmh` de `dono.a1`; fixes `live` de V1 a 23,5 km/h com `fix_time = now() − 9 s`; usuários `busca.alfa` (`search_team`) e `inst.alfa` (`installer`) com 2FA; variáveis `COMMAND_BLOCK_SCOPE=all`, `COMMAND_DISPATCH_ENABLED=true`.
 
@@ -314,13 +314,13 @@ pnpm verify
 |---|---|
 | Rota do desafio: `/command-challenges` (06 §14) ou `/commands/challenges` (08, 09, 10)? | `/api/v1/vehicles/{vehicleId}/commands/challenges` (três capítulos, incluindo o dono do contrato). |
 | Pedido aceito responde 201 (06) ou 202 (09, 08)? | 202, com `Idempotent-Replayed: true` na repetição ([09 §9.2](../docs/spec/09-api-e-contratos.md), REQ-API-014, CT-SEG-014). |
-| Códigos `COMMAND_CUT_POINT_MISSING`, `STEP_UP_CHALLENGE_EXPIRED`, `IDEMPOTENCY_KEY_REUSED`… de 06? | Valem os de 09 §3 (tabela da seção 4 deste cartão): `CUT_POINT_MISSING`, `STEP_UP_INVALID` com `reason`, `IDEMPOTENCY_CONFLICT` (409). O app e o console decidem pelo `code` + `reason`. |
+| Códigos com prefixo `COMMAND_` (ex.: `COMMAND_CUT_POINT_MISSING`), `STEP_UP_CHALLENGE_EXPIRED`, `IDEMPOTENCY_KEY_REUSED`… de 06? | Valem os de 09 §3 (tabela da seção 4 deste cartão): `CUT_POINT_MISSING` e `PROFILE_NOT_HOMOLOGATED` sem prefixo, `STEP_UP_INVALID` com `reason`, `IDEMPOTENCY_CONFLICT` (409). Veículo sem vínculo primário aberto: `COMMAND_NOT_ALLOWED` com `reason` `no_primary_device` (o domínio devolve `NO_PRIMARY_DEVICE`, nome de 09 §9.1). O app e o console decidem pelo `code` + `reason`. |
 | O hash de idempotência inclui o veículo? | Sim: `{ vehicleId, type, reasonCode, reason }`. Sem o veículo, a mesma chave em V1 e V3 do mesmo cliente devolveria o comando errado. |
 | Indisponível depois de step-up válido consome o desafio? | Sim. A ordem é idempotência → autorização → step-up → disponibilidade. O app checa a disponibilidade antes de pedir o desafio. |
 | `search_team` usa chave do aparelho (06) ou TOTP (10)? | TOTP do console: a equipe de busca usa o console responsivo ([10 §10](../docs/spec/10-apps-e-ux.md) item 5); exige 2FA ativo. |
 | `tenant_owner` desbloqueia pelo app com `allow_app_block = false`? | Não. 06 §4.1 condiciona bloquear e desbloquear pelo app a `allow_app_block`; nesse caso o desbloqueio é pela central. |
 | `COMMAND_BLOCK_SCOPE` e `COMMAND_BENCH_OPERATOR_ID` são propostas de 06 §2. Implemento? | Sim: CT-CMD-001 depende de `COMMAND_BLOCK_SCOPE=none`, e o G-CMD depende de `pilot:` e da operadora de bancada. Padrão seguro: `none` e vazio. O fundador aprova a adoção no PR do cartão. |
-| Evidência no pedido usa o fix de `device_state`? | Não. Só linhas de `position` do vínculo (têm `received_at` e flags de modo). Veículo parado com compactação fica ARMED e o worker junta fixes ao vivo dos eventos (06 §3.1, T-019). |
+| Evidência no pedido usa o fix de `device_state`? | Não. Só linhas de `position` do vínculo (têm `received_at` e flags de modo). Veículo parado com compactação fica ARMED e o worker junta fixes ao vivo dos eventos (06 §3.1, T-020). |
 | De onde vem `processingMode` de uma linha de `position`? | Das flags: `BACKFILL` → `backfill`, `REPROCESSED` → `reprocess`, demais `live`. |
-| O `api` enfileira o despacho no pg-boss? | Não. O `transitionCommand` grava `command.state.changed.v1` na outbox; o relay cria o job do consumidor `commands.dispatch` (T-019). Assim o job só existe se o commit existir. |
+| O `api` enfileira o despacho no pg-boss? | Não. O `transitionCommand` grava `command.state.changed.v1` na outbox; o relay cria o job do consumidor `commands.dispatch` (T-020). Assim o job só existe se o commit existir. |
 | Recusa grava `audit_log` mesmo com rollback do pedido? | Sim: o handler encerra a transação do pedido sem gravar `command` e commita só `audit_log` (e o consumo do desafio, se houver). |

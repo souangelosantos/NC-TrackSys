@@ -38,7 +38,7 @@ Criar o app Flutter único (`apps/mobile`, [ADR-007](../docs/adr/ADR-007-app-uni
 ## Fora do escopo
 
 - A04 Histórico, A07 "Falar com a central", A08 "Navegar até o veículo" e o workflow de distribuição (T-010).
-- Push, canais, A09 e `firebase_messaging` (T-012). A05 Alertas e A06 Modo vigilância: sem cartão no F0 (pendência registrada no PR).
+- Push, canais, A09 e `firebase_messaging` (T-012). A05 Alertas e A06 Modo vigilância também são da T-012 [ADOTADO NA v2.0]; este cartão só deixa a rota `/inicio?veiculo=` e o A03 prontos para ela acrescentar o interruptor.
 - Comandos, `local_auth` e chave do aparelho (F1). `PUT /api/v1/operator/brand` e tela C13 (F1). Tema claro e flavors (F2).
 - Pedir localização, câmera ou contatos do celular (proibido, 10 §12 item 2).
 
@@ -211,8 +211,8 @@ Roteiro manual (registrar no PR; ensaio do G0-3 em Android, build debug apontand
 | 7 | Expiração apaga o cache? | Não: vai ao login mantendo cache. `session_revoked` (membership removida, senha trocada) apaga tudo, como "Sair" (INV-07). |
 | 8 | Marca nova no meio da tela? | Não; vale na próxima troca de rota (10 §4 item 3). |
 | 9 | Fuso de exibição? | UTC−03:00 fixo, igual à T-008 (sem pacote de fuso). |
-| 10 | Rota que a T-012 usa ao tocar o push? | `/inicio?veiculo=<vehicleId>`: centraliza o veículo e abre o card. |
+| 10 | Rota que a T-012 usa ao tocar o push? | O toque abre `/alertas/:id` (A05, T-012); o "Ver no mapa" do detalhe usa `/inicio?veiculo=<vehicleId>`, que este cartão entrega: centraliza o veículo e abre o card. |
 | 11 | Conta de equipe (`operator_*`) no app? | Pode entrar; `operator_admin` com 2FA recebe a mensagem de usar o console (o app não implementa TOTP). |
-| 12 | A05 Alertas e A06 Vigilância (F0 em 10 §6)? | Não são deste cartão; a T-012 decidiu que o toque no push abre o mapa do veículo. Pendência registrada no PR para o índice de tarefas. |
+| 12 | A05 Alertas e A06 Vigilância (F0 em 10 §6)? | Não são deste cartão: entram na T-012 [ADOTADO NA v2.0], e a A06 sai junto com o corte 3 de [02 §2.4](../docs/spec/02-escopo-e-fases.md). O cliente SSE deste cartão já decodifica o evento `alert` (`alert_event.dart`) para a T-012 consumir. |
 | 13 | Estilo de mapa escuro? | Usa `liberty` (stack canônica, DEC-11); o tema escuro vale para a interface do app. |
 | 14 | Pedir permissão de notificação aqui? | Não; é da T-012 (A09). Este cartão não pede nenhuma permissão. |

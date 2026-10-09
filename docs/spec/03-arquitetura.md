@@ -102,7 +102,7 @@ Tracejado: chamada iniciada no aparelho do usuário, resolução de DNS ou cópi
 | Módulo | Processo | Tabelas que escreve | Dono do fluxo |
 |---|---|---|---|
 | `identity` | api | `auth.*`, `membership`, `platform_support_grant`, `push_token`, `device_key` | [08](08-identidade-e-seguranca.md) |
-| `fleet` | api; worker (provisiona no Traccar; sem dono no F0, ver [02](02-escopo-e-fases.md) §2.3) | `operator`, `operator_brand`, `tenant`, `vehicle`, `device`, `sim_card`, `device_assignment`, `capability_profile`; `device_state` só ao criar o rastreador e no reset ao abrir ou encerrar vínculo (REQ-DAD-011) | [04](04-dominio-e-dados.md) |
+| `fleet` | api; worker (provisiona no Traccar: no F0, subcomando `pilot provision` da T-014; job automático no F1, com o importador da T-024; ver [02](02-escopo-e-fases.md) §2.3) | `operator`, `operator_brand`, `tenant`, `vehicle`, `device`, `sim_card`, `device_assignment`, `capability_profile`; `device_state` só ao criar o rastreador e no reset ao abrir ou encerrar vínculo (REQ-DAD-011) | [04](04-dominio-e-dados.md) |
 | `ingestion` | api (síncrono); worker (`pending`) | `ingest_inbox`, `position`, `device_state` | [05](05-ingestao-e-telemetria.md) |
 | `alerts` | worker (avaliação, entrega); api (reconhecimento, vigilância) | `alert`, `alert_delivery`, `watch_mode` | [07](07-alertas-e-tempo-real.md) |
 | `commands` | api (pedido); worker (despacho) | `command`, `command_attempt`, `command_event`, `command_policy`, `occurrence` | [06](06-comandos-e-bloqueio.md) |
@@ -317,7 +317,7 @@ Sem PgBouncer no F0–F1. No mês 12 a outbox e os jobs somam ~2,5 milhões de l
 |---|---|---|
 | `packages/contracts` | `zod` | Qualquer `@tracksys/*`; IO |
 | `packages/domain` | `@tracksys/contracts`, `zod` | `node:*`, `pg`, `kysely`, `@nestjs/*`, `fetch`, `process`; relógio e aleatório entram por parâmetro |
-| `packages/db` | `kysely`, `pg`, `@tracksys/contracts`, `@tracksys/domain` | `apps/*`, `@nestjs/*` |
+| `packages/db` | `kysely`, `pg`, `zod` (contexto do `withContext` e allowlist do catálogo, ambos com `z.strictObject`), `@tracksys/contracts`, `@tracksys/domain` | `apps/*`, `@nestjs/*` |
 | `packages/testkit` | Todos os `packages/*` | `apps/*`; só como `devDependency` |
 | `apps/api`, `apps/worker` | `contracts`, `db`, `domain`; `testkit` em dev | Um ao outro; `apps/console` |
 | `apps/console` | `contracts` (cliente TS gerado), `domain` | `db`, `apps/api`, `apps/worker` |
@@ -327,14 +327,16 @@ Verificação: pnpm isola `node_modules`, então importar pacote não declarado 
 
 ## 13. Configuração
 
-Toda configuração vem de variáveis de ambiente validadas por Zod no boot (REQ-ARQ-006). Nomes em `SCREAMING_SNAKE_CASE`, prefixo por integração (`TRACCAR_`, `ASAAS_`, `EMNIFY_`, `FCM_`, `S3_`); [12](12-cobranca-e-svas.md) e [13](13-infra-e-operacao.md) acrescentam as suas na mesma regra.
+Toda configuração vem de variáveis de ambiente validadas por Zod no boot (REQ-ARQ-006). Variáveis de banco com nomes canônicos [ADOTADO NA v2.0]: `DATABASE_URL` (dono), `DATABASE_URL_APP`, `DATABASE_URL_INGEST` e `DATABASE_URL_ADMIN` (só testes); `APP_DATABASE_URL`, `ADMIN_DATABASE_URL` e `INGEST_DATABASE_URL` não existem. Nomes em `SCREAMING_SNAKE_CASE`, prefixo por integração (`TRACCAR_`, `ASAAS_`, `EMNIFY_`, `FCM_`, `S3_`); [12](12-cobranca-e-svas.md) e [13](13-infra-e-operacao.md) acrescentam as suas na mesma regra.
 
 | Variável | Processo | Regra |
 |---|---|---|
 | `NODE_ENV` | api, worker | `development`, `test` ou `production` |
 | `TRACKSYS_DOMAIN` / `TRACKSYS_VERSION` | api, worker | Hostname (ex.: `tracksys.com.br` até DEC-04) / tag da imagem |
 | `LOG_LEVEL` | api, worker | `fatal`…`debug`, padrão `info` |
-| `DATABASE_URL_APP` / `DATABASE_URL_INGEST` | api, worker | URL Postgres com usuário `tracksys_app` / `tracksys_ingest` |
+| `DATABASE_URL` | dbmate, `db:check`, `db:types` | URL Postgres do papel dono `tracksys_owner`; nunca nos apps. Em produção, o compose injeta `MIGRATE_DATABASE_URL` como `DATABASE_URL` só no contêiner `migrate` (T-003, T-013) |
+| `DATABASE_URL_APP` / `DATABASE_URL_INGEST` | api, worker, testes | URL Postgres com usuário `tracksys_app` / `tracksys_ingest` |
+| `DATABASE_URL_ADMIN` | testes e semeadura | Superusuário local; só em testes e semeadura, nunca em `apps/` nem em produção |
 | `API_PORT` / `INTERNAL_PORT` | api | Inteiros, padrão 3000 / 3001, diferentes |
 | `WORKER_HEALTH_PORT` | worker | Inteiro, padrão 3002 |
 | `INGEST_SHARED_SECRET` | api | ≥ 32 caracteres |
@@ -345,6 +347,7 @@ Toda configuração vem de variáveis de ambiente validadas por Zod no boot (REQ
 | `EMAIL_DRIVER` / `EMAIL_FROM` | worker | `resend` ou `file` (`file` proibido com `NODE_ENV=production`) / remetente |
 | `RESEND_API_KEY` / `EMAIL_FILE_DIR` | worker | Obrigatória com `resend` / diretório do driver `file`, padrão `.tmp/emails` |
 | `SENTRY_DSN` | api, worker | URL, opcional |
+| `VITE_SENTRY_DSN` | console (build) | URL, opcional; sem DSN, o SDK do Sentry fica desligado (T-007) |
 
 [ADOTADO NA v2.0] Provedor de e-mail do F0: Resend [PREMISSA], atrás da porta `EmailSender` do `worker` (T-006). Trocar por Brevo é um adaptador novo, sem mudança de contrato.
 
@@ -395,7 +398,7 @@ Menos peças significa menos runbooks para o fundador e para o plantonista, um �
 
 ### REQ-ARQ-005 — Health e readiness por processo
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** —
-**Regra.** `api` e `worker` DEVEM expor `GET /health/live` (200 sem checar dependências, ≤ 50 ms) e `GET /health/ready` (200 só se o banco responde `SELECT 1` em ≤ 1 s; no `worker`, também pg-boss iniciado e LISTEN do relay ativo; senão 503 com a lista de checagens falhas). Em `https://api.<domínio>/health/ready` o corpo DEVE ser só `{"status":"ok"}` ou `{"status":"unavailable"}`. Healthcheck do Docker a cada 10 s, 3 falhas; contêiner `unhealthy` DEVE ser reiniciado em ≤ 90 s (mecanismo em [13](13-infra-e-operacao.md)).
+**Regra.** `api` e `worker` DEVEM expor `GET /health/live` (200 sem checar dependências, ≤ 50 ms) e `GET /health/ready` (200 só se o banco responde `SELECT 1` em ≤ 1 s; no `worker`, também pg-boss iniciado e LISTEN do relay ativo; senão 503 com a lista de checagens falhas). Em `https://api.<domínio>/health/ready` o corpo DEVE ser só `{"status":"ok"}` ou `{"status":"unavailable"}`. Healthcheck do Docker em `http://127.0.0.1:3001/health/ready` (`api`) e `:3002` (`worker`), a cada 10 s, 3 falhas; contêiner `unhealthy` DEVE ser reiniciado em ≤ 90 s (mecanismo em [13](13-infra-e-operacao.md)).
 **Aceite.** CT-ARQ-005 — Dado a stack no ar, Quando o contêiner `db` é parado, Então em ≤ 5 s `/health/ready` na porta interna do `api` (`INTERNAL_PORT`, 3001) e na do `worker` (`WORKER_HEALTH_PORT`, 3002) responde 503 com `checks.db = "fail"`, na porta pública do `api` (3000) responde 503 só com `{"status":"unavailable"}`, e `/health/live` responde 200; Quando o `db` volta, Então `/health/ready` volta a 200 em ≤ 15 s.
 
 ### REQ-ARQ-006 — Configuração por ambiente validada no boot

@@ -120,7 +120,7 @@ O nível do PR é o maior entre os arquivos alterados. Arquivo sem regra = N1. O
 | Nível | O que é | Caminhos (glob) |
 |---|---|---|
 | **N0** — domínio | Bloqueio e comandos, isolamento/RLS, cobrança/split, autenticação/step-up, failover | `packages/db/migrations/**` · `packages/db/src/context.ts` · `packages/db/catalog-allowlist.json` · `packages/domain/**/commands/**` (cobre `packages/domain/src/commands/` de [06](06-comandos-e-bloqueio.md)) · `apps/api/src/commands/**` · `apps/worker/src/commands/**` · `apps/api/src/auth/**` · `apps/api/src/identity/**` ([08](08-identidade-e-seguranca.md)) · `apps/api/src/billing/**` · `apps/worker/src/billing/**` · `packages/domain/**/billing/**` · `apps/mobile/lib/security/**` (chave do aparelho; alinhar com [10](10-apps-e-ux.md)) · `infra/scripts/failover*` |
-| **N0** — alavancagem | Arquivos que desligariam as guardas acima | `.github/**` · `AGENTS.md` · `CLAUDE.md` · alteração de arquivo existente em `tests/acceptance/**` · `infra/secrets/**` · `.sops.yaml` · `infra/scripts/deploy.sh` |
+| **N0** — alavancagem | Arquivos que desligariam as guardas acima | `.github/**` · `AGENTS.md` · `CLAUDE.md` · alteração de arquivo existente em `tests/acceptance/**` · `infra/secrets/**` · `.sops.yaml` · `infra/scripts/deploy.sh` · alteração de arquivo existente em `packages/testkit/fixtures/**` · `scripts/ci/**` · `scripts/trace.py` · `biome.json` · `tests/vitest.config.ts` · `infra/scripts/check-branch-protection.sh` · `package.json` da raiz com `scripts` alterados |
 | **N1** | Domínio e integrações | `apps/api/**`, `apps/worker/**`, `packages/**`, `infra/**` e `scripts/**` fora do N0 |
 | **N2** | UI e documentação | `apps/console/**`, `apps/mobile/**` fora do N0, `docs/**`, `tasks/**`, `README.md` |
 
@@ -137,7 +137,7 @@ O nível do PR é o maior entre os arquivos alterados. Arquivo sem regra = N1. O
 
 1. Os testes de aceite nascem no cartão, que entra em `main` antes da implementação. Formato: linha com o caminho entre crases seguida do bloco de código (igual à T-001). Fixtures grandes (capturas do J16) entram no PR do cartão em `packages/testkit/fixtures/`, com SHA-256 no `manifest.json` ([05](05-ingestao-e-telemetria.md)).
 2. O implementador copia os arquivos sem alterar nada para `tests/acceptance/T-NNN/`.
-3. **`acceptance-match`:** extrai os blocos do cartão **na versão de `origin/main`** (nunca da branch) e compara byte a byte com `tests/acceptance/T-NNN/`. Diferença ou arquivo faltando → falha listando os arquivos.
+3. **`acceptance-match`:** extrai os blocos do cartão **na versão de `origin/main`** (nunca da branch) e compara byte a byte com `tests/acceptance/T-NNN/`. Diferença ou arquivo faltando → falha listando os arquivos. Cartão sem blocos (testes descritos em tabela): o job avisa `modo tabela` e não compara; a conferência é a leitura linha a linha do fundador. Em N0 no modo tabela, "antes da implementação" = 1º commit do PR (`test(...): aceite congelado (T-NNN)`), lido pelo fundador antes dos commits seguintes.
 4. **`acceptance-freeze`** (conteúdo exato na T-001): PR que modifica, apaga ou renomeia arquivo existente em `tests/acceptance/**` falha sem o rótulo `acceptance-change`. Acrescentar arquivos de tarefa nova é permitido. A partir da primeira captura do J16 (T-002), o job cobre também `packages/testkit/fixtures/**`.
 5. `acceptance-change` só vale aplicado pelo fundador (REQ-QLD-006) e exige no PR o motivo, o CT afetado e o bloco novo no cartão: cartão e teste mudam juntos.
 6. Teste congelado instável é defeito: corrige-se a causa, com `acceptance-change`. Em `tests/acceptance/**`, `.skip`, `.only`, `.todo` e `retry` são proibidos: Biome `noFocusedTests` e `noSkippedTests` como erro; `acceptance-match` barra `.todo(` e `retry:`.
@@ -273,10 +273,10 @@ Dono: [04 §5](04-dominio-e-dados.md). Consultas e formato das violações: [T-0
 |---|---|
 | CAT-01 | Tabela do schema `app` sem RLS habilitada **e** forçada (`relrowsecurity` e `relforcerowsecurity`), salvo allowlist justificada em `packages/db/catalog-allowlist.json` |
 | CAT-02 | Tabela com RLS e nenhuma política |
-| CAT-03 | Tabela do schema `app` com `tenant_id` sem `operator_id`, ou com uma das duas anulável |
-| CAT-04 | FK cuja tabela referenciada tem `tenant_id` sem `tenant_id` entre as colunas; FK cuja tabela referenciada tem `operator_id` sem `operator_id` (exceção: FK para `app.operator (id)`) |
-| CAT-05 | `tracksys_app` superusuário, com BYPASSRLS ou dono de tabela do schema `app` |
-| CAT-06 | `tracksys_app` com UPDATE ou DELETE em tabela append-only da chave `appendOnly` da allowlist (`audit_log`, `command_event`, `access_log` quando existirem) |
+| CAT-03 | Tabela do schema `app` sem `operator_id` NOT NULL, exceto `app.operator` e as listadas em `withoutOperatorId` com justificativa; ou com `tenant_id` anulável fora de `nullableTenantId` |
+| CAT-04 | FK de tabela do schema `app` (exceto FK para `app.operator`) para tabela que tem `operator_id` e/ou `tenant_id` que não liga, **na mesma posição** de `conkey`/`confkey`, `operator_id → operator_id` e `tenant_id → tenant_id`; FK para `app.tenant` liga `operator_id → operator_id` e `tenant_id → id`. FK com colunas trocadas é violação |
+| CAT-05 | `tracksys_app` superusuário ou com BYPASSRLS; membro, direto ou herdado (`pg_has_role(..., 'MEMBER')`), de papel superusuário, com BYPASSRLS ou dono de objeto do schema `app`; ou dono de tabela, função ou do próprio schema `app` |
+| CAT-06 | `tracksys_app` com UPDATE (inclusive só em uma coluna, `has_any_column_privilege`), DELETE ou TRUNCATE em tabela da chave `appendOnly` da allowlist (`audit_log`, `command_event`, `access_log`, `position` quando existirem) |
 
 | Teste | Dado / Quando → Então |
 |---|---|
@@ -285,30 +285,32 @@ Dono: [04 §5](04-dominio-e-dados.md). Consultas e formato das violações: [T-0
 | ISO-03 | Sem contexto → 0 linhas |
 | ISO-04 | INSERT com `operator_id` de outra operadora → falha no WITH CHECK (SQLSTATE 42501) |
 | ISO-05 | FK composta impede vincular veículo a cliente de outra operadora (SQLSTATE 23503) |
-| ISO-06 | Meta-teste: tabela criada sem RLS é apontada pelo verificador (na T-001, uma tabela temporária por regra CAT, sempre com prefixo `tmp_` para não colidir com tabela real de tarefa futura, como `audit_log` da T-006); tudo desfeito com ROLLBACK |
+| ISO-06 | Meta-teste: uma tabela `app.tmp_*` por regra CAT (ex.: `tmp_append_only`), criada e desfeita na mesma transação, com a allowlist estendida só no teste, é apontada pelo verificador; o prefixo `tmp_` evita colisão com tabela real de tarefa futura (a T-006 cria `app.audit_log` sem precisar do rótulo `acceptance-change`); tudo desfeito com ROLLBACK |
 
-A T-001 implementa `operator`, `operator_brand`, `tenant` e `vehicle` com essas regras e acrescenta ISO-07 a ISO-09 ([04 §5.2](04-dominio-e-dados.md)). Toda tarefa que cria tabela no schema `app` repete ISO-01 a ISO-05 para ela nos testes congelados (REQ-QLD-011). A CAT-07 é proposta em [04](04-dominio-e-dados.md) e não está ativa.
+A T-001 implementa `operator`, `operator_brand`, `tenant` e `vehicle` com essas regras, semeia 2 operadoras × 2 clientes e acrescenta ISO-07 a ISO-09 ([04 §5.2](04-dominio-e-dados.md)). Toda tarefa que cria tabela no schema `app` repete ISO-01 a ISO-05 para ela nos testes congelados (REQ-QLD-011). A allowlist é validada por Zod `z.strictObject` (chave desconhecida = erro), com as chaves `rlsExempt`, `nullableTenantId`, `withoutOperatorId` e `appendOnly` na T-001. A CAT-07 (funções `SECURITY DEFINER` iguais à chave `securityDefiner`, [04 §4.4](04-dominio-e-dados.md)) entra com a primeira função definidora (T-005 ou T-006, a que chegar primeiro), que estende o schema Zod no mesmo PR.
 
 ## 11. Pipeline de CI
 
 | Job | Entra em | Passos | Tempo-alvo | Obrigatório |
 |---|---|---|---|---|
-| `verify` | T-001; ampliado pelas tarefas seguintes | `pnpm install --frozen-lockfile` → lint → typecheck → `db:up` → `db:lint` (F1) → `db:migrate` → rollback e up (CT-DAD-020) → `db:check` → `pnpm test` (unidade e propriedade) → `contracts:check` (T-004) → `check:boundaries` → `test:acceptance` | ≤ 8 min | Sim |
-| `acceptance-freeze` | T-001 | `git diff --diff-filter=MDR` em `tests/acceptance` | ≤ 1 min | Sim |
+| `verify` | T-001; ampliado pelas tarefas seguintes | `pnpm install --frozen-lockfile` → lint → typecheck → `db:up` → `db:lint` (T-019) → `db:migrate` → rollback e up (CT-DAD-020) → `db:check` → `pnpm test` (unidade e propriedade) → `contracts:check` (T-004) → `check:boundaries` → `test:acceptance` | ≤ 8 min | Sim |
+| `acceptance-freeze` | T-001; rótulo do fundador na T-019 | `git diff --diff-filter=MDR` em `tests/acceptance` e `packages/testkit/fixtures`; `acceptance-change` só vale com o `labeled` mais recente do `FOUNDER_LOGIN` | ≤ 1 min | Sim |
 | `acceptance-match` | T-019 | Blocos do cartão em `origin/main` × arquivos do PR | ≤ 1 min | Sim |
 | `risk-label` | T-019 | `.github/risk-paths.yml` → rótulo; falha se o nível declarado no PR < calculado | ≤ 1 min | Sim |
 | `review-record` | T-019 | Comentário de revisão válido no head (N0, N1) | ≤ 1 min | Sim |
 | `pr-title` | T-019 | Regex da §12 | ≤ 1 min | Sim |
 | `docs-check` | T-019 | Links relativos; `CLAUDE.md` com `@AGENTS.md`; `tasks:lint`; `trace.py` sem PROBLEMA novo | ≤ 1 min | Sim |
+| `label-guard` | T-019 | Rótulo de exceção (`acceptance-change`, `api-breaking`, `hotfix`) só vale aplicado pelo `FOUNDER_LOGIN` (REQ-QLD-006) | ≤ 1 min | Sim |
+| `migration-lint` | T-019 | `pnpm db:lint` (REQ-DAD-021) com o script de `main` | ≤ 1 min | Sim |
 | `secrets` | [08](08-identidade-e-seguranca.md) (REQ-SEG-019) | gitleaks | ≤ 1 min | Sim |
-| `api-compat` | T-004 | `oasdiff breaking --fail-on ERR` ([09](09-api-e-contratos.md)) | ≤ 2 min | Sim |
+| `contracts-breaking` | T-004 | `pnpm contracts:breaking` (`oasdiff breaking --fail-on ERR`, [09](09-api-e-contratos.md)); dispensado só pelo rótulo `api-breaking` válido no `label-guard` | ≤ 2 min | Sim |
 | `e2e-console` | F1 | Playwright | ≤ 6 min | F1, se tocar console ou contratos |
 | `mutation` | F1 | Stryker incremental | ≤ 6 min | F1, se tocar `packages/domain/src/commands/**` |
 | `bench-evidence` | F1 (antes do G-CMD) | Digest do Traccar × manifest da bancada | ≤ 1 min | Se tocar caminhos da §9.3 |
 | `acceptance-red` | F1 | Testes novos contra `origin/main` | ≤ 5 min | Se houver testes novos |
 | `e2e-mobile` | F1 | `flutter test integration_test` | ≤ 15 min | Não bloqueia PR; bloqueia publicação |
 
-[ADOTADO NA v2.0: cartão **T-019 — Guardas de processo no CI** ([02 §2.3](02-escopo-e-fases.md); o arquivo do cartão em `tasks/` ainda não foi escrito) no S1–S2 do F0, risco N0, 1 sessão, depende só da T-001, entregando `risk-label`, `review-record`, `pr-title`, `acceptance-match`, `docs-check` e `tasks:lint`. Até o merge dele, o fundador confere esses itens pelo checklist do template de PR.]
+[ADOTADO NA v2.0: cartão **T-019 — Guardas de processo no CI** ([tasks/T-019-guardas-de-processo-no-ci.md](../../tasks/T-019-guardas-de-processo-no-ci.md)) no S1–S2 do F0, risco N0, 3 sessões, depende só da T-001, entregando `risk-label`, `review-record`, `pr-title`, `acceptance-match`, `docs-check`, `tasks:lint`, `label-guard`, `migration-lint` (`db:lint`), `acceptance-freeze` com rótulo do fundador e a issue semanal de riscos. Os jobs da T-019 rodam em `.github/workflows/guards.yml` (`pull_request_target` e `issue_comment`), com scripts de `main` e status de commit no SHA do head. Até o merge dele, o fundador confere esses itens pelo checklist do template de PR.]
 
 Regras:
 1. Os jobs correm em paralelo; `verify` é o caminho longo. Meta: p90 do pipeline obrigatório ≤ 10 min, com cache do pnpm (T-001) e cache da imagem do banco no GitHub Actions.
@@ -322,7 +324,7 @@ Regras:
 - **Branch:** `t-NNN-slug`, ex.: `t-001-fundacao-monorepo-e-isolamento`. Uma tarefa por branch e por PR.
 - **Título do PR = mensagem do squash** (Conventional Commits): `^(feat|fix|refactor|perf|test|docs|chore|ci|build)(\([a-z0-9-]+\))?!?: .+ \((T-\d{3}|hotfix|deps)\)$`. Ex.: `feat(db): fundação do monorepo e isolamento em 3 níveis (T-001)`.
 - **Escopos:** módulos de [03 §4](03-arquitetura.md) (`identity`, `fleet`, `ingestion`, `alerts`, `commands`, `billing`, `sva`, `support`, `compliance`, `onboarding`, `platform`) e `db`, `contracts`, `domain`, `testkit`, `console`, `mobile`, `infra`, `ci`, `spec`, `adr`, `tasks`, `deps`.
-- **Rótulos:** `risk:N0|N1|N2` (CI); `acceptance-change`, `api-breaking`, `hotfix` (só o fundador); `question` (pergunta do agente ao fundador); `nightly-failure` (CI).
+- **Rótulos:** `risk:N0|N1|N2` (CI); `acceptance-change`, `api-breaking`, `hotfix` (só o fundador); `question` (pergunta do agente ao fundador); `nightly-failure` (CI); `risk-review` (CI, issue semanal da revisão de riscos).
 - **Hotfix:** com incidente aberto, PR `fix(<escopo>): … (hotfix)`; `verify` obrigatório; em N1/N2, `review-record` aceita o rótulo `hotfix` e abre issue de revisão cruzada pendente, feita em até 24 h após o merge; N0 nunca dispensa revisão cruzada; hotfix nunca toca `tests/acceptance/**`.
 
 Template `.github/pull_request_template.md`:
@@ -401,8 +403,8 @@ Escape em INV congela merges N0 até o postmortem (modelo no [Anexo C §6](../an
 **Aceite.** CT-QLD-005 — Dado um PR sem rótulo que muda `expect(res.rows).toEqual([])` em `tests/acceptance/T-001/isolation.test.ts`, Quando o job roda, Então falha listando o arquivo; Dado um PR que só acrescenta `tests/acceptance/T-005/inbox.test.ts`, Então passa; Dado o mesmo PR com o rótulo `acceptance-change`, Então passa.
 
 ### REQ-QLD-006 — Rótulos de exceção só pelo fundador
-**Fase:** F1 · **Prioridade:** P1 · **Risco:** N0 · **Invariantes:** —
-**Regra.** `acceptance-change`, `api-breaking` e `hotfix` só DEVEM ter efeito se o evento `labeled` mais recente for do login do fundador (variável `FOUNDER_LOGIN` do repositório).
+**Fase:** F0 · **Prioridade:** P1 · **Risco:** N0 · **Invariantes:** —
+**Regra.** `acceptance-change`, `api-breaking` e `hotfix` só DEVEM ter efeito se o evento `labeled` mais recente for do login do fundador (variável `FOUNDER_LOGIN` do repositório). [ADOTADO NA v2.0: antecipado do F1 para o F0 pela T-019.]
 **Aceite.** CT-QLD-006 — Dado um PR que altera `tests/acceptance/T-001/catalog.test.ts` com `acceptance-change` aplicado por `versix-agent`, Quando `acceptance-freeze` roda, Então falha com `rótulo acceptance-change aplicado por versix-agent; exige o fundador`; aplicado pelo fundador, Então passa.
 
 ### REQ-QLD-007 — Revisão adversarial por outro fornecedor registrada

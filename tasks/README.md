@@ -30,7 +30,7 @@ Um cartão só entra em execução quando tem:
 3. Escopo "fazer" e "fora do escopo" explícitos.
 4. Lista de arquivos a criar/alterar.
 5. Contratos (schemas, SQL, rotas) ou link exato para eles.
-6. Testes de aceite com Dado/Quando/Então e valores concretos. Para N0, os arquivos de teste ficam prontos em `tests/acceptance/T-NNN/` **antes** da implementação.
+6. Testes de aceite com Dado/Quando/Então e valores concretos. Para N0, os arquivos de teste ficam prontos em `tests/acceptance/T-NNN/` **antes** da implementação. Cartão com blocos: o implementador copia os blocos; cartão em tabela: os testes são o 1º commit do PR, lido pelo fundador antes da implementação (um PR só de testes quebraria o `verify` de `main`).
 7. Comandos de verificação exatos.
 8. Dependências (tarefas e DEC) resolvidas ou com plano B escrito.
 9. Seção "Decisões já tomadas" com respostas às dúvidas prováveis.
@@ -72,4 +72,4 @@ Um cartão só entra em execução quando tem:
 
 ## Índice de tarefas
 
-O índice com todas as tarefas do F0 e do F1 está em [INDEX.md](INDEX.md).
+O índice com todas as tarefas do F0 e do F1 está em [INDEX.md](INDEX.md): fase, janela, risco, dependências, status (pronto ou resumido), caminho crítico e ordem sugerida de execução. No F0, a tabela 2.3 de [docs/spec/02-escopo-e-fases.md](../docs/spec/02-escopo-e-fases.md) continua dona de fase, dependência e risco. Cartão resumido (com a seção "Para completar o DoR") não é implementado antes de cumprir o DoR.
