@@ -16,7 +16,7 @@
 4. **CI:** regenera OpenAPI e clientes e falha com `git diff --exit-code`; compara o OpenAPI com o de `main` e falha em mudança incompatível dentro de `/api/v1` (ferramenta de diff de OpenAPI [VALIDAR]).
 5. **Validação em runtime:** o `api` valida entrada e saída com os mesmos schemas (pipe Zod próprio, sem class-validator); o `worker` valida payload de job e de outbox ao consumir.
 6. **Evolução:** em `/api/v1` só mudança aditiva, com campo novo opcional. Remoção ou troca de tipo exige `/api/v2`, ou evento `.v2` publicado em paralelo durante a migração (regras em [09](../spec/09-api-e-contratos.md)).
-7. **Tempo real por SSE:** `GET /api/v1/stream` envia `vehicle.state` com `id: <revision>`; reconexão com `Last-Event-ID` recebe o snapshot do escopo ([03 §7](../spec/03-arquitetura.md)). Escritas e comandos sempre por POST. O app usa SSE só em primeiro plano; em segundo plano, push.
+7. **Tempo real por SSE:** `GET /api/v1/stream` envia `vehicle.state` com `id: <revision>`; reconexão com `Last-Event-ID` recebe o snapshot do escopo ([03 §7](../spec/03-arquitetura.md#7-tempo-real-sse--listennotify)). Escritas e comandos sempre por POST. O app usa SSE só em primeiro plano; em segundo plano, push.
 
 ## Alternativas consideradas
 

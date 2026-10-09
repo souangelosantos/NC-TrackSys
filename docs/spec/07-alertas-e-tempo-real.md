@@ -33,12 +33,15 @@
 | `low_battery` | F1 | `alarms` contém `lowBattery`, ou `batteryLevel ≤ 20` com `power_state ≠ 'main'` | warning | Posição ou heartbeat | `batteryLevel` reportado [VALIDAR — DEC-02] | Ligado | "Bateria do rastreador baixa" — "{veículo}: bateria interna em {n}% sem energia do veículo." |
 | `overspeed` | F1 | 2 fixes válidos consecutivos acima do limite do usuário (padrão 110 km/h; faixa 40–200) | warning | Posição | Não | Desligado | "Excesso de velocidade" — "{veículo}: {v} km/h às {hora}, acima do limite de {limite} km/h." |
 | `geofence` | F1 | 2 fixes válidos consecutivos do outro lado da borda da cerca (borda conta como dentro) | warning | Posição + `geofence` | Não | Ligado para a cerca criada | "Cerca virtual" — "{veículo} {entrou em \| saiu de} {cerca} às {hora}." |
+| `command_unknown` | F1 | Comando de relé entra em `UNKNOWN` com `processingMode = live` ([06 §8](06-comandos-e-bloqueio.md#8-confirmação-unknown-e-reconciliação)); `episode_key = command_unknown:{commandId}` | critical | Máquina de estados do comando | Não | Ligado, não desativável | "Comando não confirmado" — "{veículo}: não foi possível confirmar o {bloqueio \| desbloqueio} pedido às {hora}. O veículo pode ou não estar bloqueado. Fale com a central." |
+| `command_failed` | F1 | Comando de relé entra em `FAILED` com `processingMode = live`; `episode_key = command_failed:{commandId}` | warning | Máquina de estados do comando | Não | Ligado | "Comando não executado" — "{veículo}: o {bloqueio \| desbloqueio} pedido às {hora} não foi executado. Nada mudou no veículo." |
 
 Regras do catálogo:
 1. `{veículo}` = apelido do veículo, senão a placa; `{hora}` = `HH:mm` em America/Sao_Paulo [PREMISSA: fuso único por operadora até existir campo de fuso]. Texto sem coordenadas nem endereço (aparece na tela bloqueada).
-2. **Disponibilidade:** o tipo só existe para o veículo se o perfil do dispositivo primário tem a capacidade exigida igual a `'yes'`. Capacidade `'unknown'` ou `'no'` → tipo indisponível ("Indisponível neste rastreador" nas preferências); alarme recebido mesmo assim fica em `position.extra` e soma `alerts_unexpected_alarm_total{alarm}`, sem abrir alerta (INV-03). **Vocabulário:** capacidade é sempre `'yes'`/`'no'`/`'unknown'` no `capability_profile` ([04](04-dominio-e-dados.md) §3.3, T-002), nunca booleano nem NULL; só `'yes'` habilita o alerta, e `'unknown'` é tratada como ausente (INV-03); texto antigo com `true`/`false`/`null` para capacidade lê-se `'yes'`/`'no'`/`'unknown'`.
+2. **Disponibilidade:** o tipo só existe para o veículo se o perfil do dispositivo primário tem a capacidade exigida igual a `'yes'`. Capacidade `'unknown'` ou `'no'` → tipo indisponível ("Indisponível neste rastreador" nas preferências); alarme recebido mesmo assim fica em `position.extra` e soma `alerts_unexpected_alarm_total{alarm}`, sem abrir alerta (INV-03). **Vocabulário:** capacidade é sempre `'yes'`/`'no'`/`'unknown'` no `capability_profile` ([04 §3.3](04-dominio-e-dados.md#33-frota), T-002), nunca booleano nem NULL; só `'yes'` habilita o alerta, e `'unknown'` é tratada como ausente (INV-03); texto antigo com `true`/`false`/`null` para capacidade lê-se `'yes'`/`'no'`/`'unknown'`.
 3. **Ignição desligada por padrão:** ligada, notificaria cada uso legítimo do dono; o modo vigilância cobre o carro estacionado. O app oferece ligar no primeiro acesso ([10](10-apps-e-ux.md)).
-4. Avisos de encerramento (severidade `info`): "{veículo} voltou a comunicar às {hora}." (`offline`, `signal_lost_moving`) e "{veículo}: energia do veículo restabelecida às {hora}." (`power_cut`), só para quem recebeu o push de abertura.
+4. Os tipos `command_*` não usam o índice `alert_open_key` de [04 §3.6](04-dominio-e-dados.md#36-alertas): cada comando tem o seu episódio (`episode_key` único), e dois comandos UNKNOWN no mesmo rastreador geram dois alertas abertos e dois pushes. O alerta de um comando fecha quando o comando sai de `UNKNOWN` por evidência tardia.
+5. Avisos de encerramento (severidade `info`): "{veículo} voltou a comunicar às {hora}." (`offline`, `signal_lost_moving`) e "{veículo}: energia do veículo restabelecida às {hora}." (`power_cut`), só para quem recebeu o push de abertura.
 
 | Severidade | Android | iOS | Console |
 |---|---|---|---|
@@ -47,7 +50,7 @@ Regras do catálogo:
 
 ## 3. Avaliação
 
-1. **Entradas:** job `alerts.evaluate` por `device.state.updated.v1` (payload lido da outbox sob o contexto RLS do job, [05 §10](05-ingestao-e-telemetria.md)); laço de silêncio a cada 15 s (§4); ações no `api` (reconhecer, desativar vigilância), que fecham episódios na própria transação.
+1. **Entradas:** job `alerts.evaluate` por `device.state.updated.v1` (payload lido da outbox sob o contexto RLS do job, [05 §10](05-ingestao-e-telemetria.md#10-eventos-de-outbox)); laço de silêncio a cada 15 s (§4); ações no `api` (reconhecer, desativar vigilância), que fecham episódios na própria transação.
 2. **Serialização por dispositivo:** toda transação de avaliação começa com `SELECT pg_advisory_xact_lock(hashtextextended('alerts:' || $device_id, 0))`.
 3. **Transições exatas:** o consumidor usa `transitions`, `location` e `previousLocation` do evento, calculados sob o lock da projeção; não guarda estado próprio. No F0–F1 só o dispositivo primário do veículo (`isPrimary = true`) gera alertas.
 4. **Reordenação:** se o evento abre um episódio mas `device_state.revision` já é maior e o estado atual contradiz a condição (ex.: ignição agora `false`), o alerta é aberto e fechado na mesma transação (`closeReason = 'superseded'`) e segue a regra de entrega normal.
@@ -76,7 +79,7 @@ Exemplo de evento (ids fictícios); `alert.closed.v1` acrescenta `endedAt`, `clo
    - (b) com ≥ 10 dispositivos com contato nas últimas 24 h, mais de 50% deles passam de 180 s sem contato dentro de 5 min;
    - (c) a ingestão não recebe nenhuma mensagem por > 120 s, tendo havido contato de ≥ 1 dispositivo nos 10 min anteriores.
 
-   Fórmulas computáveis de (b) e (c), avaliadas a cada 15 s sobre os vínculos correntes de todas as operadoras (`app.list_operator_ids()` e o contexto `operator` de cada uma, agregando `device_state`) [ADOTADO NA v2.0: T-011]:
+   Fórmulas computáveis de (b) e (c), avaliadas a cada 15 s sobre os vínculos correntes de todas as operadoras (`app.list_operator_ids()` e o contexto `operator` de cada uma, agregando `device_state`) T-011:
    - (b) `N` = vínculos com `last_contact_at ≥ now − 86.400 s`; vale se `N ≥ 10` e mais de 50% de `N` têm `last_contact_at` em `[now − 480 s, now − 180 s)`;
    - (c) `M = max(last_contact_at)` sobre os mesmos vínculos; vale se `now − 720 s ≤ M < now − 120 s`.
 
@@ -113,15 +116,15 @@ Um modo ativo por veículo (índice único parcial `watch_mode (vehicle_id) WHER
 
 1. `{revision}` é a do `device.state.updated.v1` que abriu, ou a de `device_state` na avaliação de silêncio: a mesma entrada gera a mesma chave (INV-01 aplicado aos alertas).
 2. No máximo 1 episódio aberto por `(device_id, type)`: índice único parcial `alert (device_id, type) WHERE ended_at IS NULL` (proposta para [04](04-dominio-e-dados.md)).
-3. Reconhecer grava `acknowledged_at`/`acknowledged_by` e só fecha onde a tabela diz. Exceção para todos os tipos: a transferência do veículo ([04 §9.1](04-dominio-e-dados.md) passo 7) encerra os episódios abertos em T com `closeReason = 'vehicle_transferred'` e `notifyClose = false` (T-011).
+3. Reconhecer grava `acknowledged_at`/`acknowledged_by` e só fecha onde a tabela diz. Exceção para todos os tipos: a transferência do veículo ([04 §9.1](04-dominio-e-dados.md#91-transferência-sem-mover-histórico-inv-06) passo 7) encerra os episódios abertos em T com `closeReason = 'vehicle_transferred'` e `notifyClose = false` (T-011).
 4. `started_at` = instante do fato (`observedAt`, `fixTime` ou limiar cruzado); `ended_at` = instante do fato que fechou.
 5. `alert.evidence`: `{openRevision, closeRevision, trigger, processingMode, stale, signalCount, lastSignalAt, closeReason, lastLocation: {latitude, longitude, fixTime} | null, timings: {originAt, receivedAt, projectedAt, openedAt}}`.
 
 ## 7. Entrega push (FCM)
 
-1. **Destinatários:** usuários com membership ativa no cliente do veículo (`tenant_owner`; `tenant_member` com acesso ao veículo, [08](08-identidade-e-seguranca.md)), preferência ligada para (veículo, tipo) e ≥ 1 `push_token`. Equipe da operadora usa a fila do console (§9); sem push para ela no F0–F1. [ADOTADO NA v2.0: no F0 só `tenant_owner` recebe push; `tenant_member` entra quando o acesso por veículo de [08](08-identidade-e-seguranca.md) (`membership.vehicle_ids`) existir, no F1 (T-012; escolha reversível, [15 §5](15-decisoes-riscos-premissas.md)).]
+1. **Destinatários:** usuários com membership ativa no cliente do veículo (`tenant_owner`; `tenant_member` com acesso ao veículo, [08](08-identidade-e-seguranca.md)), preferência ligada para (veículo, tipo) e ≥ 1 `push_token`. No F0 só `tenant_owner` recebe push; `tenant_member` entra no F1 (T-012; escolha reversível, [15 §5](15-decisoes-riscos-premissas.md#5-propostas-de-decisão-registradas-nos-capítulos)). Equipe da operadora usa a fila do console (§9); no F0 não recebe push. Desde 01–15/11 (F1), a equipe com `membership.on_call = true` recebe os críticos `sos`, `power_cut` e `signal_lost_moving` por Pushover (REQ-ALR-024), além do titular.
 2. **Chave:** `delivery_key = {alertId}:{userId}:push:{open|close}`; `INSERT … ON CONFLICT (delivery_key) DO NOTHING`. Uma `alert_delivery` por usuário; envio para até 5 tokens do usuário (os de `last_seen_at` mais recente, até 60 dias). `sent` quando ≥ 1 token recebe 200; `sent_at` = primeiro 200. Sem token → `no_token`.
-3. **Status:** `pending`, `sent`, `failed`, `expired` (janela do §3 item 6 vencida), `suppressed` (`ALERT_DELIVERY_ENABLED=false`), `no_token`. [ADOTADO NA v2.0: variável `ALERT_DELIVERY_ENABLED`, padrão `true`, desligada em ensaio de restore e na standby antes da promoção, simétrica a `COMMAND_DISPATCH_ENABLED` de REQ-ARQ-016.]
+3. **Status:** `pending`, `sent`, `failed`, `expired` (janela do §3 item 6 vencida), `suppressed` (`ALERT_DELIVERY_ENABLED=false`), `no_token`. Variável `ALERT_DELIVERY_ENABLED`, padrão `true`, desligada em ensaio de restore e na standby antes da promoção, simétrica a `COMMAND_DISPATCH_ENABLED` de REQ-ARQ-016.
 4. **Retentativa:** até 5 tentativas, esperas de 2, 4, 8 e 16 s × fator em [0,8; 1,2], respeitando `Retry-After` maior; para quando a janela vence (`expired`).
 5. **Colapso:** `collapseId` = 32 primeiros caracteres hex de SHA-256 da `episode_key`; o aviso de encerramento usa o mesmo id e substitui a notificação de abertura. TTL: 3.600 s (`critical`), 1.800 s (`warning`), 600 s (`info`).
 
@@ -144,7 +147,7 @@ POST https://fcm.googleapis.com/v1/projects/{FCM_PROJECT_ID}/messages:send
 | 401 `THIRD_PARTY_AUTH_ERROR` | `failed` e aviso ao fundador (credencial APNs) |
 | 429 `QUOTA_EXCEEDED`, 500 `INTERNAL`, 503 `UNAVAILABLE`, timeout de 10 s, erro de rede | Retentativa (item 4) |
 
-**Tokens:** `PUT /api/v1/me/push-tokens` com `{"token": "…", "platform": "android" | "ios"}` faz upsert pelo token (o token passa a pertencer ao usuário atual) e renova `last_seen_at`; o app chama no login, a cada abertura e na renovação do token. Logout chama `DELETE /api/v1/me/push-tokens` com `{"token": "…"}`. Job diário apaga tokens sem uso há 60 dias. Credenciais: `FCM_PROJECT_ID` e `FCM_SERVICE_ACCOUNT_JSON` (base64), validadas no boot do `worker` ([03 §13](03-arquitetura.md)). Canais Android e permissão Time Sensitive no iOS: [10](10-apps-e-ux.md).
+**Tokens:** `PUT /api/v1/me/push-tokens` com `{"token": "…", "platform": "android" | "ios"}` faz upsert pelo token (o token passa a pertencer ao usuário atual) e renova `last_seen_at`; o app chama no login, a cada abertura e na renovação do token. Logout chama `DELETE /api/v1/me/push-tokens` com `{"token": "…"}`. Job diário apaga tokens sem uso há 60 dias. Credenciais: `FCM_PROJECT_ID` e `FCM_SERVICE_ACCOUNT_JSON` (base64), validadas no boot do `worker` ([03 §13](03-arquitetura.md#13-configuração)). Canais Android e permissão Time Sensitive no iOS: [10](10-apps-e-ux.md).
 
 ## 8. Preferências por usuário
 
@@ -153,18 +156,18 @@ Tabela proposta para [04](04-dominio-e-dados.md): `alert_preference (id, operato
 | Rota | Comportamento |
 |---|---|
 | `GET /api/v1/me/alert-preferences?vehicleId=<uuid>` | Lista `{type, enabled, locked, available, params}` para os tipos da fase em vigor |
-| `PUT /api/v1/me/alert-preferences` com `{vehicleId, type, enabled, params?}` | 200; `sos` e `watch_mode_breach` com `enabled = false` → 422 `ALERT_PREFERENCE_LOCKED`; `overspeed.params.limitKmh` fora de 40–200 → 422; veículo fora do escopo → 404 |
+| `PUT /api/v1/me/alert-preferences` com `{vehicleId, type, enabled, params?}` | 200; `sos`, `watch_mode_breach` e `command_unknown` com `enabled = false` → 422 `ALERT_PREFERENCE_LOCKED`; `overspeed.params.limitKmh` fora de 40–200 → 422; veículo fora do escopo → 404 |
 
-A preferência só decide a entrega ao usuário. O episódio é sempre registrado e aparece na fila da central. As duas rotas são só de `tenant_owner` e `tenant_member`; equipe da operadora recebe 403 `FORBIDDEN` ([09 §3](09-api-e-contratos.md)), porque não recebe push no F0–F1 [ADOTADO NA v2.0: T-012; escolha reversível, [15 §5](15-decisoes-riscos-premissas.md)].
+A preferência só decide a entrega ao usuário. O episódio é sempre registrado e aparece na fila da central. As duas rotas são só de `tenant_owner` e `tenant_member`; equipe da operadora recebe 403 `FORBIDDEN` ([09 §3](09-api-e-contratos.md#3-erros-problem-details)), porque as preferências são do titular; a entrega à equipe `on_call` é regida pelo REQ-ALR-024 (T-012; escolha reversível, [15 §5](15-decisoes-riscos-premissas.md#5-propostas-de-decisão-registradas-nos-capítulos)).
 
 ## 9. Fila de alertas no console da central
 
 1. `GET /api/v1/alerts?status=open|acknowledged|closed&severity=&vehicleId=&from=&to=&cursor=`. Escopo operadora para `operator_admin`, `operator_agent` e `search_team`; usuários do cliente veem só os seus.
 2. Ordem: abertos sem reconhecimento primeiro; depois severidade (`critical` > `warning` > `info`); depois `started_at` crescente.
 3. Colunas: severidade, tipo (rótulo PT-BR), veículo (apelido e placa), cliente, início em BRT e duração, idade do último contato, reconhecido por e quando.
-4. Ações: **Reconhecer** (`POST /api/v1/alerts/{id}/acknowledge`, `{"note": "…"}` opcional até 500 caracteres; idempotente; grava `audit_log` `alert.acknowledge`; só `operator_admin`, `operator_agent` e `search_team`, usuário do cliente → 403 `FORBIDDEN` ([09 §3](09-api-e-contratos.md); permissão `alert.ack` só da equipe) [ADOTADO NA v2.0: T-011; escolha reversível, [15 §5](15-decisoes-riscos-premissas.md)]); ver no mapa; WhatsApp ou telefone do cliente por deep link ([10](10-apps-e-ux.md)); abrir atendimento com `alert_id` (F1).
+4. Ações: **Reconhecer** (`POST /api/v1/alerts/{id}/acknowledge`, `{"note": "…"}` opcional até 500 caracteres; idempotente; grava `audit_log` `alert.acknowledge`; só `operator_admin`, `operator_agent` e `search_team`, usuário do cliente → 403 `FORBIDDEN` ([09 §3](09-api-e-contratos.md#3-erros-problem-details); permissão `alert.ack` só da equipe) T-011; escolha reversível, [15 §5](15-decisoes-riscos-premissas.md#5-propostas-de-decisão-registradas-nos-capítulos)); ver no mapa; WhatsApp ou telefone do cliente por deep link ([10](10-apps-e-ux.md)); abrir atendimento com `alert_id` (F1).
 5. Atualização ao vivo pelo evento SSE `alert` (§11); alerta `critical` novo toca som com a aba aberta ([10](10-apps-e-ux.md)).
-6. No F0 a fila existe como API (T-011) e evento SSE; a tela C08 do console é F1 ([10](10-apps-e-ux.md) §9), na T-029.
+6. No F0 a fila existe como API (T-011) e evento SSE; a tela C08 do console é F1 ([10 §9](10-apps-e-ux.md#9-console--telas)), na T-029.
 
 ## 10. Medição de latência
 
@@ -191,13 +194,13 @@ WHERE d.status = 'sent' AND d.sent_at >= $1 AND d.sent_at < $2;
 
 | Item | Regra |
 |---|---|
-| Autenticação | Sessão Better Auth por cookie (console) ou `Authorization: Bearer` (app). Token em query string nunca é aceito. Sem sessão, ou sessão sem membership ativa (ex.: revogada), → 401 `AUTH_REQUIRED` (CT-ALR-019; exceção ao 404 de [08 §4](08-identidade-e-seguranca.md) item 3) |
+| Autenticação | Sessão Better Auth por cookie (console) ou `Authorization: Bearer` (app). Token em query string nunca é aceito. Sem sessão, ou sessão sem membership ativa (ex.: revogada), → 401 `AUTH_REQUIRED` (CT-ALR-019; exceção ao 404 de [08 §4](08-identidade-e-seguranca.md#4-do-request-ao-banco) item 3) |
 | Escopo | `?vehicleIds=<uuid>,<uuid>` (até 200). Ausente: todo o escopo da membership se ≤ 200 veículos; senão 422 `STREAM_SCOPE_TOO_LARGE` com `maxVehicles: 200`. Qualquer id fora do escopo → 404 para o pedido inteiro |
 | Limites | 200 veículos por conexão; 2 conexões por sessão (a 3ª abre e a mais antiga recebe `close` com `replaced`); vida máxima 60 min (`lifetime`); fila de saída > 500 eventos (`overflow`). Console com mais de 200 veículos divide o escopo em 2 conexões (Lider: ~300). [ADIADO PARA O F2: conexão de escopo operadora com até 1.000 veículos quando uma operadora passar de 400 veículos ativos (F2).] |
 | Cabeçalhos | `Content-Type: text/event-stream; charset=utf-8`, `Cache-Control: no-cache, no-transform`, `X-Accel-Buffering: no` |
 | Eventos | `vehicle.state` com `id: <revision>`; `alert` sem `id`; `ready` ao fim do snapshot; `close` antes de encerrar |
-| Heartbeat | Comentário `: keep-alive <RFC 3339>` a cada 15 s ([03 §7](03-arquitetura.md)) |
-| Origem | NOTIFY `device_state` (coalescido 250 ms por dispositivo) e NOTIFY `alert_changed`; o `api` relê sob o contexto RLS da conexão; nada passa pelo pg-boss. [ADOTADO NA v2.0] A T-008 entrega o hub, o LISTEN `alert_changed` e a porta `AlertSource` com `NullAlertSource`; o adaptador SQL sobre `app.alert` é da T-011 ([02 §2.3](02-escopo-e-fases.md)) |
+| Heartbeat | Comentário `: keep-alive <RFC 3339>` a cada 15 s ([03 §7](03-arquitetura.md#7-tempo-real-sse--listennotify)) |
+| Origem | NOTIFY `device_state` (coalescido 250 ms por dispositivo) e NOTIFY `alert_changed`; o `api` relê sob o contexto RLS da conexão; nada passa pelo pg-boss. A T-008 entrega o hub, o LISTEN `alert_changed` e a porta `AlertSource` com `NullAlertSource`; o adaptador SQL sobre `app.alert` é da T-011 ([02 §2.3](02-escopo-e-fases.md#23-cartões-de-tarefa-do-f0)) |
 | Revogação | Logout, troca de senha ou remoção de membership dispara NOTIFY `auth_changed` ([08](08-identidade-e-seguranca.md)); conexões afetadas recebem `close` com `session_revoked` em ≤ 5 s. Sessão revalidada a cada 60 s (`session_expired`) |
 
 ```text
@@ -219,7 +222,7 @@ data: {"vehicles":1,"openAlerts":1,"serverTime":"2026-10-20T15:20:01.002Z"}
 1. **Snapshot:** ao conectar, o servidor envia `retry: 5000`, um `vehicle.state` por veículo do escopo (revisão atual), os alertas abertos do escopo e `ready`. Depois, só mudanças.
 2. **Reconexão:** o cliente manda `Last-Event-ID`; o servidor sempre reenvia o snapshot completo (a revisão é por dispositivo, não cursor global). O cliente descarta `vehicle.state` com o mesmo `(vehicleId, deviceId)` e revisão menor ou igual à exibida; `deviceId` diferente substitui. `alert` é deduplicado por `alertId` com precedência `closed` > `acknowledged` > `open` (INV-04).
 3. **`close`:** `session_revoked` e `session_expired` levam ao login, sem reconexão; `replaced`, `lifetime`, `overflow` e `shutdown` reconectam com espera de 1 s dobrando até 30 s, ± 20%.
-4. **Campos:** `position` é `null` sem fix válido; `ignition`, `relayState` e `powerState` seguem INV-03 (`null`/`unknown`, nunca `false` por ausência). `presence` é calculado na emissão por `packages/domain/src/alerts/presence.ts` e recalculado no cliente a cada 10 s com a mesma tabela: `lost_moving` (regra do `signal_lost_moving`, com idade do contato ≥ `max(180 s, 3 × moving_interval_s)`), `offline` (sem contato registrado ou idade ≥ 1.800 s), `delayed` (idade ≥ `stopped_interval_s` + 60 s; J16: 360 s), senão `online`. Os limiares de presença são inclusivos (`≥`): com exatamente 360 s o selo já é `delayed` (CT-UX-004) [ADOTADO NA v2.0: T-008]. A abertura dos alertas do §4 continua com `>`.
+4. **Campos:** `position` é `null` sem fix válido; `ignition`, `relayState` e `powerState` seguem INV-03 (`null`/`unknown`, nunca `false` por ausência). `presence` é calculado na emissão por `packages/domain/src/alerts/presence.ts` e recalculado no cliente a cada 10 s com a mesma tabela: `lost_moving` (regra do `signal_lost_moving`, com idade do contato ≥ `max(180 s, 3 × moving_interval_s)`), `offline` (sem contato registrado ou idade ≥ 1.800 s), `delayed` (idade ≥ `stopped_interval_s` + 60 s; J16: 360 s), senão `online`. Os limiares de presença são inclusivos (`≥`): com exatamente 360 s o selo já é `delayed` (CT-UX-004) T-008. A abertura dos alertas do §4 continua com `>`.
 5. O app usa SSE só em primeiro plano; em segundo plano, push ([ADR-008](../adr/ADR-008-contrato-primeiro-zod-openapi-sse.md)). Visitante de link compartilhado usa fluxo próprio ([08](08-identidade-e-seguranca.md)).
 
 ## 12. Invariantes aplicadas
@@ -344,6 +347,16 @@ data: {"vehicles":1,"openAlerts":1,"serverTime":"2026-10-20T15:20:01.002Z"}
 **Aceite.** CT-ALR-022 — Dado a cerca circular "Casa" de 300 m centrada em (−5,0892110, −42,8018920) com gatilho `both` e V1 dentro, Quando chegam 2 fixes válidos seguidos em (−5,0856110, −42,8018920), a 400 m, com `fixTime` 12:00:00Z e 12:00:30Z, Então abre 1 `geofence` com corpo "Gol prata saiu de Casa às 09:00." e `ended_at = started_at = 12:00:30Z`; Quando 1 fix volta para dentro e o seguinte fica fora, Então nenhum alerta.
 
 ### REQ-ALR-023 — Crítico sem reconhecimento
-**Fase:** F1 · **Prioridade:** P2 · **Risco:** N2 · **Invariantes:** —
+**Fase:** F1 · **Prioridade:** P1 · **Risco:** N2 · **Invariantes:** —
 **Regra.** Alerta `critical` aberto sem reconhecimento por 5 min DEVE ficar destacado na fila e gerar notificação do navegador no console aberto.
 **Aceite.** CT-ALR-023 — Dado `signal_lost_moving` aberto às 02:00:00Z sem reconhecimento, Quando o relógio chega a 02:05:00Z, Então a linha fica destacada e o console aberto mostra a notificação "Alerta crítico sem resposta há 5 min".
+
+### REQ-ALR-024 — Crítico chega à central de plantão
+**Fase:** F1 (01–15/11/2026, T-029) · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** INV-05
+**Regra.** Os alertas `sos`, `power_cut` e `signal_lost_moving` ao vivo DEVEM disparar Pushover com prioridade de emergência para todo membro da equipe com `membership.on_call = true` e chave Pushover cadastrada (segredo cifrado), além do push ao titular. O Pushover repete a cada 60 s por até 30 min até o reconhecimento; o recibo vira `alert.ack` com o ator. A C08 DEVE tocar alarme contínuo até o reconhecimento. Replay, backfill e reprocessamento NÃO DEVEM disparar (INV-05).
+**Aceite.** CT-ALR-024 — Dado SOS de V1 às 05:14:00Z e `agente.alfa` com `on_call = true` e chave Pushover, Então existe 1 envio Pushover de prioridade 2 (`retry = 60`, `expire = 1800`) para `agente.alfa` em ≤ 30 s; Dado o recibo de reconhecimento às 05:16:10Z, Então o alerta tem `acknowledged_by = agente.alfa` e `audit_log` `alert.acknowledge`; Dado `agente.alfa` sem `on_call`, Então 0 envios; Dado o mesmo SOS em `processingMode = replay`, Então 0 envios.
+
+### REQ-ALR-025 — Alertas de comando não confirmado e falho
+**Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-05, INV-08
+**Regra.** O comando de relé que entra em `UNKNOWN` ao vivo DEVE abrir `command_unknown` (critical, não desativável, com push ao titular); em `FAILED` ao vivo, `command_failed` (warning). Tipos `command_*` usam só `episode_key`, sem o índice `alert_open_key`. Fora de `processingMode = live`, NÃO DEVEM abrir alerta nem push.
+**Aceite.** CT-ALR-025 — Dado block UNKNOWN aberto em V1, Quando um unblock em V1 vai a UNKNOWN, Então há 2 alertas `command_unknown` abertos e 2 pushes; Dado o mesmo comando reprocessado em `replay`, Então nenhum alerta novo; Dado `PUT` de preferência `command_unknown` com `enabled = false`, Então 422 `ALERT_PREFERENCE_LOCKED`.

@@ -19,7 +19,7 @@ Validar o modelo de receita com o parceiro que a Lider já tem: botão "Chamar g
 
 ## Contexto obrigatório
 
-[12 — Cobrança e SVAs](../docs/spec/12-cobranca-e-svas.md) (parte de SVA); [Anexo B §11](../docs/anexos/B-juridico.md) (consentimento)
+[12 — Cobrança e SVAs](../docs/spec/12-cobranca-e-svas.md) (parte de SVA); [Anexo B §11](../docs/anexos/B-juridico.md#11-rascunho-7--consentimento-por-parceiro-e-finalidade) (consentimento)
 
 ## Escopo — fazer
 
@@ -34,7 +34,7 @@ Validar o modelo de receita com o parceiro que a Lider já tem: botão "Chamar g
 
 ## Para completar o DoR
 
-1. Especificação detalhada (tabelas com SQL, rotas, jobs e textos) a partir dos capítulos citados.
+1. Lacunas a fechar: DDL de `partner` e `referral` e a FK composta de `consent.partner_id`; rotas e telas (botão "Chamar guincho", relatório mensal); regra de antifraude e de conversão manual; snapshot da repartição (aguarda a DEC-05: proposta de 75% para quem fecha a parceria, pendente); CT-SVA em blocos.
 2. Testes de aceite com Dado/Quando/Então e arquivos em `tests/acceptance/T-026/`, congelados antes da implementação (risco N0: revisão adversarial por agente de outro fornecedor e leitura humana linha a linha).
-3. Comandos de verificação e seção "Decisões já tomadas" com pelo menos 5 respostas (DoR de [14 §5](../docs/spec/14-qualidade-e-processo-ia.md)).
+3. Comandos de verificação e seção "Decisões já tomadas" com pelo menos 5 respostas (DoR de [14 §5](../docs/spec/14-qualidade-e-processo-ia.md#5-dor-e-dod)).
 4. Conferir se os requisitos listados ainda batem com os capítulos ([16 — Rastreabilidade](../docs/spec/16-rastreabilidade.md)).

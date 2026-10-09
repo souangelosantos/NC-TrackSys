@@ -3,7 +3,7 @@
 > **Resumo:** Material de venda da TrackSys para operadoras de rastreamento. Reúne o pitch de 1 página, a tabela de preços, a paridade com o tracker-net e os diferenciais, a conta para a operadora e a proposta à Lider como parceira de design. Também traz perfil de cliente, funil e metas, roteiro de venda e onboarding, objeções com resposta e os materiais a produzir. Todos os números vêm de [01](../spec/01-visao-e-negocio.md); o que é hipótese está marcado.
 > **Fases:** F1, F2  ·  **Status:** Aprovado para execução
 > **Muda em relação à v1.1:**
-> - A v1.1 não tinha material comercial. Este anexo transforma o modelo de receita de [01 §5](../spec/01-visao-e-negocio.md) em discurso, proposta e funil.
+> - A v1.1 não tinha material comercial. Este anexo transforma o modelo de receita de [01 §5](../spec/01-visao-e-negocio.md#5-modelo-de-receita) em discurso, proposta e funil.
 > - A Lider entra como parceira de design, com adesão condicionada ao G1.
 > - A receita de indicações aparece só em exemplos marcados como ilustrativos. Não há número de mercado inventado.
 
@@ -24,8 +24,8 @@
 > **Próximo passo:** conversa de 30 min e demonstração ao vivo com um rastreador de verdade.
 
 **Regras de comunicação comercial** (valem para pitch, site, proposta e conversa):
-1. Nunca prometer recuperação de veículo. A plataforma transmite, registra e alerta ([01 §9](../spec/01-visao-e-negocio.md)).
-2. Nunca prometer socorro automático, nem por colisão. O F3 oferece "alerta de possível impacto" só com hardware compatível ([12 §17](../spec/12-cobranca-e-svas.md)).
+1. Nunca prometer recuperação de veículo. A plataforma transmite, registra e alerta ([01 §9](../spec/01-visao-e-negocio.md#9-o-que-não-somos)).
+2. Nunca prometer socorro automático, nem por colisão. O F3 oferece "alerta de possível impacto" só com hardware compatível ([12 §17](../spec/12-cobranca-e-svas.md#17-svas-do-f2-e-do-f3)).
 3. Bloqueio só é oferecido para rastreador homologado e instalação registrada. Na Lider, isso vale depois do G-CMD (meta: 2ª quinzena de novembro de 2026).
 4. Recurso de fase futura sempre vem com a fase: "no F2" ou "a partir de jan/2027".
 5. Números de mercado (tamanho do setor, taxa de furto nacional, preço da concorrência além do tracker-net) não entram no material.
@@ -37,17 +37,17 @@
 | Assinatura base | R$ 3,90 por veículo ativo/mês | Veículo ativo = vínculo primário em pelo menos 1 dia do mês (REQ-NEG-002). Inclui app com a marca, console, alertas, bloqueio, integração Asaas, atendimento com WhatsApp e suporte à operadora | F1 (nov/2026) |
 | Adesão | R$ 2.500 a R$ 3.000, única | Operadora e marca configuradas; importação da planilha; ligação com o Asaas; treinamento da central e do plantonista; migração em ondas assistida; 30 dias de acompanhamento | Assinatura do contrato (Lider: §5) |
 | Plano superior | R$ 5,90 por veículo ativo/mês (proposta) | Candidatos: gestão de custos, lembrete de revisões, histórico acima de 90 dias, cercas múltiplas, mais links simultâneos. Conteúdo e preço em DEC-09 | F2 |
-| App dedicado na loja (opção B) | Setup + anuidade, a definir | App com o nome da operadora, publicado na conta de desenvolvedor dela. Preço junto com DEC-09 (proposta de prazo em [01 §5](../spec/01-visao-e-negocio.md): 31/03/2027) | F2 |
-| Indicações (SVA) | Sem custo para a operadora | A operadora recebe parte: 20–30% em parceiro nacional (DEC-05) e 50% proposto em parceiro local ([12 §14](../spec/12-cobranca-e-svas.md)) | F1 (guincho), F2 |
+| App dedicado na loja (opção B) | Setup + anuidade, a definir | App com o nome da operadora, publicado na conta de desenvolvedor dela. Preço junto com DEC-09 (proposta de prazo em [01 §5](../spec/01-visao-e-negocio.md#5-modelo-de-receita): 31/03/2027) | F2 |
+| Indicações (SVA) | Sem custo para a operadora | A operadora recebe parte: 20–30% em parceiro nacional (DEC-05) e proposta de 75% para quem fecha a parceria em parceiro local ([12 §14](../spec/12-cobranca-e-svas.md#14-parceiros-e-repartição), DEC-05, pendente) | F1 (guincho), F2 |
 | Créditos de SLA | 10% da mensalidade abaixo de 99,5%; 25% abaixo de 99,0% | Manutenção anunciada com 48 h fica fora da conta | 01/12/2026 |
 
-**Como a mensalidade é paga.** Em cada cobrança paga pelo cliente final no Asaas da operadora, R$ 3,90 por veículo vão por split para a carteira da Versix. No dia 1 de cada mês, a TrackSys fecha a conta do mês anterior. Se o split não cobriu tudo, a Versix fatura a diferença com vencimento no dia 10. Sobra vira crédito no mês seguinte ([12 §10](../spec/12-cobranca-e-svas.md)). Veículo de cliente inadimplente segue a DEC-06.
+**Como a mensalidade é paga.** Em cada cobrança paga pelo cliente final no Asaas da operadora, R$ 3,90 por veículo vão por split para a carteira da Versix. No dia 1 de cada mês, a TrackSys fecha a conta do mês anterior. Se o split não cobriu tudo, a Versix fatura a diferença com vencimento no dia 10. Sobra vira crédito no mês seguinte ([12 §10](../spec/12-cobranca-e-svas.md#10-split-e-fechamento-mensal)). Veículo de cliente inadimplente segue a DEC-06.
 
 **Fora do preço:** tarifas do Asaas (pagas pela operadora, na conta dela), chip e SMS (conta emnify/Meta Telecom da operadora) [VALIDAR — DEC-01], rastreador e instalação.
 
 ## 3. Paridade com o tracker-net e diferenciais
 
-Paridade mínima pedida pela Lider para migrar. A coluna do tracker-net reflete o relato da Lider; a Versix não avaliou o produto diretamente.
+Paridade mínima pedida pela Lider para migrar. A coluna do tracker-net reflete o relato da Lider; a Versix não avaliou o produto diretamente. Um inventário de paridade (sessão de 1 h com a Lider operando o tracker-net, em `docs/runbooks/onboarding/lider-paridade.md`) completa a lista até 20/10/2026.
 
 | Necessidade | No tracker-net (relato da Lider) | Na TrackSys | Fase |
 |---|---|---|---|
@@ -87,11 +87,11 @@ Paridade mínima pedida pela Lider para migrar. A coluna do tracker-net reflete 
 
 | Exemplo ilustrativo | Conversões/mês | Valor por conversão (hipotético) | Parte da operadora | Receita da operadora/mês |
 |---|---|---|---|---|
-| A | 2 | R$ 20,00 | 50% (local) | R$ 20,00 |
-| B | 5 | R$ 30,00 | 50% (local) | R$ 75,00 |
+| A | 2 | R$ 20,00 | 75% (local, DEC-05 pendente) | R$ 30,00 |
+| B | 5 | R$ 30,00 | 75% (local, DEC-05 pendente) | R$ 112,50 |
 | C | 10 | R$ 50,00 | 25% (nacional) | R$ 125,00 |
 
-O volume real aparece no relatório mensal de indicações desde o F1 ([12 §15.4](../spec/12-cobranca-e-svas.md)). Só depois de 3 meses de relatório o material comercial pode citar números de indicação, e só os da própria operadora, com autorização.
+O volume real aparece no relatório mensal de indicações desde o F1 ([12 §15.4](../spec/12-cobranca-e-svas.md#154-relatório-mensal-e-repasse)). Só depois de 3 meses de relatório o material comercial pode citar números de indicação, e só os da própria operadora, com autorização.
 
 ## 5. Proposta para a Lider (parceira de design)
 
@@ -99,11 +99,11 @@ O volume real aparece no relatório mensal de indicações desde o F1 ([12 §15.
 
 | Opção | Adesão | Mensalidade | Contrapartida da Lider | Efeito para a Versix |
 |---|---|---|---|---|
-| **A — Adesão após o G1 (recomendada)** | R$ 2.500, faturados só depois do G1, em 3 parcelas mensais (R$ 833,33, R$ 833,33 e R$ 833,34). Sem G1, nada é cobrado | R$ 3,90 por veículo ativo desde 11/2026 | Feedback quinzenal de 30 min; case público com números autorizados; referência para 3 operadoras; voluntários e veículos do Piloto Zero | Caixa da adesão só a partir de jan/2027 |
+| **A — Adesão após o G1 (recomendada)** | R$ 2.500, faturados só depois do G1, em 3 parcelas mensais (R$ 833,33, R$ 833,33 e R$ 833,34). Sem G1, nada é cobrado | R$ 3,90 por veículo ativo desde 11/2026, isenta para cada veículo migrado enquanto a Lider pagar o tracker-net pelo mesmo veículo no aviso prévio (DEC-10), por até 60 dias [DECISÃO DO FUNDADOR PENDENTE, prazo 31/10/2026] | Feedback quinzenal de 30 min; case público com números autorizados; referência para 3 operadoras; voluntários e veículos do Piloto Zero | Caixa da adesão só a partir de jan/2027 |
 | B — Adesão zero com fidelidade | R$ 0 | Igual | Tudo da opção A + fidelidade de 12 meses; saída antecipada paga R$ 2.500 × meses restantes / 12 | Perde a adesão se a Lider cumprir os 12 meses |
 | C — Padrão | R$ 2.500 na assinatura | Igual | Nenhuma | Caixa imediato; menor alinhamento |
 
-A opção A é a [DECISÃO DO FUNDADOR PENDENTE] registrada em [01 §5](../spec/01-visao-e-negocio.md): adesão faturada só após o G1, em troca do caso de referência.
+A opção A é a [DECISÃO DO FUNDADOR PENDENTE] registrada em [01 §5](../spec/01-visao-e-negocio.md#5-modelo-de-receita): adesão faturada só após o G1, em troca do caso de referência.
 
 **O que a Lider recebe além do produto:** canal direto com o fundador, prioridade no backlog de paridade e nome no case.
 
@@ -111,10 +111,10 @@ A opção A é a [DECISÃO DO FUNDADOR PENDENTE] registrada em [01 §5](../spec/
 
 | Item | Para quê | Até |
 |---|---|---|
-| Planilha exportada do tracker-net | Contagem real de veículos e importação | 13/10/2026 |
+| Planilha exportada do tracker-net | Contagem real de veículos e importação ([11 §7](../spec/11-onboarding-e-migracao.md#7-migração-da-lider-passo-a-passo) passo 4) | 17/10/2026 |
 | J16 para bancada + senha SMS | Spike e homologação (DEC-02) | 13/10/2026 |
 | Contrato com a SmartGPS revisado (DEC-10) | Aviso prévio, fidelidade e exportação antes de anunciar a troca | 17/10/2026 |
-| 5–10 veículos voluntários e termo de participação assinado | Piloto Zero e G0 | 27/10/2026 |
+| 5–10 veículos voluntários e termo de participação assinado | Piloto Zero e G0 | 1º termo até 21/10/2026 (veículo de 22/10); demais até 27/10/2026 |
 | Chave Asaas (sandbox, depois produção) e contato do guincho parceiro | Cobrança e 1º SVA no F1 | 01/11/2026 |
 | Plantonista disponível para o ensaio | Contingência ensaiada no G1 | 16–31/12/2026 |
 | Acordo sobre a tarifa de veículo de cliente inadimplente (DEC-06, decisão do fundador negociada com a Lider) | Contrato | 31/10/2026 |
@@ -130,14 +130,14 @@ A opção A é a [DECISÃO DO FUNDADOR PENDENTE] registrada em [01 §5](../spec/
 
 **Fora do perfil até out/2027:** frotas com telemetria avançada (F3), vídeo, leitura de rede CAN, integração com ERP.
 
-**Meta:** 12 operadoras ativas até 31/10/2027, cerca de 1 nova por mês ([01 §8](../spec/01-visao-e-negocio.md)). Operadora ativa = contrato assinado, ≥ 1 veículo ativo no mês e tarifa do mês anterior liquidada.
+**Meta:** 12 operadoras ativas até 31/10/2027, cerca de 1 nova por mês ([01 §8](../spec/01-visao-e-negocio.md#8-metas-de-12-meses)). Operadora ativa = contrato assinado, ≥ 1 veículo ativo no mês e tarifa do mês anterior liquidada.
 
 | Data | Operadoras ativas | Veículos ativos | MRR |
 |---|---|---|---|
 | 31/12/2026 (G1) | 1 | 300 | R$ 1.170 |
 | 31/03/2027 | 4 | 1.000 | R$ 3.900 |
 | 30/06/2027 (G2: 6+) | 7 | 1.750 | R$ 6.825 |
-| 30/09/2027 | 10 | 2.500 | R$ 9.750 |
+| 30/09/2027 | 11 | 2.750 | R$ 10.725 |
 | 31/10/2027 | 12 | 3.000 | R$ 11.700 |
 
 **Funil mensal para fechar 1 contrato por mês** [PREMISSA — hipóteses de planejamento, não dados de mercado; revisar no fim de cada trimestre com os números reais]:
@@ -174,7 +174,7 @@ Cada contato vai para o CRM com origem, etapa, data e motivo de perda.
 
 **Ficha de qualificação:**
 - clientes e veículos (PF/PJ, carro/moto);
-- plataforma atual, contrato (aviso prévio, fidelidade, exportação) e preço pago;
+- plataforma atual, contrato (aviso prévio, fidelidade, exportação) e **preço por veículo e adesão pagos hoje (campo obrigatório)**;
 - modelos e firmwares de rastreador; chip, operadora M2M e APN; reconfiguração por SMS (sim/não);
 - tipo de bloqueio instalado (bomba, ignição, arranque);
 - meio de cobrança e conta Asaas (sim/não);
@@ -224,9 +224,9 @@ Bloqueio só para modelo homologado e vínculo com ponto de corte registrado (IN
 | "Vou perder o histórico do tracker-net." | O histórico não migra. A TrackSys começa um histórico novo no dia da troca. O acesso de leitura ao antigo se negocia com a plataforma atual | Cláusula a negociar (modelo DEC-10) |
 | "E a LGPD? Vocês vão ver os dados dos meus clientes?" | A operadora é controladora e a Versix processadora, com DPA. Cada operadora é isolada no banco. A Versix só acessa com concessão temporária, somente leitura e auditada, criada pela própria operadora | [08](../spec/08-identidade-e-seguranca.md) |
 | "Tenho contrato com a plataforma atual." | Rodamos o piloto de 5 veículos em paralelo. A troca em massa só acontece depois de conferir aviso prévio e fidelidade | Cronograma da Lider |
-| "Não uso o Asaas." | A TrackSys funciona sem Asaas. Nesse caso, a mensalidade vai por fatura mensal e o PIX no app não fica disponível | [12 §10](../spec/12-cobranca-e-svas.md) |
-| "Meus clientes vão achar que vendo os dados deles." | Indicação só com consentimento por parceiro, aviso claro de "indicação remunerada" e opção de chamar sem registrar | [12 §16](../spec/12-cobranca-e-svas.md) |
-| "Não emito nota fiscal." | A NFS-e é opcional por operadora e, quando ligada, é emitida pelo próprio Asaas | [12 §11](../spec/12-cobranca-e-svas.md) |
+| "Não uso o Asaas." | A TrackSys funciona sem Asaas. Nesse caso, a mensalidade vai por fatura mensal e o PIX no app não fica disponível | [12 §10](../spec/12-cobranca-e-svas.md#10-split-e-fechamento-mensal) |
+| "Meus clientes vão achar que vendo os dados deles." | Indicação só com consentimento por parceiro, aviso claro de "indicação remunerada" e opção de chamar sem registrar | [12 §16](../spec/12-cobranca-e-svas.md#16-consentimento-e-transparência) |
+| "Não emito nota fiscal." | A NFS-e é opcional por operadora e, quando ligada, é emitida pelo próprio Asaas | [12 §11](../spec/12-cobranca-e-svas.md#11-nfs-e-opcional-f1-p2) |
 
 ## 10. Materiais necessários
 

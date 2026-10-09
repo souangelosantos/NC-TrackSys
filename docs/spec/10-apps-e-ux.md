@@ -19,7 +19,7 @@
 | Vetores de teste compartilhados | `packages/testkit/fixtures/ux/{presentation-vectors,age-vectors,contrast-vectors}.json`; o teste Dart lê o arquivo por caminho relativo |
 | App: telas, SSE, cache | `apps/mobile/lib/features/<tela>/`, `apps/mobile/lib/api/sse_client.dart`, `apps/mobile/lib/cache/` |
 | Console: rotas | `apps/console/src/routes/` (TanStack Router, um arquivo por rota) |
-| Textos de efeito do comando | `packages/domain/src/commands/texts.ts` ([06](06-comandos-e-bloqueio.md) §15); o app recebe `effectText` pronto da API |
+| Textos de efeito do comando | `packages/domain/src/commands/texts.ts` ([06 §15](06-comandos-e-bloqueio.md#15-auditoria-e-ux-mínima)); o app recebe `effectText` pronto da API |
 | Atendimento (módulo `support`) | `apps/api/src/support/`, contratos em `packages/contracts/src/support/` |
 | Testes | `apps/mobile/test/`, `apps/mobile/integration_test/`, `apps/console/src/**/*.test.tsx` (Vitest) |
 
@@ -50,7 +50,7 @@ Contrastes medidos (WCAG 2.2): `onStatus` sobre moving 7,56:1, idle 8,93:1, park
 ## 4. Marca dinâmica
 
 1. **Sem sessão:** tela neutra TrackSys (logo TrackSys, `brandDefault`), sem nome, logo ou contato de operadora.
-2. **Login:** `GET /api/v1/me` devolve `operator` e `brand` (`displayName`, `logoUrl`, `primaryColor`, `secondaryColor`, `supportWhatsapp`, `supportPhone`) ([09](09-api-e-contratos.md) §6). Usuário com memberships em mais de uma operadora recebe 400 `OPERATOR_SELECTION_REQUIRED` com a lista: tela "Escolha a operadora" e, daí em diante, `X-Operator-Id` em toda requisição ([08](08-identidade-e-seguranca.md) §4).
+2. **Login:** `GET /api/v1/me` devolve `operator` e `brand` (`displayName`, `logoUrl`, `primaryColor`, `secondaryColor`, `supportWhatsapp`, `supportPhone`) ([09 §6](09-api-e-contratos.md#6-rotas-do-f0)). Usuário com memberships em mais de uma operadora recebe 400 `OPERATOR_SELECTION_REQUIRED` com a lista: tela "Escolha a operadora" e, daí em diante, `X-Operator-Id` em toda requisição ([08 §4](08-identidade-e-seguranca.md#4-do-request-ao-banco)).
 3. **Cache:** `brand-<operatorId>.json` e `logo-<operatorId>.<png|webp>` no diretório de suporte do app. Abertura com sessão válida aplica o cache no 1º quadro e revalida em segundo plano por `GET /api/v1/operator/brand` com `If-None-Match`; marca nova vale na próxima troca de tela.
 4. **Logo:** `https://`, PNG ou WebP, ≤ 256 KiB, ≤ 512 × 512 px. Falhou: iniciais do `displayName` sobre `brandFill`.
 5. **Logout:** apaga cache de marca, cache de dados e tokens; volta à tela neutra.
@@ -74,7 +74,7 @@ Contrastes medidos (WCAG 2.2): `onStatus` sobre moving 7,56:1, idle 8,93:1, park
 
 ## 5. Estados honestos
 
-Entradas: `vehicle.state` do SSE ([07](07-alertas-e-tempo-real.md) §11) e, por veículo, `presenceThresholds` de `GET /api/v1/vehicles` ([09](09-api-e-contratos.md) §9.1: `delayedAfterS` = `stopped_interval_s` + 60 — J16: 360; `offlineAfterS` 1.800; `lostMovingAfterS` = `max(180, 3 × moving_interval_s)` — J16: 180; perfil não legível no escopo do cliente → padrão 360/1.800/180). `presence` é recalculada no cliente a cada 10 s com a tabela de [07](07-alertas-e-tempo-real.md) §11, limiares inclusivos (`≥`). Primeira linha que casa:
+Entradas: `vehicle.state` do SSE ([07 §11](07-alertas-e-tempo-real.md#11-tempo-real-get-apiv1stream-sse)) e, por veículo, `presenceThresholds` de `GET /api/v1/vehicles` ([09 §9.1](09-api-e-contratos.md#91-get-apiv1vehicleslimit2-agentealfa): `delayedAfterS` = `stopped_interval_s` + 60 — J16: 360; `offlineAfterS` 1.800; `lostMovingAfterS` = `max(180, 3 × moving_interval_s)` — J16: 180; perfil não legível no escopo do cliente → padrão 360/1.800/180). `presence` é recalculada no cliente a cada 10 s com a tabela de [07 §11](07-alertas-e-tempo-real.md#11-tempo-real-get-apiv1stream-sse), limiares inclusivos (`≥`). Primeira linha que casa:
 
 | Estado | Condição | Texto principal | Cor | Ícone (Flutter / lucide) |
 |---|---|---|---|---|
@@ -91,7 +91,7 @@ Entradas: `vehicle.state` do SSE ([07](07-alertas-e-tempo-real.md) §11) e, por 
 
 **Selos** (somam ao estado, não o trocam):
 - `delayed` (`presence = delayed`): `schedule`, "Última informação há {idade}".
-- `gps_stale` (presença `online`/`delayed`, `lastFixAt` não nulo e `lastContactAt − lastFixAt > delayedAfterS`): `location_disabled`, "GPS sem sinal desde {hora}". O fix é comparado com o **último contato**, não com agora: rastreador que não comunica já tem o selo `delayed` ou o estado `offline` (vetores 5 e 12) [ADOTADO NA v2.0: T-008].
+- `gps_stale` (presença `online`/`delayed`, `lastFixAt` não nulo e `lastContactAt − lastFixAt > delayedAfterS`): `location_disabled`, "GPS sem sinal desde {hora}". O fix é comparado com o **último contato**, não com agora: rastreador que não comunica já tem o selo `delayed` ou o estado `offline` (vetores 5 e 12) T-008.
 - `alert`: alerta `critical` aberto do veículo → anel danger no marcador e faixa com o título do alerta.
 - `relay` (F1): "Relé: bloqueado · observado há {idade}", "Relé: desbloqueado · observado há {idade}" ou "Relé: estado desconhecido".
 - Global: "Sem internet no celular · dados de {hora}"; SSE caído há > 10 s: "Reconectando…".
@@ -121,40 +121,40 @@ Entradas: `vehicle.state` do SSE ([07](07-alertas-e-tempo-real.md) §11) e, por 
 
 | ID | Tela | Fase | Regra | Dados |
 |---|---|---|---|---|
-| A01 | Entrada e login | F0 | Tela neutra (§4); e-mail + senha; "Esqueci minha senha"; 1º acesso pelo link de convite enviado por e-mail (72 h, [08](08-identidade-e-seguranca.md) §2); erro genérico "E-mail ou senha incorretos" | Better Auth |
+| A01 | Entrada e login | F0 | Tela neutra (§4); e-mail + senha; "Esqueci minha senha"; 1º acesso pelo link de convite enviado por e-mail (72 h, [08 §2](08-identidade-e-seguranca.md#2-autenticação-better-auth)); no F1, titular sem e-mail entra por código de ativação + CPF e depois também por CPF + senha (08 §2); erro genérico "E-mail ou senha incorretos" | Better Auth |
 | A02 | Início: mapa + lista | F0 | Mapa ao vivo com a lista no sheet. Card: apelido (senão placa), placa, chip de estado, "Última posição válida há X", selos. Ordem: alerta crítico aberto primeiro, depois apelido A→Z. 1 veículo: centraliza com zoom 16; 2+: enquadra todos com margem de 64 px | `GET /api/v1/vehicles`, SSE |
 | A03 | Detalhe do veículo | F0 | Apelido, placa, marca/modelo/cor; estado e selos; última posição válida (idade + hora); ignição "Ligada/Desligada/Desconhecida"; alimentação "Veículo/Bateria interna/Desconhecida" (bateria em cor idle); velocidade; ações da fase | SSE |
-| A04 | Histórico do dia | F0 | Seletor: hoje, ontem, calendário até 90 dias. Dia BRT = 03:00Z a 03:00Z do dia seguinte. Trajeto na cor moving; início e fim marcados; toque mostra hora e velocidade do ponto mais próximo. Lacunas vêm prontas em `gaps` da API (o app não calcula nem interpola): trecho tracejado com "Sem dados {HH:mm}–{HH:mm}". Resumo: hora do 1º e do último ponto; distância "{x} km", ou "≥ {x} km (há lacunas)" quando `gaps` não está vazio. Dia anterior ao 1º vínculo: "Histórico disponível a partir de {data}" ([11](11-onboarding-e-migracao.md) §8). Mais de 90 dias: "Solicitar relatório" no F1 ([ADR-009](../adr/ADR-009-retencao-quente-frio.md)) | `GET /api/v1/vehicles/{vehicleId}/history?from=&to=&limit=5000` ([09](09-api-e-contratos.md) §9.4) |
+| A04 | Histórico do dia | F0 | Seletor: hoje, ontem, calendário até 90 dias. Dia BRT = 03:00Z a 03:00Z do dia seguinte. Trajeto na cor moving; início e fim marcados; toque mostra hora e velocidade do ponto mais próximo. Lacunas vêm prontas em `gaps` da API (o app não calcula nem interpola): trecho tracejado com "Sem dados {HH:mm}–{HH:mm}". Resumo: hora do 1º e do último ponto; distância "{x} km", ou "≥ {x} km (há lacunas)" quando `gaps` não está vazio. Dia anterior ao 1º vínculo: "Histórico disponível a partir de {data}" ([11 §8](11-onboarding-e-migracao.md#8-histórico-do-tracker-net)). Mais de 90 dias: "Solicitar relatório" no F1 ([ADR-009](../adr/ADR-009-retencao-quente-frio.md)) | `GET /api/v1/vehicles/{vehicleId}/history?from=&to=&limit=5000` ([09 §9.4](09-api-e-contratos.md#94-get-apiv1vehiclesvehicleidhistory)) |
 | A05 | Alertas | F0 | Lista de 30 dias, abertos primeiro. Detalhe: título, corpo, hora, veículo, mini-mapa com `evidence.lastLocation`, estado atual; ações "Ver no mapa", "Falar com a central", "Navegar até o veículo" | `GET /api/v1/alerts`, SSE `alert` |
-| A06 | Modo vigilância | F0 | Interruptor no detalhe. Confirmação: "Avisaremos se o veículo sair 150 m deste local ou se a ignição ligar". Ativo: círculo de 150 m e "Vigilância ativa desde {hora}". 409 `WATCH_MODE_VEHICLE_ON` → "Desligue o veículo para ativar a vigilância"; 409 `WATCH_MODE_NO_FIX` → "Sem posição válida nas últimas 24 h. Não é possível ativar." | [07](07-alertas-e-tempo-real.md) §5 |
+| A06 | Modo vigilância | F0 | Interruptor no detalhe. Confirmação: "Avisaremos se o veículo sair 150 m deste local ou se a ignição ligar". Ativo: círculo de 150 m e "Vigilância ativa desde {hora}". 409 `WATCH_MODE_VEHICLE_ON` → "Desligue o veículo para ativar a vigilância"; 409 `WATCH_MODE_NO_FIX` → "Sem posição válida nas últimas 24 h. Não é possível ativar." | [07 §5](07-alertas-e-tempo-real.md#5-modo-vigilância-cerca-âncora) |
 | A07 | Falar com a central | F0 | `https://wa.me/{supportWhatsapp sem +}?text={texto}`; texto: "Olá, {operadora}. Sou {nome}. Veículo {apelido}, placa {placa}. Última posição ({HH:mm}): https://maps.google.com/?q={lat},{lon}" (6 casas decimais, ponto). Sem WhatsApp: `tel:{supportPhone}` | Marca |
 | A08 | Navegar até o veículo | F0 | Folha com "Google Maps" (`https://www.google.com/maps/dir/?api=1&destination={lat},{lon}&travelmode=driving`) e "Waze" (`https://waze.com/ul?ll={lat},{lon}&navigate=yes`). Fix com mais de 10 min: aviso "Posição de há {idade}. O veículo pode ter se movido." | Último fix válido |
-| A09 | Notificações | F0 | Canais Android `alerts_high` (alta) e `alerts_info` (padrão) criados no 1º início. Explicação antes do pedido de permissão (Android 13+ `POST_NOTIFICATIONS`; iOS com Time Sensitive). Negada: faixa "Alertas desligados neste celular" + "Ativar". Preferências por veículo × tipo: `locked` → travado "Sempre ativo"; `available = false` → "Indisponível neste rastreador". Cartão no 1º acesso: "Quer ser avisado quando a ignição ligar?" | [07](07-alertas-e-tempo-real.md) §7–8 |
-| A10 | Conta | F0 | Nome, e-mail, operadora, versão, termos e privacidade, Sair (apaga o token de push, [07](07-alertas-e-tempo-real.md) §7) | `GET /api/v1/me` |
-| A11 | Bloquear / desbloquear | F1 | §7 | [06](06-comandos-e-bloqueio.md) §14 |
+| A09 | Notificações | F0 | Canais Android `alerts_high` (alta) e `alerts_info` (padrão) criados no 1º início. Explicação antes do pedido de permissão (Android 13+ `POST_NOTIFICATIONS`; iOS com Time Sensitive). Negada: faixa "Alertas desligados neste celular" + "Ativar". Preferências por veículo × tipo: `locked` → travado "Sempre ativo"; `available = false` → "Indisponível neste rastreador". Cartão no 1º acesso: "Quer ser avisado quando a ignição ligar?" | [07 §7](07-alertas-e-tempo-real.md#7-entrega-push-fcm)–8 |
+| A10 | Conta | F0 | Nome, e-mail, operadora, versão, termos e privacidade, Sair (apaga o token de push, [07 §7](07-alertas-e-tempo-real.md#7-entrega-push-fcm)) | `GET /api/v1/me` |
+| A11 | Bloquear / desbloquear | F1 | §7 | [06 §14](06-comandos-e-bloqueio.md#14-contratos) |
 | A12 | Termo de ciência do bloqueio | F1 | Texto do [Anexo B](../anexos/B-juridico.md) com operadora, `cut_point` de cada veículo, teto e TTL; botão "Li e aceito" | `POST /api/v1/tenants/{tenantId}/block-terms` |
-| A13 | Ocorrência ("Fui roubado") | F1 | Confirmação → abre ocorrência. Tela: "Ligar 190" (`tel:190`), "Falar com a central", "Bloquear" (fluxo normal da §7, se disponível), "Compartilhar com a polícia" (A16), número do BO (≤ 40 caracteres), linha do tempo (alertas, comandos, posições). Abrir ocorrência não cria comando (INV-08) | [06](06-comandos-e-bloqueio.md) §11 |
+| A13 | Ocorrência ("Fui roubado") | F1 | Confirmação → abre ocorrência. Tela: "Ligar 190" (`tel:190`), "Falar com a central", "Bloquear" (fluxo normal da §7, se disponível), "Compartilhar com a polícia" (A16), número do BO (≤ 40 caracteres), linha do tempo (alertas, comandos, posições). Abrir ocorrência não cria comando (INV-08) | [06 §11](06-comandos-e-bloqueio.md#11-ocorrência-efeitos-em-comandos) |
 | A14 | Faturas e PIX | F1 | Lista: valor (centavos → "R$ 49,90"), vencimento, status. PIX: "Copiar código PIX" (`pix_payload` exato) e QR do mesmo conteúdo. Fatura vencida: "Venceu em {data}. Pague com PIX ou fale com a central." Nenhum texto liga cobrança a bloqueio (INV-09) | [12](12-cobranca-e-svas.md) |
 | A15 | Chamar guincho | F1 | Parceiros `tow` disponíveis. 1º uso: consentimento por parceiro ([12](12-cobranca-e-svas.md)). `POST /api/v1/referrals` (201) antes de abrir WhatsApp ou telefone do parceiro com placa, modelo, cor e link da posição. Sem internet: mostra o telefone do parceiro, sem indicação registrada | [12](12-cobranca-e-svas.md) |
-| A16 | Compartilhar localização | F1 | Duração 1 h, 4 h ou 24 h (`ttlS` 3.600, 14.400 ou 86.400); folha de compartilhamento do sistema com a URL devolvida pela API, exibida uma única vez; lista de links ativos com "Expira às {hora}" e "Revogar" | [08](08-identidade-e-seguranca.md) §7 |
+| A16 | Compartilhar localização | F1 | Duração 1 h, 4 h ou 24 h (`ttlS` 3.600, 14.400 ou 86.400); folha de compartilhamento do sistema com a URL devolvida pela API, exibida uma única vez; lista de links ativos com "Expira às {hora}" e "Revogar" | [08 §7](08-identidade-e-seguranca.md#7-links-temporários-f1) |
 | A17 | Cercas | F1 | Círculo no mapa com raio arrastável de 100 a 5.000 m (trava nos limites), nome, gatilho entrar/sair/ambos; até 10 por veículo, sem requisição na 11ª | [07](07-alertas-e-tempo-real.md) REQ-ALR-022 |
-| A18 | Familiares | F1 (P2) | Titular convida e revoga `tenant_member` e define `can_command` | [06](06-comandos-e-bloqueio.md) §4.1, [08](08-identidade-e-seguranca.md) |
+| A18 | Familiares | F1 (P2) | Titular convida e revoga `tenant_member` e define `can_command` | [06 §4.1](06-comandos-e-bloqueio.md#41-papéis), [08](08-identidade-e-seguranca.md) |
 | A19 | Serviços (SVA) | F2 | Catálogo habilitado pela operadora: assistência 24h, revisões, custos | [12](12-cobranca-e-svas.md) |
 
-[ADOTADO NA v2.0: A05 (REQ-UX-009, P0), A06 (REQ-UX-010, P1) e as notificações (REQ-UX-012) entram na T-012, sobre as rotas da T-011: o toque no push abre o detalhe do alerta (A05), e o interruptor da vigilância fica no detalhe do veículo (A06). A06 sai junto com o corte 3 do plano de [02](02-escopo-e-fases.md) §2.4 (modo vigilância). Registro em [15](15-decisoes-riscos-premissas.md) §5; o fundador confirma.]
+A05 (REQ-UX-009, P0), A06 (REQ-UX-010, P1) e as notificações (REQ-UX-012) entram na T-032 (app: push, alertas, vigilância e notificações; o servidor do push fica na T-012), sobre as rotas da T-011: o toque no push abre o detalhe do alerta (A05), e o interruptor da vigilância fica no detalhe do veículo (A06). A06 sai junto com o corte 3 do plano de [02 §2.4](02-escopo-e-fases.md#24-plano-de-corte) (modo vigilância). Registro em [15 §5](15-decisoes-riscos-premissas.md#5-propostas-de-decisão-registradas-nos-capítulos); o fundador confirma.
 
-Rotas internas do app: `/inicio`, `/veiculos/:id`, `/veiculos/:id/historico?dia=AAAA-MM-DD`, `/alertas`, `/alertas/:id`, `/conta`. O link do push `tracksys://alerts/{id}` ([07](07-alertas-e-tempo-real.md) §7) abre `/alertas/:id` com o app encerrado, em segundo plano ou aberto; sessão expirada passa pelo login e volta ao alerta.
+Rotas internas do app: `/inicio`, `/veiculos/:id`, `/veiculos/:id/historico?dia=AAAA-MM-DD`, `/alertas`, `/alertas/:id`, `/conta`. O link do push `tracksys://alerts/{id}` ([07 §7](07-alertas-e-tempo-real.md#7-entrega-push-fcm)) abre `/alertas/:id` com o app encerrado, em segundo plano ou aberto; sessão expirada passa pelo login e volta ao alerta.
 
 ## 7. UX de comando (F1)
 
-1. **Disponibilidade** por `GET /api/v1/vehicles/{vehicleId}/command-availability` ao abrir o detalhe e após cada estado final. `available = true` → botão "Bloquear" (ou "Desbloquear"). `COMMAND_TERMS_NOT_ACCEPTED` → "Aceitar termo para habilitar bloqueio" (A12). `COMMAND_DISPATCH_DISABLED` → "Bloqueio temporariamente indisponível". Demais códigos de [06](06-comandos-e-bloqueio.md) §14 → sem botão e a linha "Bloqueio pelo app indisponível neste veículo. Fale com a central." `activeCommandId` → mostra o cartão de estado em vez do botão.
-2. **Confirmação:** apelido, placa, modelo e cor; `effectText` da API exibido literalmente; aviso de SMS de desbloqueio pendente quando a API o enviar ([06](06-comandos-e-bloqueio.md) §9 item 5); motivo: "Suspeita de furto ou roubo" (`theft_suspected`), "Preventivo" (`preventive`), "Outro" (`other`, texto opcional ≤ 500).
+1. **Disponibilidade** por `GET /api/v1/vehicles/{vehicleId}/command-availability` ao abrir o detalhe e após cada estado final. `available = true` → botão "Bloquear" (ou "Desbloquear"). `COMMAND_TERMS_NOT_ACCEPTED` → "Aceitar termo para habilitar bloqueio" (A12). `COMMAND_DISPATCH_DISABLED` → "Bloqueio temporariamente indisponível". Demais códigos de [06 §14](06-comandos-e-bloqueio.md#14-contratos) → sem botão e a linha "Bloqueio pelo app indisponível neste veículo. Fale com a central." `activeCommandId` → mostra o cartão de estado em vez do botão.
+2. **Confirmação:** apelido, placa, modelo e cor; `effectText` da API exibido literalmente; aviso de SMS de desbloqueio pendente quando a API o enviar ([06 §9](06-comandos-e-bloqueio.md#9-desbloqueio-assimétrico) item 5); motivo: "Suspeita de furto ou roubo" (`theft_suspected`), "Preventivo" (`preventive`), "Outro" (`other`, texto opcional ≤ 500).
 3. **Deslizar para confirmar:** alça de 56 dp; confirma ao chegar a 90% da largura; soltar antes volta ao início. Com leitor de tela, a ação de acessibilidade "Confirmar bloqueio" substitui o gesto.
-4. **Biometria + chave do aparelho:** `POST /api/v1/vehicles/{vehicleId}/commands/challenges` ([08](08-identidade-e-seguranca.md) §6, [09](09-api-e-contratos.md)) → prompt nativo "Confirme para bloquear {placa}" → assinatura ([08](08-identidade-e-seguranca.md)) → `POST …/commands` com `Idempotency-Key` UUID criado ao abrir a tela de confirmação, reutilizado só em "Tentar de novo" na mesma tela e descartado ao sair dela. Biometria cancelada ou falha: "Bloqueio não enviado", nenhuma requisição a `/commands`. Sem `device_key`: fluxo "Ativar confirmação por biometria neste celular" antes do 1º comando.
+4. **Biometria + chave do aparelho:** `POST /api/v1/vehicles/{vehicleId}/commands/challenges` ([08 §6](08-identidade-e-seguranca.md#6-step-up-de-comando), [09](09-api-e-contratos.md)) → prompt nativo "Confirme para bloquear {placa}" → assinatura ([08](08-identidade-e-seguranca.md)) → `POST …/commands` com `Idempotency-Key` UUID criado ao abrir a tela de confirmação, reutilizado só em "Tentar de novo" na mesma tela e descartado ao sair dela. Biometria cancelada ou falha: "Bloqueio não enviado", nenhuma requisição a `/commands`. Sem `device_key`: fluxo "Ativar confirmação por biometria neste celular" antes do 1º comando.
 5. **Nunca enfileirar:** sem conexão (última requisição sem resposta de rede ou SSE caído há > 10 s), o controle fica desativado com "Sem internet. O pedido não pode ser enviado. Ligue para a central: {telefone}" (`tel:`). POST sem resposta: "Sem resposta do servidor"; ao reconectar, o app consulta `GET /api/v1/vehicles/{vehicleId}/commands?limit=1` e mostra o comando existente ou "O pedido não chegou ao servidor". Nunca reenvia sozinho, nunca guarda pedido em disco, nunca envia ao reabrir.
 6. **Acompanhamento:** SSE `command.state` ([09](09-api-e-contratos.md)); com o SSE caído e o cartão visível, `GET /api/v1/commands/{commandId}` a cada 5 s.
 
-| Estado | Título (textos de [06](06-comandos-e-bloqueio.md) §15) | Cor | Ícone | Ações |
+| Estado | Título (textos de [06 §15](06-comandos-e-bloqueio.md#15-auditoria-e-ux-mínima)) | Cor | Ícone | Ações |
 |---|---|---|---|---|
 | REQUESTED | "Pedido registrado" · "Verificando condições de segurança" | parked | `hourglass_empty` | — |
 | ARMED | "Aguardando condição segura — {motivo}" · "Expira às {hora}" com contagem regressiva | idle | `timer` | Cancelar |
@@ -189,14 +189,14 @@ F0: as medidas de cold start e mapa são informativas e vão para o PR da versã
 | ID | Rota | Fase | Regra |
 |---|---|---|---|
 | C01 | `/login` | F0 | E-mail + senha; TOTP obrigatório para a equipe da operadora no F1 ([08](08-identidade-e-seguranca.md)) |
-| C02 | `/mapa` | F0 | Todos os veículos da operadora; mesma derivação de estado (§5); filtros por estado ("Sem comunicação" = `offline` + `lost_moving`); busca por placa, apelido ou cliente; lista virtualizada; acima de 200 veículos, conexões SSE de até 200 cada ([07](07-alertas-e-tempo-real.md) §11) |
-| C03 | `/clientes`, `/clientes/:id` | F0 | Nome, CPF/CNPJ com dígito verificador, convite do titular ([08](08-identidade-e-seguranca.md)); veículos do cliente. Telefone E.164 e e-mail de contato (`tenant.contact_phone`/`contact_email`, [11](11-onboarding-e-migracao.md) §3.2) entram no F1 com o importador: as colunas não existem no F0 ([04](04-dominio-e-dados.md) §3.1, `POST /api/v1/tenants` de [09](09-api-e-contratos.md) §6); no F0 o contato do titular é o e-mail do convite |
-| C04 | `/veiculos/:id` | F0 | Placa normalizada (maiúsculas, sem hífen; regex de [04](04-dominio-e-dados.md) §3.1), tipo, marca, modelo, cor, ano, apelido; vínculo atual e anteriores |
+| C02 | `/mapa` | F0 | Todos os veículos da operadora; mesma derivação de estado (§5); filtros por estado ("Sem comunicação" = `offline` + `lost_moving`); a partir do F1, filtro "Sem comunicação há > 24 h" e "há > 7 dias", ordenado pela idade do último contato, com exportação CSV e `audit_log` `export.create` (REQ-UX-032, T-029); busca por placa, apelido ou cliente; lista virtualizada; acima de 200 veículos, conexões SSE de até 200 cada ([07 §11](07-alertas-e-tempo-real.md#11-tempo-real-get-apiv1stream-sse)) |
+| C03 | `/clientes`, `/clientes/:id` | F0 | Nome, CPF/CNPJ com dígito verificador, convite do titular ([08](08-identidade-e-seguranca.md)); veículos do cliente. Telefone E.164 e e-mail de contato (`tenant.contact_phone`/`contact_email`, [11 §3.2](11-onboarding-e-migracao.md#32-campos)) entram no F1 com o importador: as colunas não existem no F0 ([04 §3.1](04-dominio-e-dados.md#31-tabelas-da-t-001), `POST /api/v1/tenants` de [09 §6](09-api-e-contratos.md#6-rotas-do-f0)); no F0 o contato do titular é o e-mail do convite |
+| C04 | `/veiculos/:id` | F0 | Placa normalizada (maiúsculas, sem hífen; regex de [04 §3.1](04-dominio-e-dados.md#31-tabelas-da-t-001)), tipo, marca, modelo, cor, ano, apelido; vínculo atual e anteriores |
 | C05 | `/rastreadores`, `/rastreadores/:id` | F0 | IMEI (15 dígitos), modelo, perfil e status do perfil, ICCID e MSISDN, status, "Último contato: nunca / há X", vínculo atual; aviso "Comunicando sem vínculo" ([11](11-onboarding-e-migracao.md) REQ-ONB-019) |
-| C06 | `/veiculos/:id/vinculo` | F0 | Rastreador em estoque; "Relé de bloqueio instalado?" Sim/Não sem padrão; Sim → ponto de corte obrigatório (bomba de combustível, ignição pós-chave, motor de arranque) com o texto de efeito de [06](06-comandos-e-bloqueio.md) §15 (se `packages/domain/src/commands/texts.ts` ainda não existir no F0, mostra só o nome do ponto de corte; nenhum texto de segurança é escrito fora de 06 [ADOTADO NA v2.0: T-007]); Não → "Sem bloqueio instalado". `POST /api/v1/device-assignments` exige a chave `cutPoint` (valor ou `null` explícito, [09](09-api-e-contratos.md) §6); ausente → 422 `VALIDATION_FAILED` com `errors[0].path = "cutPoint"`. Encerrar vínculo devolve o rastreador a `stock` ou `maintenance` (campo `deviceStatus` de `POST /api/v1/device-assignments/{assignmentId}/close`, [09](09-api-e-contratos.md) §6) |
+| C06 | `/veiculos/:id/vinculo` | F0 | Rastreador em estoque; "Relé de bloqueio instalado?" Sim/Não sem padrão; Sim → ponto de corte obrigatório (bomba de combustível, ignição pós-chave, motor de arranque) com o texto de efeito de [06 §15](06-comandos-e-bloqueio.md#15-auditoria-e-ux-mínima) (se `packages/domain/src/commands/texts.ts` ainda não existir no F0, mostra só o nome do ponto de corte; nenhum texto de segurança é escrito fora de 06 T-007); Não → "Sem bloqueio instalado". `POST /api/v1/device-assignments` exige a chave `cutPoint` (valor ou `null` explícito, [09 §6](09-api-e-contratos.md#6-rotas-do-f0)); ausente → 422 `VALIDATION_FAILED` com `errors[0].path = "cutPoint"`. Encerrar vínculo devolve o rastreador a `stock` ou `maintenance` (campo `deviceStatus` de `POST /api/v1/device-assignments/{assignmentId}/close`, [09 §6](09-api-e-contratos.md#6-rotas-do-f0)) |
 | C07 | `/veiculos/:id/historico?dia=` | F0 | Regras da A04 + tabela de pontos (hora BRT, velocidade, ignição, válido) |
-| C08 | `/alertas` | F1 | Fila de [07](07-alertas-e-tempo-real.md) §9 |
-| C09 | `/comandos` e painel no veículo | F1 | Pedido com TOTP ≤ 5 min + motivo ≥ 10 caracteres; mesmos textos da §7; registro de contingência ([06](06-comandos-e-bloqueio.md) §10) |
+| C08 | `/alertas` | F1 | Fila de [07 §9](07-alertas-e-tempo-real.md#9-fila-de-alertas-no-console-da-central) |
+| C09 | `/comandos` e painel no veículo | F1 | Pedido com TOTP ≤ 5 min + motivo ≥ 10 caracteres; mesmos textos da §7; registro de contingência ([06 §10](06-comandos-e-bloqueio.md#10-contingência-por-sms-manual)) |
 | C10 | `/ocorrencias` | F1 | Abrir e fechar, BO, linha do tempo, pacote de evidências ([08](08-identidade-e-seguranca.md)) |
 | C11 | `/cobranca` | F1 | [12](12-cobranca-e-svas.md) |
 | C12 | `/atendimentos` | F1 | §11 |
@@ -205,9 +205,9 @@ F0: as medidas de cold start e mapa são informativas e vão para o PR da versã
 | C15 | `/importacoes`, `/migracao` | F1 | [11](11-onboarding-e-migracao.md) |
 | C16 | `/auditoria` | F1 | `audit_log` filtrável por ator, ação, alvo e período |
 | C17 | `/chips` | F1 | `sim_card`: ICCID, MSISDN, APN, status, rastreador |
-| C18 | `/politica-de-comando` | F1 | Nova versão de `command_policy` ([06](06-comandos-e-bloqueio.md) §3.3) |
+| C18 | `/politica-de-comando` | F1 | Nova versão de `command_policy` ([06 §3.3](06-comandos-e-bloqueio.md#33-política-da-operadora-command_policy)) |
 | C19 | `/busca`, `/busca/:occurrenceId` | F1 | §10 |
-| C20 | `/plataforma/operadoras` | F2 | Só `platform_admin`: operadoras em onboarding com `onboarding_days` (REQ-NEG-005), destaque no 10º dia sem 1º fix válido; checklist no runbook de [11](11-onboarding-e-migracao.md) §2 |
+| C20 | `/plataforma/operadoras` | F2 | Só `platform_admin`: operadoras em onboarding com `onboarding_days` (REQ-NEG-005), destaque no 10º dia sem 1º fix válido; checklist no runbook de [11 §2](11-onboarding-e-migracao.md#2-checklist-de-onboarding-meta--14-dias-f2) |
 
 Menu por papel (autorização no `api`, [08](08-identidade-e-seguranca.md)): `operator_admin` todas; `operator_agent` todas menos C13, C14, C16, C18; `installer` C05, C06 e C04 em leitura; `search_team` só C19. Navegadores: duas últimas versões de Chrome, Edge, Firefox e Safari; C19 também em Chrome Android e Safari iOS.
 
@@ -217,11 +217,11 @@ Menu por papel (autorização no `api`, [08](08-identidade-e-seguranca.md)): `op
 2. `/busca/:occurrenceId` em layout de celular (≤ 480 px): mapa em tela cheia seguindo o veículo; cartão com placa, modelo, cor, estado e "Última posição válida há X" em fonte ≥ 20 px; trajeto dos últimos 30 min; "Navegar" (links da A08); "Ligar para a central"; "Compartilhar com a polícia" (link de [08](08-identidade-e-seguranca.md)).
 3. Tela ligada com a Screen Wake Lock API enquanto a página está visível.
 4. Ocorrência encerrada: "Ocorrência encerrada" e fim do recebimento de posições em ≤ 5 s.
-5. Pedido de bloqueio pela visão de busca usa o step-up do console (TOTP ≤ 5 min + motivo) [ADOTADO NA v2.0: `search_team` no navegador usa step-up de console; [06](06-comandos-e-bloqueio.md) §4.1 prevê chave do aparelho, que não existe na web].
+5. Pedido de bloqueio pela visão de busca usa o step-up do console (TOTP ≤ 5 min + motivo) `search_team` no navegador usa step-up de console; [06 §4.1](06-comandos-e-bloqueio.md#41-papéis) prevê chave do aparelho, que não existe na web.
 
 ## 11. Atendimento (`ticket`, módulo `support`)
 
-Tabela tipo A ([04](04-dominio-e-dados.md) §4.2), F1. A API recusa papéis do cliente (403); só a equipe da operadora lê e escreve.
+Tabela tipo A ([04 §4.2](04-dominio-e-dados.md#42-tipos-de-tabela-e-políticas)), F1. A API recusa papéis do cliente (403); só a equipe da operadora lê e escreve.
 
 ```sql
 CREATE TABLE app.ticket (
@@ -238,7 +238,7 @@ CREATE TABLE app.ticket (
 -- alert_id: FK composta para app.alert quando a tabela expuser UNIQUE (operator_id, tenant_id, id) [alinhar com 04]
 ```
 
-Rotas ([09](09-api-e-contratos.md) §7): `POST /api/v1/tickets` (`tenantId`, `vehicleId?`, `alertId?`, `channel`, `subject`, `notes?`); `GET /api/v1/tickets?status=&tenantId=&cursor=`; `PATCH /api/v1/tickets/{ticketId}` com `If-Match: "<version>"`. Abrir a partir de cliente, veículo ou alerta preenche o contexto: cliente, veículo, alerta, estado atual e últimos 5 comandos. Ação "Abrir WhatsApp do cliente": `https://wa.me/{telefone}?text=` "Olá, {nome}. Aqui é a {operadora}, sobre o veículo {placa}." `audit_log`: `ticket.create`, `ticket.update`.
+Rotas ([09 §7](09-api-e-contratos.md#7-rotas-do-f1-e-do-f2-resumo)): `POST /api/v1/tickets` (`tenantId`, `vehicleId?`, `alertId?`, `channel`, `subject`, `notes?`); `GET /api/v1/tickets?status=&tenantId=&cursor=`; `PATCH /api/v1/tickets/{ticketId}` com `If-Match: "<version>"`. Abrir a partir de cliente, veículo ou alerta preenche o contexto: cliente, veículo, alerta, estado atual e últimos 5 comandos. Ação "Abrir WhatsApp do cliente": `https://wa.me/{telefone}?text=` "Olá, {nome}. Aqui é a {operadora}, sobre o veículo {placa}." `audit_log`: `ticket.create`, `ticket.update`.
 
 ## 12. Distribuição
 
@@ -246,12 +246,12 @@ Rotas ([09](09-api-e-contratos.md) §7): `POST /api/v1/tickets` (`tenantId`, `ve
 |---|---|---|---|
 | Android | Teste fechado do Google Play: ≥ 12 testadores por 14 dias seguidos antes da produção (conta pessoal) [VALIDAR — regra vigente]; início até 27/10/2026 | Produção após os 14 dias | Opção B por operadora |
 | iOS | TestFlight (DEC-03); testadores externos passam pela revisão beta da Apple [VALIDAR prazo] | App Store (G1-5) | Opção B |
-| Identificador | [ADOTADO NA v2.0: `br.com.versix.tracksys` como `applicationId` e bundle id, fixado antes do 1º envio (S2) e independente de DEC-04] | — | Opção B: identificador da operadora |
+| Identificador | `br.com.versix.tracksys` como `applicationId` e bundle id, fixado antes do 1º envio (S2) e independente de DEC-04 | — | Opção B: identificador da operadora |
 | Versões mínimas | Android 8.0 (API 26) e iOS 15 [PREMISSA] | Idem | Idem |
 | Build | Tag `mobile-vX.Y.Z` → GitHub Actions: `flutter test`, AAB assinado (`versionName` X.Y.Z, `versionCode` = número da execução), envio à faixa de teste, release no Sentry; iOS em runner macOS ou Codemagic [VALIDAR custo] | + envio às lojas | Flavors |
-| Configuração | `--dart-define=API_BASE_URL=https://api.{TRACKSYS_DOMAIN}`, mais os `--dart-define=FIREBASE_*` públicos do cliente FCM quando a T-012 entrar; nenhum segredo no binário. Workflow `mobile-release.yml` entregue pela T-010 | Idem | Idem |
+| Configuração | `--dart-define=API_BASE_URL=https://api.{TRACKSYS_DOMAIN}`, mais os `--dart-define=FIREBASE_*` públicos do cliente FCM quando a T-032 entrar; nenhum segredo no binário. Workflow `mobile-release.yml` entregue pela T-010 | Idem | Idem |
 
-1. Link único de download: `https://app.{TRACKSYS_DOMAIN}/baixar`, página estática do Caddy que redireciona para a loja pelo sistema do celular (usado nas mensagens de [11](11-onboarding-e-migracao.md) §7).
+1. Link único de download: `https://app.{TRACKSYS_DOMAIN}/baixar`, página estática do Caddy que redireciona para a loja pelo sistema do celular (usado nas mensagens de [11 §7](11-onboarding-e-migracao.md#7-migração-da-lider-passo-a-passo)).
 2. O app não pede localização do celular, câmera nem contatos; pede só notificações e biometria (`NSFaceIDUsageDescription`: "Usamos o Face ID para confirmar bloqueio e desbloqueio do veículo."). Declarações de privacidade das lojas seguem o [Anexo B](../anexos/B-juridico.md).
 3. **Opção B (F2):** `flutter build --flavor <slug>` com ativos em `apps/mobile/assets/flavors/<slug>/`, operadora fixa (sem tela de escolha), publicado na conta da operadora com a Versix como membro (diretriz 4.2.6). Login de usuário sem membership na operadora do flavor: "Esta conta não pertence à {operadora}".
 4. **Portal web do cliente (F2):** build Flutter Web do mesmo app em `https://meu.{TRACKSYS_DOMAIN}` [ADIADO PARA O F2: subdomínio `meu.`]; mapa, histórico, alertas, faturas e compartilhamento; sem comandos físicos até existir step-up web [ADIADO PARA O F2: WebAuthn como step-up do portal, decisão no F2].
@@ -296,7 +296,7 @@ Rotas ([09](09-api-e-contratos.md) §7): `POST /api/v1/tickets` (`tenantId`, `ve
 ### REQ-UX-008 — Histórico do dia
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N2 · **Invariantes:** INV-03, INV-06
 **Regra.** A04 e C07 DEVEM usar o dia BRT, marcar lacunas, qualificar a distância e avisar dias anteriores ao 1º vínculo.
-**Aceite.** CT-UX-008 — Dado 20/10/2026 escolhido, Então a requisição usa `from=2026-10-20T03:00:00Z&to=2026-10-21T03:00:00Z`; Dado a resposta do exemplo de [09](09-api-e-contratos.md) §9.4 (lacuna de 11:03:00Z a 11:09:40Z), Então o trecho entre esses pontos fica tracejado com "Sem dados 08:03–08:09" e o resumo começa com "≥"; Dado `gaps` vazio com pontos às 10:58:12Z e 11:02:30Z, Então trecho contínuo; Dado `nextCursor` preenchido, Então o app busca a página seguinte antes de desenhar o resumo; Dado 1º vínculo em 22/10/2026 e o dia 21/10 escolhido, Então "Histórico disponível a partir de 22/10/2026".
+**Aceite.** CT-UX-008 — Dado 20/10/2026 escolhido, Então a requisição usa `from=2026-10-20T03:00:00Z&to=2026-10-21T03:00:00Z`; Dado a resposta do exemplo de [09 §9.4](09-api-e-contratos.md#94-get-apiv1vehiclesvehicleidhistory) (lacuna de 11:03:00Z a 11:09:40Z), Então o trecho entre esses pontos fica tracejado com "Sem dados 08:03–08:09" e o resumo começa com "≥"; Dado `gaps` vazio com pontos às 10:58:12Z e 11:02:30Z, Então trecho contínuo; Dado `nextCursor` preenchido, Então o app busca a página seguinte antes de desenhar o resumo; Dado 1º vínculo em 22/10/2026 e o dia 21/10 escolhido, Então "Histórico disponível a partir de 22/10/2026".
 
 ### REQ-UX-009 — Alerta a partir do push em até 2 toques
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N2 · **Invariantes:** INV-07
@@ -305,7 +305,7 @@ Rotas ([09](09-api-e-contratos.md) §7): `POST /api/v1/tickets` (`tenantId`, `ve
 
 ### REQ-UX-010 — Modo vigilância no app
 **Fase:** F0 · **Prioridade:** P1 · **Risco:** N2 · **Invariantes:** INV-03
-**Regra.** A06 DEVE seguir [07](07-alertas-e-tempo-real.md) §5 e mapear os erros para os textos da tabela.
+**Regra.** A06 DEVE seguir [07 §5](07-alertas-e-tempo-real.md#5-modo-vigilância-cerca-âncora) e mapear os erros para os textos da tabela.
 **Aceite.** CT-UX-010 — Dado V1 estacionado com fix válido, Quando `dono.a1` ativa às 00:14:00Z, Então o mapa mostra círculo de 150 m e "Vigilância ativa desde 21:14"; Dado 409 `WATCH_MODE_VEHICLE_ON`, Então "Desligue o veículo para ativar a vigilância".
 
 ### REQ-UX-011 — Falar com a central e navegar até o veículo
@@ -341,7 +341,7 @@ Rotas ([09](09-api-e-contratos.md) §7): `POST /api/v1/tickets` (`tenantId`, `ve
 ### REQ-UX-017 — Disponibilidade e confirmação do comando
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-08, INV-10
 **Regra.** A11 DEVE seguir a §7 itens 1–4: botão só com `available = true`, `effectText` literal, deslizar até 90% e biometria com chave do aparelho.
-**Aceite.** CT-UX-017 — Dado `block.available = false` com `CUT_POINT_MISSING` (código de [09](09-api-e-contratos.md) §3), Então o detalhe não tem "Bloquear" e mostra "Bloqueio pelo app indisponível neste veículo. Fale com a central."; Dado `available = true`, Então a confirmação mostra o `effectText` recebido sem alteração; Quando solta a alça a 80%, Então nenhuma requisição; Quando desliza até o fim e cancela a biometria, Então 0 requisições a `/commands` e "Bloqueio não enviado"; Quando confirma, Então 1 POST com `Idempotency-Key` e `stepUp.kind = "device_key"`.
+**Aceite.** CT-UX-017 — Dado `block.available = false` com `CUT_POINT_MISSING` (código de [09 §3](09-api-e-contratos.md#3-erros-problem-details)), Então o detalhe não tem "Bloquear" e mostra "Bloqueio pelo app indisponível neste veículo. Fale com a central."; Dado `available = true`, Então a confirmação mostra o `effectText` recebido sem alteração; Quando solta a alça a 80%, Então nenhuma requisição; Quando desliza até o fim e cancela a biometria, Então 0 requisições a `/commands` e "Bloqueio não enviado"; Quando confirma, Então 1 POST com `Idempotency-Key` e `stepUp.kind = "device_key"`.
 
 ### REQ-UX-018 — Estados do comando com textos distintos
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-03, INV-08
@@ -412,3 +412,8 @@ Rotas ([09](09-api-e-contratos.md) §7): `POST /api/v1/tickets` (`tenantId`, `ve
 **Fase:** F2 · **Prioridade:** P2 · **Risco:** N2 · **Invariantes:** INV-07
 **Regra.** O portal web e o app dedicado DEVEM reutilizar o código do app e seguir a §12 itens 3 e 4.
 **Aceite.** CT-UX-031 — Dado o portal web, Quando `dono.a1` entra, Então vê mapa, histórico e faturas e não há "Bloquear"; Dado o build `--flavor lider`, Quando entra um usuário sem membership na Lider, Então "Esta conta não pertence à Lider" e nenhuma sessão é criada.
+
+### REQ-UX-032 — Console: lista de rastreadores sem comunicação há dias
+**Fase:** F1 · **Prioridade:** P1 · **Risco:** N2 · **Invariantes:** INV-03, INV-07
+**Regra.** A C02 DEVE oferecer os filtros "Sem comunicação há > 24 h" e "Sem comunicação há > 7 dias", ordenados do contato mais antigo para o mais recente, com exportação CSV. A exportação DEVE gravar `audit_log` `export.create` e respeitar o escopo da operadora (T-029). Veículo sem nenhuma posição conta como idade desconhecida e aparece no topo.
+**Aceite.** CT-UX-032 — Dado 3 veículos com último contato há 2 h, 30 h e 9 dias, Quando o filtro > 24 h é aplicado, Então aparecem 2 veículos, na ordem 9 dias e 30 h; Quando o filtro > 7 dias é aplicado, Então aparece só o de 9 dias; Quando exporta o CSV, Então o arquivo tem as mesmas linhas e existe `audit_log` `export.create`; Dado um veículo de outra operadora com 20 dias sem contato, Então ele não aparece nem no CSV.

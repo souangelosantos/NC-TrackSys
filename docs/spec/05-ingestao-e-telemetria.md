@@ -9,9 +9,30 @@
 > - Heartbeat (`outdated`) e fix inválido atualizam contato e status, sem virar posição.
 > - Reconciliação contínua com o Traccar a cada 15 min, sem efeito externo (INV-05).
 
+**Nesta página**
+
+- [1. Onde fica o código](#1-onde-fica-o-código)
+- [2. Contrato com o Traccar](#2-contrato-com-o-traccar)
+- [3. Rotas internas](#3-rotas-internas)
+- [4. Normalização (fronteira única de unidades — INV-12)](#4-normalização-fronteira-única-de-unidades--inv-12)
+- [5. Identidade, inbox e dedupe (INV-01)](#5-identidade-inbox-e-dedupe-inv-01)
+- [6. Resolução do dispositivo e janela de tempo](#6-resolução-do-dispositivo-e-janela-de-tempo)
+- [7. Projeção síncrona com fallback (passo a passo)](#7-projeção-síncrona-com-fallback-passo-a-passo)
+- [8. Ordenação e estado atual (INV-02, INV-04)](#8-ordenação-e-estado-atual-inv-02-inv-04)
+- [9. Heartbeat, fix inválido e compactação de parado](#9-heartbeat-fix-inválido-e-compactação-de-parado)
+- [10. Eventos de outbox](#10-eventos-de-outbox)
+- [11. Reprocessamento e quarentena (INV-05)](#11-reprocessamento-e-quarentena-inv-05)
+- [12. Queda prolongada, reconciliação e backfill](#12-queda-prolongada-reconciliação-e-backfill)
+- [13. Perfil de normalização (por `capability_profile`)](#13-perfil-de-normalização-por-capability_profile)
+- [14. Retenção da inbox](#14-retenção-da-inbox)
+- [15. Spike do J16 (T-002): o que capturar](#15-spike-do-j16-t-002-o-que-capturar)
+- [16. Testes de propriedade (fast-check)](#16-testes-de-propriedade-fast-check)
+- [17. Métricas de ingestão](#17-métricas-de-ingestão)
+- [18. Requisitos](#18-requisitos)
+
 ## 1. Onde fica o código
 
-Fluxo: `traccar` → `apps/api/src/ingestion/traccar.controller.ts` (listener `INTERNAL_PORT` 3001) → `normalizeTraccar` → `decideProjection` → `applyProjection` → `ingest_inbox`, `position`, `device_state`, `outbox` ([03 §5](03-arquitetura.md)). O `worker` reusa o mesmo aplicador para `pending`, reconciliação e backfill.
+Fluxo: `traccar` → `apps/api/src/ingestion/traccar.controller.ts` (listener `INTERNAL_PORT` 3001) → `normalizeTraccar` → `decideProjection` → `applyProjection` → `ingest_inbox`, `position`, `device_state`, `outbox` ([03 §5](03-arquitetura.md#5-ingestão-síncrona-com-fallback)). O `worker` reusa o mesmo aplicador para `pending`, reconciliação e backfill.
 
 | Peça | Caminho |
 |---|---|
@@ -23,7 +44,7 @@ Fluxo: `traccar` → `apps/api/src/ingestion/traccar.controller.ts` (listener `I
 
 ## 2. Contrato com o Traccar
 
-O Traccar envia cada posição e cada evento por HTTP POST JSON, na rede Docker interna, para o listener interno do `api` (porta 3001, sem publicação no host; [03 §10](03-arquitetura.md)). O segredo nunca fica no repositório: `render-config.sh` gera `traccar.xml` no start do contêiner a partir de `INGEST_SHARED_SECRET` (substituição com `sed`, sem dependências).
+O Traccar envia cada posição e cada evento por HTTP POST JSON, na rede Docker interna, para o listener interno do `api` (porta 3001, sem publicação no host; [03 §10](03-arquitetura.md#10-fronteiras-de-confiança-e-portas)). O segredo nunca fica no repositório: `render-config.sh` gera `traccar.xml` no start do contêiner a partir de `INGEST_SHARED_SECRET` (substituição com `sed`, sem dependências).
 
 | Chave (Traccar 6.x) | Valor | Motivo |
 |---|---|---|
@@ -98,7 +119,7 @@ Função pura `normalizeTraccar(envelope, profile)` em `packages/domain`. Campo 
 | `attributes.archive` | bool | flag `ARCHIVE` | Marca dado do buffer offline [VALIDAR — DEC-02] | — |
 | Demais atributos | — | Descartados da linha | Ficam no payload da inbox por 7 dias | — |
 
-`extra` é NULL na maioria das linhas; recebe só `alarms`, `blocked`, `powerState` e `batteryLevel` quando presentes ou mudados, até 1 KiB. `device_state.aux` (jsonb, 1 linha por dispositivo) guarda o estado auxiliar da projeção (§8, §9); DDL em [04](04-dominio-e-dados.md) §3.5.
+`extra` é NULL na maioria das linhas; recebe só `alarms`, `blocked`, `powerState` e `batteryLevel` quando presentes ou mudados, até 1 KiB. `device_state.aux` (jsonb, 1 linha por dispositivo) guarda o estado auxiliar da projeção (§8, §9); DDL em [04 §3.5](04-dominio-e-dados.md#35-ingestão).
 
 ### 4.1 Flags de `position.flags`
 
@@ -114,12 +135,13 @@ Função pura `normalizeTraccar(envelope, profile)` em `packages/domain`. Campo 
 | 7 | 128 | `SPEED_DISCARDED` | Velocidade > 300 km/h descartada |
 | 8 | 256 | `JUMP_SUSPECT` | Velocidade implícita > 300 km/h e distância > 1 km desde o fix atual (anomalia/spoofing; ver [08](08-identidade-e-seguranca.md)) |
 | 9 | 512 | `PREVIOUS_ASSIGNMENT` | Pertence a vínculo já encerrado (INV-06) |
+| 10 | 1024 | `ORIGIN_UNTRUSTED` | IP de origem da sessão gt06 fora da allowlist da APN, quando ela existir ([08 §10](08-identidade-e-seguranca.md#10-ameaças), ameaça 1); o fix vai ao histórico, mas não é evidência de comando ([06 §3.1](06-comandos-e-bloqueio.md#31-evidência-válida)) |
 
 ### 4.2 Movimento (`device_state.motion`)
 
 1. Fix válido com velocidade ≥ 5 km/h → `moving`; apaga `aux.slowSince`. Com `trust_motion_attribute = true`, `attributes.motion = true` com ignição `true` também leva a `moving`.
 2. Fix válido com velocidade < 5 km/h: se o estado era `moving`, grava `aux.slowSince` (se vazio) e só passa a `stopped` quando `fix_time − slowSince ≥ 120 s` (semáforo não gera `stopped`; base do alerta de comunicação perdida em movimento, [07](07-alertas-e-tempo-real.md)); se era `stopped` ou `unknown`, vira `stopped`.
-3. Ignição observada `false` → `stopped` imediatamente.
+3. Ignição observada `false` → `stopped` imediatamente, com `aux.motionSource = 'ignition'`. Fix válido (regras 1 e 2) grava `aux.motionSource = 'fix'`. O avaliador de comando ([06 §3.1](06-comandos-e-bloqueio.md#31-evidência-válida)) ignora `stopped` com `motionSource = 'ignition'`: só `stopped` derivado de fix vale como evidência de parada.
 4. Sem fix válido nunca observado → `unknown`. Fix inválido e heartbeat não mudam `motion` (exceto a regra 3).
 
 ## 5. Identidade, inbox e dedupe (INV-01)
@@ -129,18 +151,18 @@ Função pura `normalizeTraccar(envelope, profile)` em `packages/domain`. Campo 
 3. `payload_sha256` = SHA-256 do JSON canônico (chaves ordenadas) do objeto `position` ou `event`, sem o objeto `device`.
 4. `INSERT … ON CONFLICT (source_instance, kind, source_event_id) DO NOTHING`. Conflito = duplicata: commit, 202 `duplicate`, nenhum efeito. Hash diferente na mesma chave: métrica `ingest_conflicting_duplicates_total` e log `warn` com a chave e os dois hashes; a linha original não muda.
 5. Regressão de id: o `api` mantém em memória o maior id numérico visto por `(source_instance, kind)`, carregado no boot das últimas 24 h da inbox. Id mais de 10.000 abaixo desse máximo, fora de backfill, vai para quarentena `source_id_regression` com alerta ao fundador (REQ-ARQ-013).
-6. Defesa em profundidade em `position`: a PK `(assignment_id, fix_time)` de [04](04-dominio-e-dados.md) §3.5 (não há índice por `source_event_id`). O mesmo `fix_time` no mesmo vínculo com outro id do Traccar grava 1 linha (a primeira) via `ON CONFLICT (assignment_id, fix_time) DO NOTHING`; sem linha nova, não há `telemetry.position.accepted.v1`. A localização de `device_state` continua usando o desempate por id (§8).
+6. Defesa em profundidade em `position`: a PK `(assignment_id, fix_time)` de [04 §3.5](04-dominio-e-dados.md#35-ingestão) (não há índice por `source_event_id`). O mesmo `fix_time` no mesmo vínculo com outro id do Traccar grava 1 linha (a primeira) via `ON CONFLICT (assignment_id, fix_time) DO NOTHING`; sem linha nova, não há `telemetry.position.accepted.v1`. A localização de `device_state` continua usando o desempate por id (§8).
 
 ## 6. Resolução do dispositivo e janela de tempo
 
-`app.resolve_device_for_ingest(source_instance text, unique_id text)` — SECURITY DEFINER, dono `tracksys_owner`, executável só por `tracksys_ingest`, assinatura e corpo em [04](04-dominio-e-dados.md) §4.4 — devolve 0 ou 1 linha `(device_id, operator_id)` do rastreador não aposentado com `imei = device.uniqueId`. Com o `operator_id`, a projeção abre o contexto `operator` (§7), trava `device_state`, confere `device.traccar_device_id` e lê sob RLS o vínculo com `p_at ∈ [valid_from, valid_to)` e o perfil. O tenant vem sempre do vínculo no servidor, nunca do payload (INV-07).
+`app.resolve_device_for_ingest(source_instance text, unique_id text)` — SECURITY DEFINER, dono `tracksys_owner`, executável só por `tracksys_ingest`, assinatura e corpo em [04 §4.4](04-dominio-e-dados.md#44-funções-security-definer-lista-fechada) — devolve 0 ou 1 linha `(device_id, operator_id)` do rastreador não aposentado com `imei = device.uniqueId`. Com o `operator_id`, a projeção abre o contexto `operator` (§7), trava `device_state`, confere `device.traccar_device_id` e lê sob RLS o vínculo com `p_at ∈ [valid_from, valid_to)` e o perfil. O tenant vem sempre do vínculo no servidor, nunca do payload (INV-07).
 
 | Situação | Resultado |
 |---|---|
 | `device.uniqueId` não resolvido (função devolve 0 linhas) | Quarentena `unknown_device` |
-| Resolvido, mas `device.traccar_device_id` NULL ou ≠ `position.deviceId` do envelope | Quarentena `device_identity_mismatch` (rastreador ainda não provisionado no Traccar, ver [02](02-escopo-e-fases.md) §2.3) |
+| Resolvido, mas `device.traccar_device_id` NULL ou ≠ `position.deviceId` do envelope | Quarentena `device_identity_mismatch` (rastreador ainda não provisionado no Traccar, ver [02 §2.3](02-escopo-e-fases.md#23-cartões-de-tarefa-do-f0)) |
 | Sem vínculo em `p_at` | Quarentena `no_assignment` (instalador vê o status por função de [11](11-onboarding-e-migracao.md)) |
-| Vínculo encerrado em `p_at` | Só histórico, flag `PREVIOUS_ASSIGNMENT`; `device_state` intocado (INV-06). Recebido mais de 24 h depois do `valid_to` desse vínculo: quarentena `closed_assignment_late` ([04](04-dominio-e-dados.md) §9.1) |
+| Vínculo encerrado em `p_at` | Só histórico, flag `PREVIOUS_ASSIGNMENT`; `device_state` intocado (INV-06). Recebido mais de 24 h depois do `valid_to` desse vínculo: quarentena `closed_assignment_late` ([04 §9.1](04-dominio-e-dados.md#91-transferência-sem-mover-histórico-inv-06)) |
 
 **Janela aceita para `fix_time`:** `[received_at − 30 dias, received_at + 120 s]`, com `received_at` = relógio do `api` na chegada (no reprocessamento, o `received_at` original da inbox). Heartbeat (`outdated = true`) ignora `fixTime` e usa `serverTime` como `p_at`.
 
@@ -188,7 +210,7 @@ COMMIT;   -- só então 202
 
 Falha em qualquer ponto entre `SAVEPOINT` e `RELEASE`: `ROLLBACK TO SAVEPOINT projection` (desfaz posição, estado, outbox, NOTIFY e contexto RLS), depois `UPDATE ingest_inbox SET error = '<código>: <mensagem ≤ 500 caracteres>', next_attempt_at = now() + backoff(1)` com status `pending`, `COMMIT` e 202 `pending`. Queda do processo antes do `COMMIT` não grava nada: o Traccar não recebe 202 e reenvia. Queda depois do `COMMIT` e antes da resposta: a reentrega cai no passo 1 como duplicata.
 
-A revisão vem do gatilho `device_state_revision` ([04](04-dominio-e-dados.md) §3.5), que usa a sequência global `app.device_state_revision_seq` sob o lock da linha: quem atualiza não passa `revision` e lê o valor com `RETURNING`. Ela é estritamente crescente por dispositivo e continua crescendo após troca de vínculo. A linha de `device_state` nunca é apagada: ao abrir ou encerrar vínculo, o módulo `fleet` zera a telemetria para NULL/`'unknown'` e religa `tenant_id`, `vehicle_id` e `assignment_id` na mesma transação (REQ-DAD-011). Para INV-04 equivale ao "revision + 1" de [03 §5](03-arquitetura.md), sem reiniciar em 1.
+A revisão vem do gatilho `device_state_revision` ([04 §3.5](04-dominio-e-dados.md#35-ingestão)), que usa a sequência global `app.device_state_revision_seq` sob o lock da linha: quem atualiza não passa `revision` e lê o valor com `RETURNING`. Ela é estritamente crescente por dispositivo e continua crescendo após troca de vínculo. A linha de `device_state` nunca é apagada: ao abrir ou encerrar vínculo, o módulo `fleet` zera a telemetria para NULL/`'unknown'` e religa `tenant_id`, `vehicle_id` e `assignment_id` na mesma transação (REQ-DAD-011). Para INV-04 equivale ao "revision + 1" de [03 §5](03-arquitetura.md#5-ingestão-síncrona-com-fallback), sem reiniciar em 1.
 
 ## 8. Ordenação e estado atual (INV-02, INV-04)
 
@@ -218,7 +240,7 @@ A última posição gravada fica em `aux.lastStored` (`latE7`, `lonE7`, `fixTime
 
 ## 10. Eventos de outbox
 
-Posição gravada → `telemetry.position.accepted.v1`. Revisão nova → `device.state.updated.v1`. Exemplos com ids fictícios:
+Posição gravada → `telemetry.position.accepted.v1`. Revisão nova → `device.state.updated.v1`. O **publicador da outbox** (`outbox-publisher`, `runPublisherOnce`; [03 §6](03-arquitetura.md#6-eventos-de-domínio-e-barramento)) reivindica as linhas por `app.outbox_claim` e cria os jobs; neste projeto "relé" (`relay`) é só o hardware do rastreador. Exemplos com ids fictícios:
 
 ```json
 {
@@ -250,7 +272,7 @@ Posição gravada → `telemetry.position.accepted.v1`. Revisão nova → `devic
 }
 ```
 
-Regras: `cause` ∈ `position | heartbeat | event`; `processingMode` ∈ `live | reprocess | backfill | replay` (§11); `latitude`/`longitude` = `lat_e7 / 10⁷` e `speedKmh` = `speed_kmh_x10 / 10`, ou seja, os valores gravados; `transitions` traz, para cada campo de status que mudou (`ignition`, `motion`, `powerState`, `relayState`), `from` e `to`, calculados sob o lock (exatos, sem estado no consumidor). O consumidor lê o payload pela `outbox` com o contexto RLS do job ([03 §6](03-arquitetura.md)). Schemas em `packages/contracts`.
+Regras: `cause` ∈ `position | heartbeat | event`; `processingMode` ∈ `live | reprocess | backfill | replay` (§11); `latitude`/`longitude` = `lat_e7 / 10⁷` e `speedKmh` = `speed_kmh_x10 / 10`, ou seja, os valores gravados; `transitions` traz, para cada campo de status que mudou (`ignition`, `motion`, `powerState`, `relayState`), `from` e `to`, calculados sob o lock (exatos, sem estado no consumidor). O consumidor lê o payload pela `outbox` com o contexto RLS do job ([03 §6](03-arquitetura.md#6-eventos-de-domínio-e-barramento)). Schemas em `packages/contracts`.
 
 ## 11. Reprocessamento e quarentena (INV-05)
 
@@ -261,11 +283,11 @@ Regras: `cause` ∈ `position | heartbeat | event`; `processingMode` ∈ `live |
 | Reconciliação e backfill | Worker (§12) | `backfill` | Flag `BACKFILL` |
 | Republicação de eventos da outbox | CLI `ingest:republish` | `replay` | Só para recuperar consumidor; mesmo `eventId` |
 
-Eventos em modo diferente de `live` levam `processingMode` no payload; todo consumidor com efeito externo (push, comando, SMS, cobrança, indicação) o ignora para efeito, podendo só registrar ([07](07-alertas-e-tempo-real.md), [06](06-comandos-e-bloqueio.md)). Mensagens `processed` nunca são reprojetadas. Colunas `attempts` e `next_attempt_at` da inbox: [04](04-dominio-e-dados.md) §3.5. Códigos de quarentena: `unknown_device`, `device_identity_mismatch`, `no_assignment`, `fix_time_in_future`, `fix_time_too_old`, `wnro_suspect`, `invalid_coordinates`, `missing_source_id`, `source_id_regression`, `projection_failed`.
+Eventos em modo diferente de `live` levam `processingMode` no payload; todo consumidor com efeito externo (push, comando, SMS, cobrança, indicação) o ignora para efeito, podendo só registrar ([07](07-alertas-e-tempo-real.md), [06](06-comandos-e-bloqueio.md)). Mensagens `processed` nunca são reprojetadas. Colunas `attempts` e `next_attempt_at` da inbox: [04 §3.5](04-dominio-e-dados.md#35-ingestão). Códigos de quarentena: `unknown_device`, `device_identity_mismatch`, `no_assignment`, `fix_time_in_future`, `fix_time_too_old`, `wnro_suspect`, `invalid_coordinates`, `missing_source_id`, `source_id_regression`, `projection_failed`.
 
 ## 12. Queda prolongada, reconciliação e backfill
 
-[ADOTADO NA v2.0] Fases: no F0, a T-015 só compara a janela do item 1 com a inbox (modo `--recent` do coletor do G0, por id do Traccar contra `(source_instance, kind, source_event_id)`), sem gravar; o job `ingest.reconcile` com projeção em `backfill`, o CLI `ingest:backfill` e a métrica `ingest_reconciled_missing_total` são da T-028, no F1 (REQ-ING-016).
+Fases: no F0, a T-015 só compara a janela do item 1 com a inbox (modo `--recent` do coletor do G0, por id do Traccar contra `(source_instance, kind, source_event_id)`), sem gravar; o job `ingest.reconcile` com projeção em `backfill`, o CLI `ingest:backfill` e a métrica `ingest_reconciled_missing_total` são da T-028, no F1 (REQ-ING-016).
 
 1. **Reconciliação contínua:** job `ingest.reconcile` (pg-boss, `*/15 * * * *`). Para cada dispositivo com vínculo corrente, `GET /api/positions?deviceId=<traccar_device_id>&from=<now − 80 min>&to=<now − 20 min>` na API do Traccar (rota e parâmetros [VALIDAR — DEC-02]; se `from`/`to` filtram por `fixTime`, fix do buffer offline com `fix_time` antigo fica fora da janela e só o backfill manual o recupera [VALIDAR — DEC-02]), até 4 requisições simultâneas. Ids ausentes na inbox são projetados em modo `backfill`. A janela sobreposta torna o job idempotente; o atraso de 20 min evita disputar com as retentativas do forward. `ingest_reconciled_missing_total > 0` fora de queda conhecida indica perda no forward e gera aviso.
 2. **Backfill manual** (queda > 1 h do `api` ou do banco): `ingest:backfill -- --from <RFC 3339> --to <RFC 3339> [--device <uuid>]`, limitado aos 7 dias retidos no Traccar (runbook em [13](13-infra-e-operacao.md)). Lacuna sem recuperação (fora dos 7 dias ou buffer perdido) não é inventada: histórico e relatórios a mostram ([10](10-apps-e-ux.md)).
@@ -273,7 +295,7 @@ Eventos em modo diferente de `live` levam `processingMode` no payload; todo cons
 
 ## 13. Perfil de normalização (por `capability_profile`)
 
-O perfil vem de `device.capability_profile_id`; a seção `normalization` vive dentro de `capability_profile.capabilities` e é versionada com o perfil (mudança cria nova `version`; o evento registra `normalizationProfile` = `<modelo>/<versão>`). As 11 capacidades de [04](04-dominio-e-dados.md) §3.3 usam `"yes"`, `"no"` ou `"unknown"` (INV-03); só `"yes"` habilita o uso do atributo, e `"unknown"` = não validada = tratada como ausente. Sem perfil, vale o embutido `generic-traccar/1`: todas as capacidades `"unknown"`, `source_id_strategy = 'traccar_id'`. Os campos de `normalization` mantêm os tipos da tabela abaixo. Formato do rascunho do J16 (T-002; cada capacidade só vira `"yes"`/`"no"` com arquivo de captura do §15 em `evidence`, o resto fica `"unknown"`):
+O perfil vem de `device.capability_profile_id`; a seção `normalization` vive dentro de `capability_profile.capabilities` e é versionada com o perfil (mudança cria nova `version`; o evento registra `normalizationProfile` = `<modelo>/<versão>`). As 11 capacidades de [04 §3.3](04-dominio-e-dados.md#33-frota) usam `"yes"`, `"no"` ou `"unknown"` (INV-03); só `"yes"` habilita o uso do atributo, e `"unknown"` = não validada = tratada como ausente. Sem perfil, vale o embutido `generic-traccar/1`: todas as capacidades `"unknown"`, `source_id_strategy = 'traccar_id'`. Os campos de `normalization` mantêm os tipos da tabela abaixo. Formato do rascunho do J16 (T-002; cada capacidade só vira `"yes"`/`"no"` com arquivo de captura do §15 em `evidence`, o resto fica `"unknown"`):
 
 ```json
 {
@@ -298,7 +320,7 @@ O perfil vem de `device.capability_profile_id`; a seção `normalization` vive d
 
 ## 14. Retenção da inbox
 
-Job diário `ingest.retention` (pg-boss, `7 3 * * *` UTC, o horário de [04](04-dominio-e-dados.md) §8.1), em lotes de 10.000 linhas com pausa de 100 ms: `payload = NULL` quando `received_at < now() − 7 dias`; `DELETE` quando `received_at < now() − 90 dias`. `payload_sha256` fica com a identidade de dedupe até o DELETE, para que o conflito de hash do §5 continue detectável sem o payload [ADOTADO NA v2.0]. Vale para todos os status, salvo `pending`, que nunca é apagada. Dono: T-027, no F1 [ADOTADO NA v2.0: adiado do F0; até lá o payload da inbox fica além de 7 dias, risco aceito em [15](15-decisoes-riscos-premissas.md) §3] ([02](02-escopo-e-fases.md) §2.3). No mês 12 a inbox guarda ~135 milhões de identidades (~1,5 milhão por dia); o dimensionamento de disco entra em [04](04-dominio-e-dados.md) e [13](13-infra-e-operacao.md).
+Job diário `ingest.retention` (pg-boss, `7 3 * * *` UTC, o horário de [04 §8.1](04-dominio-e-dados.md#81-prazos)), em lotes de 10.000 linhas com pausa de 100 ms: `payload = NULL` quando `received_at < now() − 7 dias`; `DELETE` quando `received_at < now() − 90 dias`. `payload_sha256` fica com a identidade de dedupe até o DELETE, para que o conflito de hash do §5 continue detectável sem o payload. Vale para todos os status, salvo `pending`, que nunca é apagada. Dono: T-027, no F1 adiado do F0; até lá o payload da inbox fica além de 7 dias, risco aceito em [15 §3](15-decisoes-riscos-premissas.md#3-riscos) ([02 §2.3](02-escopo-e-fases.md#23-cartões-de-tarefa-do-f0)). No mês 12 a inbox guarda ~135 milhões de identidades (~1,5 milhão por dia); o dimensionamento de disco entra em [04](04-dominio-e-dados.md) e [13](13-infra-e-operacao.md).
 
 ## 15. Spike do J16 (T-002): o que capturar
 
@@ -344,7 +366,7 @@ Domínio puro em `packages/domain/test/ingestion.property.test.ts` (`numRuns: 10
 | `ingest_lag_seconds` (`received_at − serverTime`) e `ingest_fix_age_seconds` (`received_at − fix_time`) | histograma | p95 lag > 5 s | — |
 | `ingest_late_positions_total`, `ingest_compacted_total`, `ingest_jump_suspect_total`; `ingest_conflicting_duplicates_total` e `ingest_reconciled_missing_total` | contador | Os dois últimos: > 0 | — |
 
-[ADOTADO NA v2.0] No F0, `ingest_pending_count`, `ingest_pending_oldest_age_seconds` e `ingest_last_received_age_seconds` saem da sonda `tracksys-ingest-lag` da primária (timer de 60 s, textfile, page direto no Pushover; T-013, AL-07 de [13 §12](13-infra-e-operacao.md)); o cálculo pelo `api` e as demais métricas desta tabela entram com a T-028, no F1.
+No F0, `ingest_pending_count`, `ingest_pending_oldest_age_seconds` e `ingest_last_received_age_seconds` saem da sonda `tracksys-ingest-lag` da primária (timer de 60 s, textfile, page direto no Pushover; T-013, AL-07 de [13 §12](13-infra-e-operacao.md#12-regras-de-alerta)); o cálculo pelo `api` e as demais métricas desta tabela entram com a T-028, no F1.
 
 Logs: nunca coordenadas, IMEI completo, segredo ou payload ([03 REQ-ARQ-014](03-arquitetura.md)); o `correlationId` da ingestão é o id da inbox.
 
@@ -427,7 +449,7 @@ CT-ING-022 — Dado o processo `api` morto (SIGKILL) depois do INSERT na inbox e
 **Aceite.** CT-ING-015 — Dado uma falha permanente injetada na projeção, Quando o tempo passa, Então há 5 tentativas com esperas de ~2, 8, 32 e 120 s (± 25%), a linha termina `quarantined` com `projection_failed` e o fake de Pushover/Sentry recebe 1 aviso; Dado uma posição em quarentena `unknown_device` com `alarm = sos` reprocessada após o cadastro do dispositivo, Então `position` ganha a linha com flag 16 e o fake de FCM recebe 0 chamadas.
 
 ### REQ-ING-016 — Reconciliação e backfill
-**Fase:** F0, F1 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** INV-01, INV-05 · [ADOTADO NA v2.0: reconciliação, consultas e relatório no F0 (T-015); backfill e CT-ING-016 no F1 (T-028), porque o CT grava o backfill no banco]
+**Fase:** F0, F1 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** INV-01, INV-05 · reconciliação, consultas e relatório no F0 (T-015); backfill e CT-ING-016 no F1 (T-028), porque o CT grava o backfill no banco
 **Regra.** O job `ingest.reconcile` DEVE comparar a janela do §12 com a inbox e projetar o que faltar em modo `backfill`; o CLI de backfill DEVE aceitar até 7 dias.
 **Aceite.** CT-ING-016 — Dado o fake de Traccar com 120 posições do dispositivo D entre 10:00 e 11:00Z, das quais 30 nunca chegaram pelo forward, Quando `ingest.reconcile` roda às 11:25Z, Então a inbox passa a ter 120 linhas, as 30 novas têm flag 8, nenhum push é enviado, e uma segunda execução não cria linhas.
 
@@ -437,7 +459,7 @@ CT-ING-022 — Dado o processo `api` morto (SIGKILL) depois do INSERT na inbox e
 **Aceite.** CT-ING-017 — Dado um dispositivo sem `capability_profile_id` e `attributes.blocked = true`, Então `relay_state = 'unknown'`; Dado perfil J16 com `relay_state_reported = "yes"`, Então `relay_state = 'blocked'` e `relay_observed_at = observedAt`; Dado `power_source = 'charge'` e `charge = false`, Então `power_state = 'battery'`.
 
 ### REQ-ING-018 — Retenção da inbox
-**Fase:** F1 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** INV-01 · [ADOTADO NA v2.0: adiado do F0 para a T-027; até lá o payload da inbox fica além de 7 dias]
+**Fase:** F1 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** INV-01 · adiado do F0 para a T-027; até lá o payload da inbox fica além de 7 dias
 **Regra.** O job do §14 DEVE anular o payload após 7 dias, manter `payload_sha256` com a identidade e apagar a linha após 90 dias, em lotes (mesma regra de CT-DAD-013, [04](04-dominio-e-dados.md)).
 **Aceite.** CT-ING-018 — Dado linhas com `received_at` há 6, 8 e 91 dias, Quando `ingest.retention` roda, Então a de 6 dias mantém o payload, a de 8 tem `payload` NULL e `payload_sha256` intacto, a de 91 não existe; e reenviar a chave da linha de 8 dias responde `duplicate`.
 
@@ -452,6 +474,6 @@ CT-ING-022 — Dado o processo `api` morto (SIGKILL) depois do INSERT na inbox e
 **Aceite.** CT-ING-020 — Dado o CI de um PR que remove o desempate por `source_event_id` do §8 (fix com `fix_time` igual ao atual passa a substituí-lo), Quando `pnpm test` roda, Então P2 falha com contraexemplo reduzido de 2 fixes com o mesmo `fix_time`.
 
 ### REQ-ING-021 — Métricas e alarmes de ingestão
-**Fase:** F0, F1 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** — · [ADOTADO NA v2.0: sonda de atraso da ingestão por timer na primária, com page no Pushover, na T-013 (F0, cobre o CT-ING-021); métricas Prometheus do `api` e do `worker` e porta `Metrics` na T-028 (F1)]
+**Fase:** F0, F1 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** — · sonda de atraso da ingestão por timer na primária, com page no Pushover, na T-013 (F0, cobre o CT-ING-021); métricas Prometheus do `api` e do `worker` e porta `Metrics` na T-028 (F1)
 **Regra.** `api` e `worker` DEVEM emitir as métricas do §17 com os limiares de aviso e page.
 **Aceite.** CT-ING-021 — Dado o worker parado e uma falha injetada que deixa 1 linha `pending`, Quando passam 301 s, Então `ingest_pending_oldest_age_seconds > 300` e o fake de Pushover recebe 1 page.

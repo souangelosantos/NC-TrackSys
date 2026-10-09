@@ -8,6 +8,20 @@
 > - Vínculo ganha `is_primary` e `cut_point`; o EXCLUDE por rastreador não leva `tenant_id` (a v1.1 permitia o mesmo rastreador em dois clientes ao mesmo tempo).
 > - Verificador de catálogo CAT-01..CAT-06 no CI e lista fechada de funções `SECURITY DEFINER`.
 
+**Nesta página**
+
+- [1. Hierarquia e convenções](#1-hierarquia-e-convenções)
+- [2. Diagrama ER do núcleo](#2-diagrama-er-do-núcleo)
+- [3. DDL de referência do F0](#3-ddl-de-referência-do-f0)
+- [4. Modelo RLS](#4-modelo-rls)
+- [5. Verificador de catálogo e testes de isolamento](#5-verificador-de-catálogo-e-testes-de-isolamento)
+- [6. Tabelas do F1 em diante (resumo)](#6-tabelas-do-f1-em-diante-resumo)
+- [7. Particionamento, compactação e índices](#7-particionamento-compactação-e-índices)
+- [8. Retenção e armazenamento](#8-retenção-e-armazenamento)
+- [9. Ciclo de vida: transferência e encerramento](#9-ciclo-de-vida-transferência-e-encerramento)
+- [10. Migrations expand/contract](#10-migrations-expandcontract)
+- [11. Requisitos](#11-requisitos)
+
 ## 1. Hierarquia e convenções
 
 | Nível | Linha no banco | Quem | Contexto RLS | Enxerga |
@@ -78,11 +92,11 @@ DDL exata: migration `20261007120000_fundacao_isolamento.sql` no cartão [T-001]
 | `tenant` | C | `UNIQUE (operator_id, id)`; `kind` em `person`, `company`; `status` em `active`, `suspended_commercial`, `closed` | `tenant_staff_all`, `tenant_self_read` |
 | `vehicle` | A | FK `(operator_id, tenant_id)` → `tenant`; `UNIQUE (operator_id, tenant_id, id)`; placa `^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$`, única por operadora entre não arquivados | `vehicle_isolation` |
 
-[ADOTADO NA v2.0] `tenant.contact_phone` (E.164) e `tenant.contact_email` não existem no F0. Entram no F1 por migration expand (`ADD COLUMN ... NULL`) no cartão do importador ([11](11-onboarding-e-migracao.md) §3.2). Até lá, C03 e `POST /api/v1/tenants` não têm esses campos.
+`tenant.contact_phone` (E.164) e `tenant.contact_email` não existem no F0. Entram no F1 por migration expand (`ADD COLUMN ... NULL`) no cartão do importador ([11 §3.2](11-onboarding-e-migracao.md#32-campos)). Até lá, C03 e `POST /api/v1/tenants` não têm esses campos.
 
 ### 3.2 Gatilho de imutabilidade
 
-A T-005 cria o gatilho e o aplica a `tenant` e `vehicle`. Toda tabela nova com colunas de escopo ou de vínculo o aplica. [ADOTADO NA v2.0] T-005 e T-006 correm em paralelo, e ambas usam a função. Por isso, as duas a criam com `CREATE OR REPLACE` e o mesmo corpo, e nenhum `migrate:down` a remove, para que a ordem de merge não importe. A mesma regra vale para as políticas compartilhadas `operator_definer_read` e `tenant_definer_read` (seção 4.4).
+A T-004 é a dona única de `app.tg_immutable_columns()`, das políticas compartilhadas `operator_definer_read` e `tenant_definer_read` e da regra CAT-07 (migration `20261010130000_base_definidora.sql`). `app.current_user_id()` é criada na migration da T-006 (`20261014130000_identidade.sql`). A T-005 aplica o gatilho a `tenant` e `vehicle`; toda tabela nova com colunas de escopo ou de vínculo o aplica no próprio cartão.
 
 ```sql
 -- F0 · 1/9 auxiliares
@@ -198,7 +212,7 @@ Regras de `device_assignment`: `cut_point` NULL = bloqueio indisponível (INV-10
 
 ### 3.4 Identidade
 
-`user_id` referencia `auth."user" (id)` do Better Auth, configurado para ids UUID ([08](08-identidade-e-seguranca.md); opção de geração de id da versão fixada [VALIDAR — T-006]). `device_key.public_key` guarda a chave P-256 em DER SPKI: 91 bytes para ponto não comprimido. [ADOTADO NA v2.0] A T-006 cria também, no schema `auth` (fora do `db:check`), `auth.email_token` (convite e redefinição de senha; só o SHA-256 do token é gravado, e o token nasce no worker) e `auth.totp_last_step` (último passo TOTP aceito por usuário). DDL no cartão da [T-006](../../tasks/T-006-autenticacao-e-contexto-rls.md); regras em [08](08-identidade-e-seguranca.md).
+`user_id` referencia `auth."user" (id)` do Better Auth, configurado para ids UUID ([08](08-identidade-e-seguranca.md); opção de geração de id da versão fixada [VALIDAR — T-006]). `device_key.public_key` guarda a chave P-256 em DER SPKI: 91 bytes para ponto não comprimido. A T-006 cria também, no schema `auth` (fora do `db:check`), `auth.email_token` (convite e redefinição de senha; só o SHA-256 do token é gravado, e o token nasce no worker) e `auth.totp_last_step` (último passo TOTP aceito por usuário). DDL no cartão da [T-006](../../tasks/T-006-autenticacao-e-contexto-rls.md); regras em [08](08-identidade-e-seguranca.md).
 
 ```sql
 -- F0 · 3/9 identidade
@@ -319,7 +333,7 @@ CREATE INDEX outbox_created_at_idx ON app.outbox (created_at);
 
 ### 3.6 Alertas
 
-Catálogo de `type`, severidades, formato de `episode_key`/`delivery_key`, raio da vigilância (100–500 m) e preferências: [07](07-alertas-e-tempo-real.md). No máximo um episódio aberto por `(device_id, type)`.
+Catálogo de `type`, severidades, formato de `episode_key`/`delivery_key`, raio da vigilância (100–500 m) e preferências: [07](07-alertas-e-tempo-real.md). No máximo um episódio aberto por `(device_id, type)`, exceto nos tipos `command_*` (`command_unknown`, `command_failed`), que usam só `episode_key` (`command_unknown:{commandId}`): um block UNKNOWN e um unblock UNKNOWN seguintes no mesmo rastreador geram dois alertas abertos, cada um com o seu push.
 
 ```sql
 -- F0 · 5/9 alertas
@@ -338,7 +352,7 @@ CREATE TABLE app.alert (
   CONSTRAINT alert_period_chk CHECK (ended_at IS NULL OR ended_at >= started_at)
 );
 CREATE INDEX alert_timeline_idx ON app.alert (operator_id, tenant_id, started_at DESC);
-CREATE UNIQUE INDEX alert_open_key ON app.alert (device_id, type) WHERE ended_at IS NULL;
+CREATE UNIQUE INDEX alert_open_key ON app.alert (device_id, type) WHERE ended_at IS NULL AND type NOT LIKE 'command\_%';  -- tipos command_* usam só episode_key (um por comando)
 CREATE TRIGGER alert_immutable BEFORE UPDATE ON app.alert FOR EACH ROW EXECUTE FUNCTION
   app.tg_immutable_columns('operator_id', 'tenant_id', 'vehicle_id', 'device_id', 'type', 'episode_key', 'started_at');
 -- rls: B
@@ -405,7 +419,7 @@ CREATE TABLE app.access_log (
   at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT access_log_pkey PRIMARY KEY (id, at)
 ) PARTITION BY RANGE (at);
--- rls: A · idempotência das rotas ([09](09-api-e-contratos.md) §4); tenant_id NULL em operação de nível operadora (nullableTenantId)
+-- rls: A · idempotência das rotas ([09 §4](09-api-e-contratos.md#4-idempotência)); tenant_id NULL em operação de nível operadora (nullableTenantId)
 CREATE TABLE app.idempotency_record (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   operator_id uuid NOT NULL REFERENCES app.operator (id), tenant_id uuid NULL,
@@ -420,19 +434,20 @@ CREATE TABLE app.idempotency_record (
 );
 ```
 
-[ADOTADO NA v2.0] Tarefa que cria cada objeto, conforme os cartões do F0:
+Tarefa que cria cada objeto, conforme os cartões do F0:
 
 | Tarefa | Tabelas | Gatilhos e funções `SECURITY DEFINER` | Políticas tipo G |
 |---|---|---|---|
-| T-005 | `capability_profile`, `sim_card`, `device`, `device_assignment`, `ingest_inbox`, `position`, `device_state`, `outbox` | `tg_immutable_columns` (com `CREATE OR REPLACE`), `tenant_immutable`, `vehicle_immutable` e os gatilhos das seções 3.3 e 3.5; `resolve_device_for_ingest`, `list_operator_ids`, `outbox_claim`, `list_silent_devices`, `ensure_partitions`, `device_ingest_probe` ([11 §10](11-onboarding-e-migracao.md)) | `operator_definer_read` (com guarda de existência), `device_definer_read`, `device_state_definer_read`, `ingest_inbox_definer_read`, `outbox_owner_all`, `capability_profile_owner_all` |
-| T-006 | `membership`, `audit_log`, `access_log` (partições até 2026-12), `idempotency_record`; `auth.*` | `tg_immutable_columns` (com `CREATE OR REPLACE`), `membership_immutable`; `memberships_for_user`; CAT-07, se ainda não existir | `membership_definer_read`; `operator_definer_read` e `tenant_definer_read` com guarda de existência |
+| T-004 | — | `tg_immutable_columns`; CAT-07 (chave `securityDefiner` e verificador) | `operator_definer_read` e `tenant_definer_read` (sem guarda de existência; a T-004 é a única dona) |
+| T-005 | `capability_profile`, `sim_card`, `device`, `device_assignment`, `ingest_inbox`, `position`, `device_state`, `outbox` | `tenant_immutable`, `vehicle_immutable` e os gatilhos das seções 3.3 e 3.5; `resolve_device_for_ingest`, `list_operator_ids`, `outbox_claim`, `list_silent_devices`, `ensure_partitions`, `device_ingest_probe` ([11 §10](11-onboarding-e-migracao.md#10-modelo-de-dados-tipo-c-f1)) | `device_definer_read`, `device_state_definer_read`, `ingest_inbox_definer_read`, `outbox_owner_all`, `capability_profile_owner_all` |
+| T-006 | `membership`, `audit_log`, `access_log` (partições até 2026-12), `idempotency_record`; `auth.*` | `membership_immutable`; `memberships_for_user`, `is_active_tenant_owner` | `membership_definer_read` |
 | T-008 | — | — (índice `position_vehicle_fix_idx`, seção 7.3) | — |
 | T-011 | `alert`, `watch_mode` | `alert_immutable`, `watch_mode_immutable` | — |
 | T-012 | `alert_delivery`, `push_token`, `alert_preference` | `alert_preference_immutable`; `claim_push_token` | `push_token_owner_all` |
-| T-027 (F1) | — | `retention_purge` [ADOTADO NA v2.0: adiado do F0, [02](02-escopo-e-fases.md) §2.3] | `idempotency_record_owner_all` e as de DELETE dos tipos que ela expurga |
-| T-017 (F1 de comandos) | `device_key` | — | — |
+| T-027 (F1) | — | `retention_purge` (adiado do F0, [02 §2.3](02-escopo-e-fases.md#23-cartões-de-tarefa-do-f0)); `export_access_log` | `idempotency_record_owner_all` e as de DELETE dos tipos que ela expurga |
+| T-017 (F1 de comandos) | `device_key` | `device_key_revoke_once`; `revoke_device_keys` | — |
 
-O perfil J16 `draft` vem das capturas da T-002. Se a T-006 for mergeada antes da T-005, `memberships_for_user` é a primeira função `SECURITY DEFINER` em `main` e a T-006 entrega a CAT-07 junto; a T-005 então só acrescenta as suas entradas em `securityDefiner`.
+O perfil J16 `draft` vem das capturas da T-002. T-005 e T-006 só acrescentam as suas entradas em `securityDefiner`; a CAT-07 já existe desde a T-004.
 
 ## 4. Modelo RLS
 
@@ -456,6 +471,7 @@ CREATE FUNCTION app.current_tenant_ids() RETURNS uuid[] LANGUAGE sql STABLE
 2. `SET` de sessão é proibido: com pool, o contexto vazaria para a próxima transação. O terceiro argumento `true` torna o valor local à transação e ao savepoint.
 3. `tenant_ids` malformado aborta a transação (SQLSTATE 22P02); `tenantIds` tem de 1 a 1.000 itens, validados por Zod antes de abrir conexão.
 4. A ingestão define o contexto depois de resolver o rastreador, dentro do savepoint da projeção: `scope = 'operator'` com o `operator_id` devolvido por `app.resolve_device_for_ingest` (as tabelas tipo B só aceitam escrita nesse escopo). Em seguida trava `device_state` com `FOR UPDATE`, confere `device.traccar_device_id` com o `deviceId` do envelope (divergência → quarentena `device_identity_mismatch`) e lê o vínculo vigente no `fix_time` sob RLS ([05](05-ingestao-e-telemetria.md)).
+5. O contexto ganha `app.user_id` (opcional, UUID do usuário autenticado). A T-006 estende `withContext` com `userId` opcional, sem quebrar os testes da T-001, e cria `app.current_user_id()` (STABLE; sem contexto devolve NULL e nenhuma política que o use passa). Quem grava `device_key` DEVE passar `userId`.
 
 ### 4.2 Tipos de tabela e políticas
 
@@ -465,13 +481,13 @@ CREATE FUNCTION app.current_tenant_ids() RETURNS uuid[] LANGUAGE sql STABLE
 | B — cliente lê, operadora escreve | `<t>_staff_all` (escopo `operator`) + `<t>_tenant_read` (FOR SELECT, escopo `tenant` com `tenant_id` na lista) | `device_assignment`, `position`, `device_state`, `alert_delivery` |
 | C — operadora | `<t>_staff_all` no escopo `operator`; leitura do cliente só onde listado | `operator_brand`, `tenant` (leitura do próprio), `sim_card`, `device`, `membership` |
 | D — raiz | `id = app.current_operator_id()` (T-001) | `operator` |
-| E — usuário | Visível se o dono do registro tem membership ativa no escopo do contexto | `push_token`, `device_key` |
+| E — usuário | `push_token`: visível se o dono tem membership ativa no escopo do contexto (`push_token_member`). `device_key`: só o próprio usuário do contexto (`device_key_self`, `user_id = app.current_user_id()`) | `push_token`, `device_key` |
 | F — plataforma | Política por papel de banco (`TO <papel>`), sem contexto | `capability_profile`, `ingest_inbox`, `access_log` |
 | G — função definidora | `<t>_definer_read` ou `<t>_owner_all` `TO tracksys_owner`, só nas tabelas lidas por função da seção 4.4 (e escrita de perfil por migration) | `operator`, `tenant`, `membership`, `device`, `device_state`, `outbox`, `push_token`, `capability_profile` |
 
-Cada `CREATE TABLE` do schema `app` leva, na linha anterior, o comentário `-- rls: <tipo>` (ex.: `-- rls: B`), como no DDL da seção 3. `membership` acrescenta `membership_tenant_manage`: o cliente cria e revoga só `tenant_member` dos próprios tenants.
+Cada `CREATE TABLE` do schema `app` leva, na linha anterior, o comentário `-- rls: <tipo>` (ex.: `-- rls: B`), como no DDL da seção 3. `membership` acrescenta `membership_tenant_manage`: o cliente cria e revoga só `tenant_member` dos próprios tenants, e o WITH CHECK exige membership `tenant_owner` ativa do usuário do contexto (`tenant_member` não cria membro nem liga `can_command`). `device_key` tem o gatilho `device_key_revoke_once` (`revoked_at` já preenchido não muda: 23514); a central revoga pela função `app.revoke_device_keys` (seção 4.4).
 
-[ADOTADO NA v2.0] `device` (tipo C) não é legível no escopo `tenant`. Por isso, o titular recebe `model`, `imeiLast4` e `profileStatus` como `null` e a API usa os limiares de presença padrão do J16 [VALIDAR — DEC-02]. No F1, um perfil diferente do J16 exige expor os limiares ao titular por função `SECURITY DEFINER` ou visão dedicada, com revisão N0 e entrada na CAT-07.
+`device` (tipo C) não é legível no escopo `tenant`. Por isso, o titular recebe `model`, `imeiLast4` e `profileStatus` como `null` e a API usa os limiares de presença padrão do J16 [VALIDAR — DEC-02]. No F1, um perfil diferente do J16 exige expor os limiares ao titular por função `SECURITY DEFINER` ou visão dedicada, com revisão N0 e entrada na CAT-07.
 
 ```sql
 -- F0 · 7/9 RLS
@@ -500,14 +516,14 @@ BEGIN
       USING (operator_id = app.current_operator_id() AND app.current_scope() = 'operator')
       WITH CHECK (operator_id = app.current_operator_id() AND app.current_scope() = 'operator')$p$, t);
   END LOOP;
-  FOREACH t IN ARRAY ARRAY['push_token', 'device_key'] LOOP                             -- tipo E
+  FOREACH t IN ARRAY ARRAY['push_token'] LOOP                                           -- tipo E (membership)
     EXECUTE format($p$CREATE POLICY %1$s_member ON app.%1$I FOR ALL
       USING (EXISTS (SELECT 1 FROM app.membership m WHERE m.user_id = %1$I.user_id AND m.status = 'active'
         AND m.operator_id = app.current_operator_id() AND (app.current_scope() = 'operator' OR m.tenant_id = ANY (app.current_tenant_ids()))))
       WITH CHECK (EXISTS (SELECT 1 FROM app.membership m WHERE m.user_id = %1$I.user_id AND m.status = 'active'
         AND m.operator_id = app.current_operator_id() AND (app.current_scope() = 'operator' OR m.tenant_id = ANY (app.current_tenant_ids()))))$p$, t);
   END LOOP;
-  FOREACH t IN ARRAY ARRAY['operator', 'tenant', 'membership', 'device', 'device_state'] LOOP   -- tipo G (operator e tenant: com guarda de existência nos cartões, seção 3.2)
+  FOREACH t IN ARRAY ARRAY['operator', 'tenant', 'membership', 'device', 'device_state'] LOOP   -- tipo G (operator e tenant: sem guarda de existência nos cartões, seção 3.2)
     EXECUTE format('CREATE POLICY %1$s_definer_read ON app.%1$I FOR SELECT TO tracksys_owner USING (true)', t);
   END LOOP;
   FOREACH t IN ARRAY ARRAY['outbox', 'push_token', 'capability_profile'] LOOP          -- tipo G e escrita do perfil por migration
@@ -520,7 +536,12 @@ CREATE POLICY membership_tenant_manage ON app.membership FOR ALL
   USING (operator_id = app.current_operator_id() AND app.current_scope() = 'tenant'
          AND tenant_id = ANY (app.current_tenant_ids()) AND role = 'tenant_member')
   WITH CHECK (operator_id = app.current_operator_id() AND app.current_scope() = 'tenant'
-              AND tenant_id = ANY (app.current_tenant_ids()) AND role = 'tenant_member');
+              AND tenant_id = ANY (app.current_tenant_ids()) AND role = 'tenant_member'
+              AND app.is_active_tenant_owner(operator_id, tenant_id));  -- função definidora: política não pode consultar a própria tabela (recursão de RLS)
+-- device_key pertence ao usuário: só o próprio usuário do contexto escreve e lê (T-017); revogação pela central via app.revoke_device_keys (seção 4.4)
+CREATE POLICY device_key_self ON app.device_key FOR ALL
+  USING (user_id = app.current_user_id()) WITH CHECK (user_id = app.current_user_id());
+-- device_key_revoke_once (BEFORE UPDATE, T-017): OLD.revoked_at IS NOT NULL → 23514; revogação não se desfaz
 CREATE POLICY capability_profile_read ON app.capability_profile FOR SELECT TO tracksys_app, tracksys_ingest USING (true);
 CREATE POLICY ingest_inbox_ingest_all ON app.ingest_inbox FOR ALL TO tracksys_ingest USING (true) WITH CHECK (true);
 CREATE POLICY access_log_app_insert ON app.access_log FOR INSERT TO tracksys_app WITH CHECK (true);
@@ -563,16 +584,22 @@ São os únicos caminhos que atravessam operadoras. Cada uma: dono `tracksys_own
 |---|---|---|---|---|
 | `app.resolve_device_for_ingest(source_instance text, unique_id text)` | `tracksys_ingest` | 0 ou 1 linha `(device_id, operator_id)` de rastreador não aposentado | O contexto RLS exige `operator_id`, que só se descobre lendo `device`; a ingestão não ganha leitura global de rastreadores (não enumera a frota de ninguém) e só resolve um IMEI que já recebeu; `source_instance` já está na assinatura para o Traccar particionado (ADR-002) | F0 |
 | `app.memberships_for_user(p_user_id uuid)` | `tracksys_app` | memberships ativas de operadora ativa e cliente não encerrado | Montar o contexto da requisição antes de existir contexto ([08](08-identidade-e-seguranca.md)) | F0 |
+| `app.is_active_tenant_owner(p_operator_id uuid, p_tenant_id uuid)` | `tracksys_app` | `true` se o usuário do contexto (`app.current_user_id()`) é `tenant_owner` ativo do cliente | WITH CHECK de `membership_tenant_manage`: política que consulta a própria tabela gera recursão de RLS (T-006) | F0 |
 | `app.list_operator_ids(p_include_closed boolean)` | `tracksys_app` | ids de operadora | Jobs que percorrem operadoras, cada uma em transação com o próprio contexto (sem comunicação, relatório mensal, retenção) | F0 |
-| `app.outbox_claim(p_limit integer)` | `tracksys_app` | até 500 `(id, type, operator_id, tenant_id, entity_id)` e marca `published_at` | Relay da outbox; sem payload. Chamar e criar os jobs pg-boss na mesma transação | F0 |
+| `app.outbox_claim(p_limit integer)` | `tracksys_app` | até 500 `(id, type, operator_id, tenant_id, entity_id)` e marca `published_at` | Publicador da outbox; sem payload. Chamar e criar os jobs pg-boss na mesma transação | F0 |
 | `app.list_silent_devices(p_now timestamptz)` | `tracksys_app` | rastreadores com vínculo e sem contato há > 180 s: ids, `revision`, `last_contact_at`, `motion`, `ignition`; sem coordenadas | Laço de sem comunicação a cada 15 s ([07](07-alertas-e-tempo-real.md)); cada candidato é tratado depois com o próprio contexto | F0 |
 | `app.claim_push_token(p_user_id uuid, p_platform text, p_token text)` | `tracksys_app` | id do token | Mesmo aparelho usado por usuários de operadoras diferentes: tira o token do usuário anterior. Recusa usuário fora do escopo do contexto | F0 |
 | `app.ensure_partitions(p_days_ahead integer)` | `tracksys_app` | partições criadas | DDL exige dono; o worker não recebe credencial de dono | F0 |
-| `app.retention_purge(p_kind text, p_batch integer)` | `tracksys_app` | linhas ou partições removidas | Expurgo sem DELETE para a aplicação; tipos fixos (`outbox`, `access_log`, `push_token`, `idempotency_record`; F2: `alert`, `alert_delivery`, `watch_mode`) | F1 (T-027) [ADOTADO NA v2.0: adiado do F0, [02](02-escopo-e-fases.md) §2.3] |
+| `app.retention_purge(p_kind text, p_batch integer)` | `tracksys_app` | linhas ou partições removidas | Expurgo sem DELETE para a aplicação; tipos fixos (`outbox`, `access_log`, `push_token`, `idempotency_record`; F2: `alert`, `alert_delivery`, `watch_mode`) | F1 (T-027; adiado do F0, [02 §2.3](02-escopo-e-fases.md#23-cartões-de-tarefa-do-f0)) |
 | `app.active_support_grant(p_operator_id uuid, p_user_id uuid)` | `tracksys_app` | id do grant vigente ou NULL | Seção 4.5 | F1 |
 | `app.drop_position_partition(p_day date)` | `tracksys_app` | 1 se removeu, 0 se recusou | Seção 8.2; confere idade e exportação antes do DROP | F1 |
+| `app.device_ingest_probe(p_device_id uuid)` | `tracksys_app` | `(last_quarantined_at, last_error, quarantined_24h)` só da operadora do contexto, escopo `operator` | Aviso "Comunicando sem vínculo" do C05 ([11 §10](11-onboarding-e-migracao.md#10-modelo-de-dados-tipo-c-f1)); lê a inbox, que o `tracksys_app` não lê | F0 (T-005) |
+| `app.revoke_device_keys(p_user_id uuid)` | `tracksys_app` | quantidade de chaves revogadas | A central revoga as chaves de aparelho de um usuário (a política `device_key_self` só deixa o próprio usuário escrever); exige membership do usuário na operadora do contexto, senão 42501 | F1 (T-017) |
+| `app.export_access_log(p_user_id uuid, p_from timestamptz, p_to timestamptz)` | `tracksys_app` | linhas de `access_log` do usuário no intervalo | CLI `access-log:export` do fundador, só com ordem judicial ([08 §11](08-identidade-e-seguranca.md#11-lgpd-técnica-marco-civil-auditoria-e-autoridades)); `access_log` não tem `operator_id` e o `tracksys_app` só faz INSERT; grava `audit_log` | F1 (T-027) |
+| `app.resolve_share_token(p_token_sha256 bytea)` | `tracksys_app` | `(id, operator_id, tenant_id, vehicle_id, expires_at)` de link ativo | Troca do token do link de compartilhamento antes de existir contexto ([08 §7](08-identidade-e-seguranca.md#7-links-temporários-f1)) | F1 (T-025) [proposta — entra com revisão N0 no cartão] |
+| `app.billing_webhook_token_hash(p_operator_id uuid)` | `tracksys_app` | `bytea` do hash do segredo do webhook, ou NULL | O webhook de cobrança autentica antes de existir contexto ([12 §3](12-cobranca-e-svas.md#3-dados-acréscimos-a-04-6)) | F1 (T-023) [proposta — entra com revisão N0 no cartão] |
 
-[ADOTADO NA v2.0] Divisão entre os cartões: a T-005 cria `resolve_device_for_ingest`, `list_operator_ids`, `outbox_claim`, `list_silent_devices` e `ensure_partitions` (e a sonda `device_ingest_probe` de [11 §10](11-onboarding-e-migracao.md), fora deste bloco); a T-006 cria `memberships_for_user`, porque ela lê `membership`, que nasce na T-006; a T-012 cria `claim_push_token`; a T-027 cria `retention_purge`, no F1. Cada cartão copia do bloco abaixo só as suas funções, com o REVOKE e o GRANT delas.
+Divisão entre os cartões: a T-005 cria `resolve_device_for_ingest`, `list_operator_ids`, `outbox_claim`, `list_silent_devices` e `ensure_partitions` (e a sonda `device_ingest_probe` de [11 §10](11-onboarding-e-migracao.md#10-modelo-de-dados-tipo-c-f1), fora deste bloco); a T-006 cria `memberships_for_user` e `is_active_tenant_owner`, porque elas leem `membership`, que nasce na T-006; a T-012 cria `claim_push_token`; a T-017 cria `revoke_device_keys`; a T-027 cria `retention_purge` e `export_access_log`, no F1. Cada cartão copia do bloco abaixo só as suas funções, com o REVOKE e o GRANT delas.
 
 ```sql
 -- F0 · 9/9 funções definidoras
@@ -650,10 +677,10 @@ SELECT app.ensure_partitions();
 
 `app.claim_push_token` (T-012) e `app.retention_purge` (T-027, F1) seguem o mesmo cabeçalho, REVOKE e GRANT a `tracksys_app`:
 - `claim_push_token`: se `p_user_id` não tem membership ativa no escopo do contexto corrente, erro 42501; senão apaga o token igual de outro usuário e faz `INSERT ... ON CONFLICT (token) DO UPDATE SET last_seen_at = now(), platform = EXCLUDED.platform`, devolvendo o id.
-- `retention_purge('outbox', n)`: apaga até `least(n, 50000)` linhas publicadas com `created_at < now() - interval '3 days'`; `'push_token'`: apaga tokens com `last_seen_at < now() - interval '60 days'` ([07](07-alertas-e-tempo-real.md)); `'access_log'`: `DROP TABLE` das partições `access_log_pAAAAMM` cujo mês terminou há 6 meses ou mais; `'idempotency_record'`: apaga até `least(n, 50000)` linhas com `expires_at < now()` ([09](09-api-e-contratos.md) §4; exige a política tipo G `idempotency_record_owner_all`, criada junto com a função); outro tipo: erro 22023. Devolve a quantidade removida.
+- `retention_purge('outbox', n)`: apaga até `least(n, 50000)` linhas publicadas com `created_at < now() - interval '3 days'`; `'push_token'`: apaga tokens com `last_seen_at < now() - interval '60 days'` ([07](07-alertas-e-tempo-real.md)); `'access_log'`: `DROP TABLE` das partições `access_log_pAAAAMM` cujo mês terminou há 6 meses ou mais; `'idempotency_record'`: apaga até `least(n, 50000)` linhas com `expires_at < now()` ([09 §4](09-api-e-contratos.md#4-idempotência); exige a política tipo G `idempotency_record_owner_all`, criada junto com a função); outro tipo: erro 22023. Devolve a quantidade removida.
 
 
-[ADOTADO NA v2.0: regra de catálogo CAT-07 — o conjunto de funções `SECURITY DEFINER` do schema `app` é igual à chave `securityDefiner` de `packages/db/catalog-allowlist.json`, e cada uma tem `search_path` fixo e não é executável por PUBLIC. Assinatura = `'app.' || proname || '(' || oidvectortypes(proargtypes) || ')'` (ex.: `app.claim_push_token(uuid, text, text)`); dono = `tracksys_owner`; qual papel executa cada função é provado por teste de aceite (SQLSTATE 42501), não pela allowlist. Materializa o item 9 do [ADR-004](../adr/ADR-004-isolamento-tres-niveis.md).]
+Regra de catálogo CAT-07 (dona: T-004) — o conjunto de funções `SECURITY DEFINER` do schema `app` é igual à chave `securityDefiner` de `packages/db/catalog-allowlist.json`, e cada uma tem `search_path` fixo e não é executável por PUBLIC. Assinatura = `'app.' || proname || '(' || oidvectortypes(proargtypes) || ')'` (ex.: `app.claim_push_token(uuid, text, text)`); dono = `tracksys_owner`; qual papel executa cada função é provado por teste de aceite (SQLSTATE 42501), não pela allowlist. Materializa o item 9 do [ADR-004](../adr/ADR-004-isolamento-tres-niveis.md).
 
 ### 4.5 Acesso de suporte da plataforma (F1)
 
@@ -676,7 +703,7 @@ SELECT app.ensure_partitions();
 | CAT-05 | `tracksys_app` superusuário ou com BYPASSRLS; membro, direto ou herdado (`pg_has_role(..., 'MEMBER')`), de papel superusuário, com BYPASSRLS ou dono de objeto do schema `app`; ou dono de tabela, função ou do próprio schema `app` |
 | CAT-06 | `tracksys_app` com UPDATE (inclusive só em uma coluna, `has_any_column_privilege`), DELETE ou TRUNCATE em tabela da chave `appendOnly` |
 
-Consultas de referência e formato das violações: [T-001](../../tasks/T-001-fundacao-monorepo-e-isolamento.md), seção 4. A allowlist é validada por Zod `z.strictObject`: chave desconhecida é erro. Chaves da T-001: `rlsExempt`, `nullableTenantId`, `withoutOperatorId` e `appendOnly`; a chave `securityDefiner` entra com a CAT-07 (T-005 ou T-006, a que chegar primeiro), que estende o schema Zod no mesmo PR. Allowlist com todas as tabelas do DDL da seção 3 (fim do F0, mais `device_key`, que a T-017 cria no F1); exceção nova = revisão N0, justificativa ≥ 10 caracteres:
+Consultas de referência e formato das violações: [T-001](../../tasks/T-001-fundacao-monorepo-e-isolamento.md), seção 4. A allowlist é validada por Zod `z.strictObject`: chave desconhecida é erro. Chaves da T-001: `rlsExempt`, `nullableTenantId`, `withoutOperatorId` e `appendOnly`; a chave `securityDefiner` e a CAT-07 entram na T-004, que estende o schema Zod no mesmo PR; T-005 e T-006 só acrescentam entradas. Allowlist com todas as tabelas do DDL da seção 3 (fim do F0, mais `device_key`, que a T-017 cria no F1); exceção nova = revisão N0, justificativa ≥ 10 caracteres:
 
 ```json
 {
@@ -693,14 +720,18 @@ Consultas de referência e formato das violações: [T-001](../../tasks/T-001-fu
     "ingest_inbox": "custódia bruta antes de resolver o dono; acesso só de tracksys_ingest e da sonda definidora",
     "access_log": "registro de acesso da plataforma (Marco Civil), sem dono operadora; o app só insere",
     "push_token": "token FCM do usuário; escopo pela membership ativa na política push_token_member (tipo E)",
-    "device_key": "chave do aparelho pertence ao usuário; isolamento por user_id na política device_key_member (tipo E)"
+    "device_key": "chave do aparelho pertence ao usuário; isolamento por user_id na política device_key_self (tipo E)"
   },
   "appendOnly": ["audit_log", "command_event", "access_log", "position"],
   "securityDefiner": { "<assinatura de cada função da seção 4.4 criada no F0>": "<justificativa ≥ 10 caracteres>" }
 }
 ```
 
-Quem acrescenta cada entrada de `withoutOperatorId`, no mesmo PR que cria a tabela: T-005 (`capability_profile`, `ingest_inbox`), T-006 (`access_log`), T-012 (`push_token`) e T-017 (`device_key`). [ADOTADO NA v2.0] Conferência da CAT-04 nova sobre o DDL da seção 3: toda FK para tabela com escopo liga `operator_id` e `tenant_id` na mesma posição (`device_sim_fk`, `*_vehicle_fk`, `*_device_fk`, `*_assignment_fk`, `alert_delivery_alert_fk`) e toda FK para `app.tenant` liga `(operator_id, tenant_id) → (operator_id, id)` (`membership_tenant_fk`, `outbox_tenant_fk`, `audit_log_tenant_fk`, `idempotency_record_tenant_fk`). Ficam fora da regra, por não terem escopo no destino: FK para `app.operator`, para `auth."user"` e `device.capability_profile_id → app.capability_profile`. Nenhuma exceção é necessária no F0. [ADOTADO NA v2.0: T-013] `appendOnly` aceita nome qualificado (`"ops.audit_log"`); sem ponto continua valendo `app.<t>`. A partir da T-013, a CAT-06 vale para `tracksys_app`, `tracksys_ops_audit` e `tracksys_ops_ro` (os que existirem); o schema `ops` fica fora de CAT-01 a CAT-04 e não leva entrada em `withoutOperatorId` ([13 §4.4](13-infra-e-operacao.md)).
+Cada entrada de `withoutOperatorId` entra no mesmo PR que cria a tabela (donos em [02 §2.3](02-escopo-e-fases.md#23-cartões-de-tarefa-do-f0)).
+
+Conferência da CAT-04 nova sobre o DDL da seção 3: toda FK para tabela com escopo liga `operator_id` e `tenant_id` na mesma posição (`device_sim_fk`, `*_vehicle_fk`, `*_device_fk`, `*_assignment_fk`, `alert_delivery_alert_fk`) e toda FK para `app.tenant` liga `(operator_id, tenant_id) → (operator_id, id)` (`membership_tenant_fk`, `outbox_tenant_fk`, `audit_log_tenant_fk`, `idempotency_record_tenant_fk`). Ficam fora da regra, por não terem escopo no destino: FK para `app.operator`, para `auth."user"` e `device.capability_profile_id → app.capability_profile`. Nenhuma exceção é necessária no F0.
+
+`appendOnly` aceita nome qualificado (`"ops.audit_log"`); sem ponto continua valendo `app.<t>`. A partir da T-013, a CAT-06 vale para `tracksys_app`, `tracksys_ops_audit` e `tracksys_ops_ro` (os que existirem); o schema `ops` fica fora de CAT-01 a CAT-04 e não leva entrada em `withoutOperatorId` ([13 §4.4](13-infra-e-operacao.md#44-papéis-e-schema-ops)).
 
 ### 5.2 Testes de isolamento
 
@@ -738,7 +769,7 @@ DDL completa no cartão da tarefa que as cria, seguindo as seções 3 e 4. Tabel
 | `migration_wave`, `migration_item`, `import_job` | F1 | C | lote ≤ 20, SMS enviado, 1º contato, rollback; importação com mapeamento, prévia e erros | [11](11-onboarding-e-migracao.md) |
 | `retention_export` | F1 | C + G | `period` (1º dia do mês), `object_key`, `row_count`, `checksums` (somas e contagem por dia), `sha256`, `status` `exporting`/`verified`/`failed`; UNIQUE `(operator_id, period)` | este capítulo |
 | `platform_cost` | F1 | F | custo mensal em centavos por categoria (REQ-NEG-003) | [01](01-visao-e-negocio.md) |
-| Colunas novas | F1/F2 | — | `tenant.closed_at`, `tenant.anonymized_at` (F1); `operator.contract_signed_on` (F2, REQ-NEG-005); política `device_tenant_read` (F1: cliente lê o rastreador do próprio vínculo aberto) | — |
+| Colunas novas | F1/F2 | — | `tenant.closed_at`, `tenant.anonymized_at` (F1); `membership.on_call boolean NOT NULL DEFAULT false` e `membership.pushover_user_key_enc bytea NULL` (segredo cifrado; F1, T-029, REQ-ALR-024); `migration_item.password_rotated_at timestamptz NULL` (F1, [11](11-onboarding-e-migracao.md)); `operator.contract_signed_on` (F2, REQ-NEG-005); política `device_tenant_read` (F1: cliente lê o rastreador do próprio vínculo aberto) | — |
 
 ## 7. Particionamento, compactação e índices
 
@@ -756,7 +787,7 @@ Regra de gravação aplicada pela projeção ([05](05-ingestao-e-telemetria.md),
 
 | Mensagem | Grava em `position` |
 |---|---|
-| Fix válido em movimento (`motion = 'moving'` pela regra de [05](05-ingestao-e-telemetria.md) §4.2: ≥ 5 km/h, com 120 s de histerese para parar) | Sempre |
+| Fix válido em movimento (`motion = 'moving'` pela regra de [05 §4.2](05-ingestao-e-telemetria.md#42-movimento-device_statemotion): ≥ 5 km/h, com 120 s de histerese para parar) | Sempre |
 | Fix válido com velocidade NULL | Sempre: desconhecido não é parado (INV-03) |
 | Fix válido parado | Só se: deslocamento > 50 m da última posição **gravada** (haversine); ou ≥ 30 min desde ela (flag `KEEPALIVE_30MIN`); ou ignição mudou; ou há alarme |
 | Fix atrasado (`LATE`, INV-02) | Sempre, sem alterar a localização de `device_state` |
@@ -773,11 +804,11 @@ O que não é gravado só atualiza `device_state` (contato, status, nova `revisi
 | Dedupe de posição e última posição gravada (compactação) | `position_pkey` |
 | Resolver IMEI | `device_imei_active_key` |
 | Mapa ao vivo da operadora ou do cliente | `device_state_scope_idx` |
-| Episódio aberto por `(device_id, type)` / linha do tempo de alertas | `alert_open_key` (único parcial) / `alert_timeline_idx` |
+| Episódio aberto por `(device_id, type)`, exceto `command_*` (um episódio por `episode_key`) / linha do tempo de alertas | `alert_open_key` (único parcial) / `alert_timeline_idx` |
 | Reprocessar inbox / expurgo da inbox | `ingest_inbox_pending_idx` / `ingest_inbox_received_at_idx` |
-| Relay da outbox / expurgo | `outbox_unpublished_idx` / `outbox_created_at_idx` |
+| Publicador da outbox / expurgo | `outbox_unpublished_idx` / `outbox_created_at_idx` |
 | Memberships do usuário | `membership_user_idx` |
-| Histórico paginado da API: `p.vehicle_id = $1` e keyset por `(fix_time, assignment_id)` (T-008, [09](09-api-e-contratos.md)) | `position_vehicle_fix_idx` (`vehicle_id`, `fix_time`), criado pela T-008 [ADOTADO NA v2.0] |
+| Histórico paginado da API: `p.vehicle_id = $1` e keyset por `(fix_time, assignment_id)` (T-008, [09](09-api-e-contratos.md)) | `position_vehicle_fix_idx` (`vehicle_id`, `fix_time`), criado pela T-008 |
 
 Consulta canônica de histórico (limites constantes no período podam as partições já no planejamento):
 
@@ -801,11 +832,11 @@ SELECT p.fix_time, p.lat_e7, p.lon_e7, p.speed_kmh_x10, p.ignition, p.valid
 |---|---|---|---|
 | `position` quente | 90 dias (partição do dia d sai em d + 91) | Exportação mensal verificada + `app.drop_position_partition` diário | F1 (1º ciclo completo até 31/01/2027) |
 | `position` frio (Parquet) | até o último dia do mês completar 12 meses | Job diário apaga o arquivo do mês; legal hold preserva a faixa | F2 (1º expurgo em 31/10/2027) |
-| `ingest_inbox.payload` | 7 dias | Job diário 03:07 UTC: `UPDATE ... SET payload = NULL` em lotes de 10.000 | F1 (T-027) [ADOTADO NA v2.0: adiado do F0; até lá o payload fica além de 7 dias] |
-| `ingest_inbox` (identidade e `payload_sha256`) | 90 dias | Mesmo job: DELETE em lotes; nunca apaga `pending`. O hash fica com a identidade para conferir reentrega sem o payload ([05](05-ingestao-e-telemetria.md) §14) [ADOTADO NA v2.0] | F1 (T-027) |
+| `ingest_inbox.payload` | 7 dias | Job diário 03:07 UTC: `UPDATE ... SET payload = NULL` em lotes de 10.000 | F1 (T-027) adiado do F0; até lá o payload fica além de 7 dias |
+| `ingest_inbox` (identidade e `payload_sha256`) | 90 dias | Mesmo job: DELETE em lotes; nunca apaga `pending`. O hash fica com a identidade para conferir reentrega sem o payload ([05 §14](05-ingestao-e-telemetria.md#14-retenção-da-inbox)) | F1 (T-027) |
 | `outbox` publicada | 3 dias | `app.retention_purge('outbox')`; não publicada nunca sai | F1 (T-027) |
 | `push_token` sem uso | 60 dias | `app.retention_purge('push_token')` | F1 (T-027) |
-| `idempotency_record` vencido | 24 h (`expires_at`) | `app.retention_purge('idempotency_record')` de hora em hora ([09](09-api-e-contratos.md) §4) | F1 (T-027) |
+| `idempotency_record` vencido | 24 h (`expires_at`) | `app.retention_purge('idempotency_record')` de hora em hora ([09 §4](09-api-e-contratos.md#4-idempotência)) | F1 (T-027) |
 | Jobs pg-boss concluídos | 2 dias | Configuração de retenção do pg-boss 10 [VALIDAR nome da opção] | F1 (T-027) |
 | `access_log` | 6 meses | `app.retention_purge('access_log')` apaga a partição do mês | F1 (T-027) |
 | `alert`, `alert_delivery`, `watch_mode` | 12 meses [PREMISSA] | `app.retention_purge` (tipos do F2) | F2 |
@@ -817,7 +848,7 @@ SELECT p.fix_time, p.lat_e7, p.lon_e7, p.speed_kmh_x10, p.ignition, p.valid
 
 **Exportação** (job `retention.export`, dia 5 de M+2 às 06:00 UTC; out/2026 sai em 05/12/2026, depois da janela de 30 dias de atraso):
 1. `app.list_operator_ids(true)`; para cada operadora com linhas em M, em `withContext` de escopo `operator`: grava `retention_export` (`exporting`) e lê `position` de M ordenada por `tenant_id, vehicle_id, fix_time`.
-2. DuckDB (`@duckdb/node-api`, `memory_limit=256MB`, `threads=1`) grava Parquet ZSTD em disco local; o worker calcula o SHA-256 e envia `cold/positions/operator_id=<uuid>/year=AAAA/month=MM/positions.parquet` e `manifest.json` (linhas, SHA-256, menor e maior `fix_time`, contagem por dia) ao bucket privado ([13](13-infra-e-operacao.md)).
+2. DuckDB (`@duckdb/node-api`, `memory_limit=256MB`, `threads=1`) grava Parquet ZSTD em disco local; o worker calcula o SHA-256, cifra o arquivo no cliente com age (destinatários: chave da VM e chave offline do fundador) antes do upload e envia `cold/positions/operator_id=<uuid>/year=AAAA/month=MM/positions.parquet` e `manifest.json` (linhas, SHA-256, menor e maior `fix_time`, contagem por dia) ao bucket privado `tracksys-cold`, separado do bucket de backup e sem permissão da standby ([13](13-infra-e-operacao.md)). A verificação do item 3 decifra com a chave da VM.
 3. Verifica: baixa o objeto; SHA-256 igual; DuckDB sobre o arquivo devolve `count(*)`, `sum(lat_e7)`, `sum(lon_e7)` e `sum(epoch(fix_time))` iguais aos do Postgres no mesmo contexto. Grava `verified` com as somas e a contagem por dia em `checksums`.
 4. Falha marca `failed` e alerta o fundador; reexecutar sobrescreve o objeto da operadora e mês.
 
@@ -869,7 +900,7 @@ Veículo vendido do cliente X para o cliente Y (mesma operadora), rastreador R p
 7. Alertas abertos de V1 encerrados em T; vigilância de V1 desativada; no F1, links de V1 revogados e comandos pendentes `CANCELLED` ([06](06-comandos-e-bloqueio.md)).
 8. `audit_log` `vehicle.transfer` com motivo e outbox `device.state.updated.v1`.
 
-X continua vendo o histórico de V1 (arquivado) até o próprio encerramento; Y vê só fatos com `fix_time ≥ T`. Fix tardio do vínculo encerrado é aceito no vínculo antigo se chegar até 24 h após `valid_to`; depois disso vai para quarentena com motivo `closed_assignment_late` [PREMISSA: 24 h], porque relógio errado do rastreador entregaria a posição do novo dono ao antigo ([05](05-ingestao-e-telemetria.md)). [ADOTADO NA v2.0] A quarentena `closed_assignment_late` é aplicada pelo aplicador da T-005; a rota `vehicles.transfer` (passos 1–6 e 8) é da T-007; o passo 7 (alertas e vigilância) é da T-011.
+X continua vendo o histórico de V1 (arquivado) até o próprio encerramento; Y vê só fatos com `fix_time ≥ T`. Fix tardio do vínculo encerrado é aceito no vínculo antigo se chegar até 24 h após `valid_to`; depois disso vai para quarentena com motivo `closed_assignment_late` [PREMISSA: 24 h], porque relógio errado do rastreador entregaria a posição do novo dono ao antigo ([05](05-ingestao-e-telemetria.md)). A quarentena `closed_assignment_late` é aplicada pelo aplicador da T-005; a rota `vehicles.transfer` (passos 1–6 e 8) é da T-007; o passo 7 (alertas e vigilância) é da T-011.
 
 | Variação | Passos |
 |---|---|
@@ -880,6 +911,8 @@ X continua vendo o histórico de V1 (arquivado) até o próprio encerramento; Y 
 ### 9.2 Encerramento, tombstone e anonimização (DEC-15)
 
 No encerramento (T0), uma transação: `tenant.status = 'closed'` e `closed_at = T0`; vínculos abertos encerrados em T0 (rastreadores → `stock` ou `maintenance`, `device_state` sem vínculo); veículos arquivados; memberships `revoked`; `device_key` revogadas; tokens de push apagados quando o usuário não tem outra membership ativa; vigilância desativada; alertas encerrados. Nenhum comando é criado (INV-09).
+
+O desbloqueio nunca fica sem caminho: encerrar o cliente ou fechar um vínculo com `relay_state ≠ 'unblocked'`, ou com o último `block` em CONFIRMED, UNKNOWN ou ativo, retorna 409 `RELAY_NOT_UNBLOCKED` e nada muda; o console oferece "Desbloquear antes". A equipe da operadora pode desbloquear, com step-up, o veículo de vínculo fechado há ≤ 30 dias de cliente encerrado ([06 §2](06-comandos-e-bloqueio.md#2-disponibilidade)). CT-DAD-025.
 
 Em T0 + 12 meses, o job mensal `retention.anonymize` (desligado até DEC-15; sem decisão, nenhuma anonimização automática roda — [02](02-escopo-e-fases.md)):
 1. Pula o cliente com legal hold ativo em qualquer veículo.
@@ -906,7 +939,7 @@ Em T0 + 12 meses, o job mensal `retention.anonymize` (desligado até DEC-15; sem
 | Tabela nova | RLS forçada, políticas do tipo, grants, FK composta, gatilho de imutabilidade, `-- rls: X`, CAT verde | — |
 
 5. Backfill: tabela com menos de 100 mil linhas pode ir na migration; para atravessar operadoras o dono faz `ALTER TABLE ... NO FORCE ROW LEVEL SECURITY` e `FORCE` de novo na mesma transação (revisão N0). Tabela maior: job do worker em lotes de 10.000 por operadora, com contexto.
-6. Proibido em `position`, `ingest_inbox`, `outbox`, `audit_log` e `access_log`: DEFAULT volátil em `ADD COLUMN`, `ALTER COLUMN TYPE`, índice sem `CONCURRENTLY`, constraint sem `NOT VALID`. [ADOTADO NA v2.0] Exceção única: `position_vehicle_fix_idx` (T-008) é criado direto no pai porque entra antes do 1º veículo real do piloto (22/10/2026), com `position` só com dados de bancada. Índice posterior segue a linha "Índice em tabela grande".
+6. Proibido em `position`, `ingest_inbox`, `outbox`, `audit_log` e `access_log`: DEFAULT volátil em `ADD COLUMN`, `ALTER COLUMN TYPE`, índice sem `CONCURRENTLY`, constraint sem `NOT VALID`. Exceção única: `position_vehicle_fix_idx` (T-008) é criado direto no pai porque entra antes do 1º veículo real do piloto (22/10/2026), com `position` só com dados de bancada. Índice posterior segue a linha "Índice em tabela grande".
 7. O down reverte o up; quando o up é contract e apaga dado, o down recria a estrutura vazia e diz isso em comentário.
 8. Depois das migrations: `pnpm db:check` e regeneração dos tipos Kysely. A montagem do Kysely (`withDb`, `kysely-codegen`) e do pg-boss (schema `pgboss` por migration, `migrate: false` em runtime) é da T-004; T-005 e T-006 só usam e não recriam nenhum dos dois.
 
@@ -966,16 +999,16 @@ A T-001 cumpre REQ-DAD-002, REQ-DAD-003 e REQ-DAD-005 e a parte de REQ-DAD-001 e
 
 ### REQ-DAD-011 — `device_state` com revisão monotônica e reset no vínculo
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** INV-02, INV-03, INV-04, INV-06
-**Regra.** Todo UPDATE de `device_state` DEVE receber nova `revision` do gatilho `device_state_revision` (sequência global). A projeção DEVE atualizar a localização só se `assignment_id` for o do vínculo da posição e o fix for mais novo ([05](05-ingestao-e-telemetria.md) §8). Abrir ou encerrar vínculo DEVE zerar a telemetria para NULL/`'unknown'` sem apagar a linha. Quem religa é a rota de vínculo da T-007, na mesma transação que abre ou encerra o vínculo; a ingestão (T-005) não religa: vínculo vigente diferente de `device_state.assignment_id` deixa a inbox `pending` com erro `device_state_binding_mismatch`.
+**Regra.** Todo UPDATE de `device_state` DEVE receber nova `revision` do gatilho `device_state_revision` (sequência global). A projeção DEVE atualizar a localização só se `assignment_id` for o do vínculo da posição e o fix for mais novo ([05 §8](05-ingestao-e-telemetria.md#8-ordenação-e-estado-atual-inv-02-inv-04)). Abrir ou encerrar vínculo DEVE zerar a telemetria para NULL/`'unknown'` sem apagar a linha. Quem religa é a rota de vínculo da T-007, na mesma transação que abre ou encerra o vínculo; a ingestão (T-005) não religa: vínculo vigente diferente de `device_state.assignment_id` deixa a inbox `pending` com erro `device_state_binding_mismatch`.
 **Aceite.** CT-DAD-011 — Dado `device_state` de R1 com `revision = 42`, Quando um UPDATE tenta gravar `revision = 42` ou `0`, Então a linha fica com `revision > 42`; Dado R1 reinstalado de V1 (A1) em V2 (A2) às 2026-11-05T15:00Z, Então `device_state` de R1 tem `tenant_id = A2`, coordenadas, velocidade e ignição NULL, `motion`, `relay_state` e `power_state` = `'unknown'`, `revision > 42`, e o contexto `tenant` de A1 não vê a linha.
 
 ### REQ-DAD-012 — Índices por consulta prevista
 **Fase:** F0 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** —
-**Regra.** Os índices DEVEM ser os da seção 7.3; índice novo DEVE citar a consulta no PR; colunas de `device_state` que mudam a cada mensagem NÃO DEVEM ser indexadas. Os índices nascem com a consulta, na T-005 e na T-008; o teste de desempenho CT-DAD-012 é da T-028, no F1 [ADOTADO NA v2.0].
+**Regra.** Os índices DEVEM ser os da seção 7.3; índice novo DEVE citar a consulta no PR; colunas de `device_state` que mudam a cada mensagem NÃO DEVEM ser indexadas. Os índices nascem com a consulta, na T-005 e na T-008; o teste de desempenho CT-DAD-012 é da T-034, no F1.
 **Aceite.** CT-DAD-012 — Dado 30 dias de dados sintéticos de 300 veículos (~2,5 M posições), Quando o histórico de V1 de 1 dia BRT é lido no contexto `tenant` de A1, Então o `EXPLAIN` da consulta canônica da seção 7.3 mostra varredura do índice `*_pkey` (Index ou Bitmap Index Scan) em no máximo 2 partições de `position` e planejamento + execução levam ≤ 100 ms (medido: < 10 ms com 39 partições).
 
 ### REQ-DAD-013 — Retenção da inbox, outbox e filas
-**Fase:** F1 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** INV-01 · [ADOTADO NA v2.0: adiado do F0 para a T-027; até lá o payload da inbox fica além de 7 dias]
+**Fase:** F1 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** INV-01 · adiado do F0 para a T-027; até lá o payload da inbox fica além de 7 dias
 **Regra.** Os jobs DEVEM aplicar os prazos da seção 8.1: payload da inbox 7 dias, identidade e `payload_sha256` 90 dias, outbox publicada 3 dias, jobs concluídos 2 dias. Inbox `pending` e outbox não publicada NÃO DEVEM ser removidas.
 **Aceite.** CT-DAD-013 — Dado a inbox com linhas `processed` de 2026-12-01 e 2026-09-01 e uma `pending` de 2026-09-01, Quando o job roda em 2026-12-09T03:07Z, Então a de 2026-12-01 fica com `payload` NULL, `payload_sha256` intacto e a chave mantida, a `processed` de 2026-09-01 some e a `pending` continua; e a reentrega da chave de 2026-12-01 não gera fato novo.
 
@@ -1016,7 +1049,7 @@ A T-001 cumpre REQ-DAD-002, REQ-DAD-003 e REQ-DAD-005 e a parte de REQ-DAD-001 e
 
 ### REQ-DAD-021 — Linter de migrations
 **Fase:** F0 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** —
-**Regra.** `pnpm db:lint` DEVE falhar quando uma migration nova não tiver `-- migrate:up`/`-- migrate:down` ou `lock_timeout`, violar a regra 6 da seção 10, ou quando migration existente em `main` for alterada; o CI o roda antes de `db:migrate`. [ADOTADO NA v2.0: antecipado do F1 para o F0 pela T-019; o `pnpm verify` roda `db:lint` antes de `db:migrate`.]
+**Regra.** `pnpm db:lint` DEVE falhar quando uma migration nova não tiver `-- migrate:up`/`-- migrate:down` ou `lock_timeout`, violar a regra 6 da seção 10, ou quando migration existente em `main` for alterada; o CI o roda antes de `db:migrate`. Antecipado do F1 para o F0 pela T-019; o `pnpm verify` roda `db:lint` antes de `db:migrate`.
 **Aceite.** CT-DAD-021 — Dado a migration nova `CREATE INDEX position_vehicle_idx ON app.position (vehicle_id);`, Quando `pnpm db:lint` roda, Então sai com 1 citando a regra 6 e o arquivo; Dado um espaço alterado em `20261007120000_fundacao_isolamento.sql`, Então sai com 1 citando a regra 1.
 
 ### REQ-DAD-022 — Unicidade de IMEI e ICCID sem revelar a outra operadora
@@ -1033,3 +1066,23 @@ A T-001 cumpre REQ-DAD-002, REQ-DAD-003 e REQ-DAD-005 e a parte de REQ-DAD-001 e
 **Fase:** F1 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** —
 **Regra.** O worker DEVE publicar por dia o tamanho de `position`, `ingest_inbox`, `outbox`, schema `pgboss` e banco `traccar`, e os bytes por linha de `position`. Linha acima de 250 B ou Parquet acima de 40 B por linha DEVEM abrir revisão da seção 8.6.
 **Aceite.** CT-DAD-024 — Dado 1.000.000 de posições sintéticas com todos os campos preenchidos, Quando `pg_total_relation_size` das partições é dividido pelo número de linhas, Então o resultado é ≤ 250 B (medido: 230 B); Dado o 1º export mensal, Então `tamanho do objeto / row_count` é registrado em `retention_export.checksums.bytes_per_row`.
+
+### REQ-DAD-025 — Desbloqueio nunca fica sem caminho
+**Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-09
+**Regra.** Encerrar cliente ou fechar vínculo com `relay_state ≠ 'unblocked'`, ou com o último `block` em CONFIRMED, UNKNOWN ou ativo, DEVE retornar 409 `RELAY_NOT_UNBLOCKED` sem alterar nada. A equipe da operadora DEVE poder desbloquear, com step-up, vínculo fechado há ≤ 30 dias de cliente encerrado.
+**Aceite.** CT-DAD-025 — Dado V1 com `block` CONFIRMED, Quando `operator_admin` encerra A1, Então 409 `RELAY_NOT_UNBLOCKED` e nada muda; Dado V1 desbloqueado, Então o encerramento segue; Dado o vínculo de V1 fechado há 20 dias de A1 encerrado, Quando a equipe pede `unblock` com step-up, Então o comando é aceito; há 31 dias, Então 409.
+
+### REQ-DAD-026 — `device_key` e `membership` não escalam privilégio
+**Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-07, INV-10
+**Regra.** `device_key` DEVE ter a política `device_key_self` (`user_id = app.current_user_id()`) e o gatilho `device_key_revoke_once`; a central DEVE revogar só por `app.revoke_device_keys(p_user_id)`. O WITH CHECK de `membership_tenant_manage` DEVE exigir membership `tenant_owner` ativa do usuário do contexto.
+**Aceite.** CT-DAD-026 — Dado a chave K de um usuário da Alfa, Quando o contexto `operator` da Beta faz UPDATE `revoked_at = NULL` em K, Então 0 linhas atualizadas e K intacta; Dado K com `revoked_at` preenchido, Quando o dono tenta limpar o campo, Então 23514; Dado contexto `tenant` de um `tenant_member`, Quando ele insere membership com `can_command = true`, Então 42501.
+
+### REQ-DAD-027 — Alertas de comando sem colisão de episódio
+**Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-08
+**Regra.** O índice `alert_open_key` NÃO DEVE valer para tipos `command_*`; esses tipos usam só `episode_key` único.
+**Aceite.** CT-DAD-027 — Dado `command_unknown` aberto em V1 por um block UNKNOWN, Quando um unblock em V1 vai a UNKNOWN, Então há 2 alertas abertos e 2 pushes, sem erro 23505.
+
+### REQ-DAD-028 — Parquet frio cifrado no cliente
+**Fase:** F1 · **Prioridade:** P1 · **Risco:** N0 · **Invariantes:** INV-07
+**Regra.** O Parquet frio DEVE ser cifrado com age antes do upload (destinatários: chave da VM e chave offline do fundador), em bucket `tracksys-cold` separado do de backup e sem permissão da standby.
+**Aceite.** CT-DAD-028 — Dado o export de out/2026, Quando o objeto é lido do bucket sem a chave age, Então não é um Parquet válido (`PAR1` ausente); com a chave da VM, Então o SHA-256 e as somas conferem; a credencial da standby, Quando lista ou lê `tracksys-cold`, Então 403.

@@ -1,25 +1,42 @@
 # 08 — Identidade e segurança
 
-> **Resumo:** Define quem entra (Better Auth embutido, e-mail + senha, TOTP), por quanto tempo (app 30 dias deslizante por bearer; console 12 h por cookie), o que cada papel pode fazer (matriz de permissões), como a requisição vira contexto RLS, o step-up de comando por chave do aparelho e por TOTP, os links temporários, os segredos, os limites de taxa, a tabela de ameaças e a camada técnica de LGPD, Marco Civil, auditoria e atendimento a autoridades. Vale também para agentes de IA: eles agem com o escopo de quem pergunta e nunca têm poder físico ou financeiro.
+> **Resumo:** Define quem entra (Better Auth embutido, e-mail ou CPF + senha, código de ativação para titular sem e-mail, TOTP), por quanto tempo (app 30 dias deslizante por bearer; console 12 h por cookie), o que cada papel pode fazer (matriz de permissões), como a requisição vira contexto RLS, o step-up de comando por chave do aparelho e por TOTP, os links temporários, os segredos, os limites de taxa, a tabela de ameaças e a camada técnica de LGPD, Marco Civil, auditoria e atendimento a autoridades. Vale também para agentes de IA: eles agem com o escopo de quem pergunta e nunca têm poder físico ou financeiro.
 > **Fases:** F0, F1, F2  ·  **Status:** Aprovado para execução
 > **Muda em relação à v1.1:**
 > - IdP OIDC externo vira Better Auth embutido no `api` ([ADR-006](../adr/ADR-006-identidade-better-auth-chave-aparelho.md)); booleano de biometria vira assinatura ECDSA P-256 da intenção do comando.
 > - Matriz de 4 papéis de frota vira 8 atores reais da operadora PF (central, instalador, equipe de busca, titular, familiar, Versix, visitante).
 > - Revogação passa de "≤ 5 s desejável" para garantia de ≤ 60 s em HTTP e SSE, com meta de ≤ 5 s por NOTIFY.
 > - LGPD ganha papéis, encarregado, prazo de 15 dias, Marco Civil (6 meses), legal hold e pacote de evidências com SHA-256.
-> - Ameaças específicas do mercado: IMEI forjado no gt06, SMS direto ao rastreador, webhook falso, prompt injection.
+> - Ameaças específicas do mercado: IMEI forjado no gt06, SMS direto ao rastreador, webhook falso, prompt injection, sequestro de domínio/DNS.
+> - Titular sem e-mail entra por código de ativação + CPF; chave de aparelho nova só desbloqueia por 24 h; registros de acesso saem só por ordem judicial, por função própria.
+
+**Nesta página**
+
+- [1. Entregas por fase](#1-entregas-por-fase)
+- [2. Autenticação (Better Auth)](#2-autenticação-better-auth)
+- [3. Papéis e permissões](#3-papéis-e-permissões)
+- [4. Do request ao banco](#4-do-request-ao-banco)
+- [5. Acesso de suporte da Versix](#5-acesso-de-suporte-da-versix)
+- [6. Step-up de comando](#6-step-up-de-comando)
+- [7. Links temporários (F1)](#7-links-temporários-f1)
+- [8. Segredos](#8-segredos)
+- [9. Limites, CORS e headers](#9-limites-cors-e-headers)
+- [10. Ameaças](#10-ameaças)
+- [11. LGPD técnica, Marco Civil, auditoria e autoridades](#11-lgpd-técnica-marco-civil-auditoria-e-autoridades)
+- [12. Agentes de IA (INV-07, INV-11)](#12-agentes-de-ia-inv-07-inv-11)
+- [13. Requisitos](#13-requisitos)
 
 ## 1. Entregas por fase
 
 | Fase | Entra |
 |---|---|
 | F0 | Login e-mail + senha para `operator_admin`, `operator_agent`, `tenant_owner`; convite por e-mail; sessões app/console; CSRF; TOTP obrigatório para `operator_admin`; contexto RLS por requisição; matriz de permissões; revogação ≤ 60 s; rate limits; CORS e headers; SOPS; logs sem segredo; `access_log`; `audit_log` das ações existentes |
-| F1 | `operator_agent` com TOTP para comando; `installer`, `search_team`, `tenant_member`; chave do aparelho e step-up; links temporários; credenciais Asaas cifradas; webhook autenticado; grant de suporte; legal hold; pacote de evidências; direitos do titular; consentimentos; allowlist da porta TCP; agente SRE (leitura) |
+| F1 | `operator_agent` com TOTP para comando; `installer`, `search_team`, `tenant_member`; código de ativação e login por CPF para titular sem e-mail; chave do aparelho, carência de 24 h e step-up; links temporários; credenciais Asaas cifradas; webhook autenticado; grant de suporte; legal hold; pacote de evidências; direitos do titular; consentimentos; allowlist da porta TCP; monitor de DNS; exportação de `access_log` por ordem judicial; agente SRE (leitura) |
 | F2 | Agente de suporte IA no console; atestação de chave (avaliar) |
 
 ## 2. Autenticação (Better Auth)
 
-Código: `apps/api/src/identity/` (módulo `identity`, dono de `auth.*`, `membership`, `platform_support_grant`, `push_token`, `device_key` — [03 §4](03-arquitetura.md)). Tabelas no schema `auth`, geradas pelo CLI do Better Auth e versionadas como migration dbmate. A coluna `auth."user".id` DEVE ser `uuid` (FK de `membership.user_id`); se o CLI gerar `text`, a migration converte [VALIDAR — T-006].
+Código: `apps/api/src/identity/` (módulo `identity`, dono de `auth.*`, `membership`, `platform_support_grant`, `push_token`, `device_key` — [03 §4](03-arquitetura.md#4-módulos-do-monólito-e-donos-de-tabelas)). Tabelas no schema `auth`, geradas pelo CLI do Better Auth e versionadas como migration dbmate. A coluna `auth."user".id` DEVE ser `uuid` (FK de `membership.user_id`); se o CLI gerar `text`, a migration converte [VALIDAR — T-006].
 
 ```ts
 // apps/api/src/identity/auth.ts — esboço; nomes de opção [VALIDAR — T-006] na versão fixada
@@ -42,8 +59,10 @@ export const auth = betterAuth({
 Regras:
 1. **Sem cadastro público.** O `api` encaminha ao Better Auth só a allowlist: `sign-in/email`, `sign-out`, `get-session`, `request-password-reset`, `reset-password`, `change-password`, `two-factor/*`. Qualquer outro caminho sob `/api/v1/auth/` responde 404 `NOT_FOUND`. Erros do Better Auth são convertidos em Problem Details ([09](09-api-e-contratos.md)); login inválido responde sempre 401 `INVALID_CREDENTIALS`, exista ou não o e-mail.
 2. **Senha:** 10 a 128 caracteres; recusada se estiver na lista local das 10.000 senhas mais comuns (`packages/domain/src/auth/common-passwords.txt`); hash scrypt (padrão do Better Auth). Redefinição: token de uso único, 1 h; redefinir ou trocar senha revoga todas as outras sessões e todas as chaves de aparelho.
-3. **Convite (F0):** `POST /api/v1/invitations` cria o usuário sem senha e a `membership` `invited`; o worker envia e-mail com link `https://app.<domínio>/convite#<token>` (32 bytes aleatórios, base64url, só SHA-256 persistido, validade 72 h, uso único). `POST /api/v1/invitations/accept` com `{token, password}` define a senha e ativa a membership. Token inválido, usado ou vencido: 404 `INVITATION_INVALID`. [ADOTADO NA v2.0: T-006. Convite e redefinição de senha **não** usam o fluxo de token do Better Auth, em que o token nasceria no `api` e iria no payload do job. Usam a tabela própria `auth.email_token` (`invitation` 72 h, `password_reset` 1 h, uso único), que guarda só `token_sha256`; o `worker` gera o token ao processar `email.send` e envia o e-mail; retentativa gera token novo. Token de redefinição inválido → 422 `VALIDATION_FAILED` com `errors[0] = {path: "token", rule: "token_invalid"}`.]
-4. **Quem convida quem:** `operator_admin` convida qualquer papel da própria operadora; `operator_agent` convida só `tenant_owner`; `tenant_owner` convida e revoga só `tenant_member` dos próprios clientes (política `membership_tenant_manage`, [04 §4.2](04-dominio-e-dados.md)).
+3. **Convite (F0):** `POST /api/v1/invitations` cria o usuário sem senha e a `membership` `invited`; o worker envia e-mail com link `https://app.<domínio>/convite#<token>` (32 bytes aleatórios, base64url, só SHA-256 persistido, validade 72 h, uso único). `POST /api/v1/invitations/accept` com `{token, password}` define a senha e ativa a membership. Token inválido, usado ou vencido: 404 `INVITATION_INVALID`. T-006. Convite e redefinição de senha **não** usam o fluxo de token do Better Auth, em que o token nasceria no `api` e iria no payload do job. Usam a tabela própria `auth.email_token` (`invitation` 72 h, `password_reset` 1 h, uso único), que guarda só `token_sha256`; o `worker` gera o token ao processar `email.send` e envia o e-mail; retentativa gera token novo. Token de redefinição inválido → 422 `VALIDATION_FAILED` com `errors[0] = {path: "token", rule: "token_invalid"}`.
+4. **Quem convida quem:** `operator_admin` convida qualquer papel da própria operadora; `operator_agent` convida só `tenant_owner`; `tenant_owner` convida e revoga só `tenant_member` dos próprios clientes (política `membership_tenant_manage`, [04 §4.2](04-dominio-e-dados.md#42-tipos-de-tabela-e-políticas), que exige membership `tenant_owner` ativa do usuário do contexto, `app.user_id`).
+5. **Primeiro acesso por código de ativação (F1).** Para o titular sem e-mail, a central gera na C03 um código de 8 caracteres (alfabeto sem ambíguos), de uso único, validade de 72 h, com só o SHA-256 persistido, e o envia pelo link `wa.me` do titular. O app troca código + CPF (11 dígitos com DV) pela definição de senha e ativa a membership; limite de 5 tentativas em 15 min, e a 5ª falha invalida o código (429). Inválido, usado ou vencido: 404 `INVITATION_INVALID`.
+6. **Login por CPF (F1).** O titular entra também por CPF + senha; o CPF é identificador interno por operadora e o mecanismo no Better Auth [VALIDAR — T-024]. Resposta de login inválido continua a mesma, exista ou não o CPF. Vale o limite de login da seção 9.
 
 | Sessão | `clientKind` (definido no hook de criação) | Transporte aceito | Expiração |
 |---|---|---|---|
@@ -57,17 +76,17 @@ Login com `Origin` fora da allowlist: 403 `CSRF_REJECTED`. Sessão `console` apr
 **TOTP (plugin `twoFactor`):**
 1. `operator_admin` sem 2FA ativo só acessa `GET /api/v1/me`, `/api/v1/auth/two-factor/*` e `sign-out`; o resto responde 403 `TWO_FACTOR_ENROLLMENT_REQUIRED`. Com 2FA ativo, o login exige TOTP (ou um dos 10 códigos de recuperação). Vale também para `platform_admin` (seção 5).
 2. `operator_agent` precisa de 2FA ativo para comandar pelo console (F1; seção 6.4).
-3. Código TOTP RFC 6238, passo de 30 s, tolerância de ±1 passo; o mesmo passo não é aceito 2 vezes para o mesmo usuário. [ADOTADO NA v2.0: T-006. O último passo aceito fica em `auth.totp_last_step (user_id, last_step, updated_at)`; após o sucesso do Better Auth, `INSERT … ON CONFLICT (user_id) DO UPDATE … WHERE last_step < EXCLUDED.last_step`; sem linha atualizada, a sessão recém-criada é apagada e a resposta é 401 `INVALID_CREDENTIALS`.]
-4. **App no F0:** usuário com 2FA ativo que faz login sem `Origin` (app) recebe 403 `FORBIDDEN` com `reason: "two_factor_app_unsupported"`; no F0 só a equipe usa TOTP, pelo console. O F1 revê para `installer` e `search_team` [ADOTADO NA v2.0: T-006].
+3. Código TOTP RFC 6238, passo de 30 s, tolerância de ±1 passo; o mesmo passo não é aceito 2 vezes para o mesmo usuário. T-006. O último passo aceito fica em `auth.totp_last_step (user_id, last_step, updated_at)`; após o sucesso do Better Auth, `INSERT … ON CONFLICT (user_id) DO UPDATE … WHERE last_step < EXCLUDED.last_step`; sem linha atualizada, a sessão recém-criada é apagada e a resposta é 401 `INVALID_CREDENTIALS`.
+4. **App no F0:** usuário com 2FA ativo que faz login sem `Origin` (app) recebe 403 `FORBIDDEN` com `reason: "two_factor_app_unsupported"`; no F0 só a equipe usa TOTP, pelo console. O F1 revê para `installer` e `search_team` T-006.
 
 **Revogação efetiva ≤ 60 s:**
 1. Sessão é conferida no banco a cada requisição (`cookieCache` desligado); memberships são lidas a cada requisição por `app.memberships_for_user` (seção 4). Nenhum cache de sessão ou membership no F0–F1; cache futuro tem TTL ≤ 30 s e é invalidado pelo NOTIFY abaixo.
 2. Logout, "sair de todos", troca ou redefinição de senha, revogação de membership, operadora `suspended`/`closed`, cliente `closed`, grant revogado, chave revogada e link revogado gravam e chamam `pg_notify('auth_changed', '{"u":"<userId>"}')` (link: `'{"l":"<shareLinkId>"}'`) na mesma transação. Vencimento (sessão, grant, link) é conferido em toda requisição e na revalidação do item 3.
-3. O hub SSE fecha as conexões afetadas com `close` `session_revoked` em ≤ 5 s (meta, [07 §11](07-alertas-e-tempo-real.md)) e revalida sessão e memberships de toda conexão a cada 60 s (garantia, mesmo sem NOTIFY).
+3. O hub SSE fecha as conexões afetadas com `close` `session_revoked` em ≤ 5 s (meta, [07 §11](07-alertas-e-tempo-real.md#11-tempo-real-get-apiv1stream-sse)) e revalida sessão e memberships de toda conexão a cada 60 s (garantia, mesmo sem NOTIFY).
 
 ## 3. Papéis e permissões
 
-A matriz é código puro em `packages/domain/src/auth/permissions.ts` (`ROLE_PERMISSIONS`); os nomes das permissões ficam em `packages/contracts/src/auth/permissions.ts`; cada rota declara a sua no registro de rotas ([09 §1](09-api-e-contratos.md)). Usuário com vários papéis recebe a união. Legenda: **S** sim no escopo; **P** só do próprio cliente; **A** só veículos autorizados ao membro; **L** só leitura; **O** só veículo com ocorrência aberta; **—** não.
+A matriz é código puro em `packages/domain/src/auth/permissions.ts` (`ROLE_PERMISSIONS`); os nomes das permissões ficam em `packages/contracts/src/auth/permissions.ts`; cada rota declara a sua no registro de rotas ([09 §1](09-api-e-contratos.md#1-contrato-primeiro)). Usuário com vários papéis recebe a união. Legenda: **S** sim no escopo; **P** só do próprio cliente; **A** só veículos autorizados ao membro; **L** só leitura; **O** só veículo com ocorrência aberta; **—** não.
 
 | Permissão | Fase | `operator_admin` | `operator_agent` | `installer` | `search_team` | `tenant_owner` | `tenant_member` | `platform_admin` (grant) | Visitante de link |
 |---|---|---|---|---|---|---|---|---|---|
@@ -82,17 +101,31 @@ A matriz é código puro em `packages/domain/src/auth/permissions.ts` (`ROLE_PER
 | `user.manage_staff` / `user.manage_customer` | F0 | S / S | — / S⁴ | — | — | — / P⁵ | — | — | — |
 | `brand.manage`, `command_policy.manage`, `audit.read` | F0/F1 | S | — | — | — | — | — | L | — |
 | `command.read` | F1 | S | S | S⁹ | O | P | A | L | — |
-| `command.execute` (block, unblock) | F1 | S⁶ | S⁶ | S⁹ | O | P⁷ | A⁸ | — | — |
+| `command.execute` (block, unblock) | F1 | S⁶ | S⁶ | S⁹ | O¹¹ | P⁷ | A⁸ | — | — |
 | `share_link.manage` | F1 | S | S | — | O | P | A | — | — |
-| `occurrence.open` / `occurrence.manage` | F1 | S / S | S / S | — | S / S | P / — | A / — | L | — |
+| `occurrence.open` / `occurrence.manage` | F1 | S / S | S / S | — | — / S | P / — | — / — | L | — |
 | `billing.read` / `billing.manage` | F1 | S / S | S / — | — | — | P / — | — | L / — | — |
 | `support_grant.manage`, `legal_hold.manage`, `evidence.export` | F1 | S | — | — | — | — | — | — | — |
 | `export.create` (relatório assíncrono) | F1 | S | S | — | O | P | A | — | — |
 | `ticket.manage` | F1 | S | S | — | — | — | — | L | — |
 | `referral.create`, `consent.manage` (próprios) | F1 | — | — | — | — | S | S | — | — |
-| `device_key.manage` (própria) | F1 | — | — | S | S | S | S | — | — |
+| `device_key.manage` (própria) | F1 | — | — | S | — | S | S | — | — |
 
-¹ só `nickname` e `color`. ² só estado atual dos rastreadores em instalação, sem histórico [PREMISSA]. ³ estado atual reduzido, até o vencimento do link (seção 7). ⁴ convida só `tenant_owner`. ⁵ só `tenant_member`. ⁶ console, com TOTP nos últimos 5 min + motivo (seção 6.4). ⁷ app, com chave do aparelho e `command_policy.allow_app_block = true`. ⁸ como ⁷ e só com `can_command` concedido pelo titular ([06 §4.1](06-comandos-e-bloqueio.md)) [ADOTADO NA v2.0: além de `membership.can_command` (06), coluna `membership.vehicle_ids uuid[] NULL` (NULL = todos os veículos do cliente), aplicada pela aplicação; o limite de segurança no banco continua sendo o cliente]. ⁹ só `reason_code = 'installation_test'`, em vínculo aberto por ele há ≤ 2 h ([06 §4.1](06-comandos-e-bloqueio.md)). ¹⁰ no F0 só a equipe da operadora reconhece alerta (a central trata o SOS); usuário do cliente recebe 403 `FORBIDDEN` [ADOTADO NA v2.0: T-011; escolha reversível, [15 §5](15-decisoes-riscos-premissas.md)]. Bloqueio por qualquer canal exige termo de ciência aceito pelo titular (seção 11).
+| Nota | Restrição |
+|---|---|
+| ¹ | só `nickname` e `color` |
+| ² | só estado atual dos rastreadores em instalação, sem histórico [PREMISSA] |
+| ³ | estado atual reduzido, até o vencimento do link (seção 7) |
+| ⁴ | convida só `tenant_owner` |
+| ⁵ | só `tenant_member` |
+| ⁶ | console, com TOTP nos últimos 5 min + motivo (seção 6.4) |
+| ⁷ | app, com chave do aparelho (cadastrada há ≥ 24 h para `block`, seção 6.1) e `command_policy.allow_app_block = true` |
+| ⁸ | como ⁷ e só com `membership.can_command` concedido pelo titular ([06 §4.1](06-comandos-e-bloqueio.md#41-papéis)); no F1 vale para todos os veículos do cliente, e o limite de segurança no banco continua sendo o cliente |
+| ⁹ | só `reason_code = 'installation_test'`, em vínculo aberto por ele há ≤ 2 h ([06 §4.1](06-comandos-e-bloqueio.md#41-papéis)) |
+| ¹⁰ | no F0 só a equipe da operadora reconhece alerta (a central trata o SOS); usuário do cliente recebe 403 `FORBIDDEN` T-011; escolha reversível, [15 §5](15-decisoes-riscos-premissas.md#5-propostas-de-decisão-registradas-nos-capítulos) |
+| ¹¹ | `search_team` comanda pelo console, com TOTP nos últimos 5 min + motivo (seção 6.4), e só em veículo com ocorrência aberta; não usa chave do aparelho |
+
+Bloqueio por qualquer canal exige termo de ciência aceito pelo titular (seção 11).
 
 Regras: (1) recurso fora do escopo RLS → 404 `NOT_FOUND`; recurso visível sem a permissão → 403 `FORBIDDEN`; (2) `platform_admin` sem grant não lê dado de operadora; com grant, só leitura (seção 5); (3) agentes de IA herdam as permissões de quem os aciona, menos tudo que escreve (seção 12); (4) nenhum papel tem permissão implícita de comando físico.
 
@@ -112,22 +145,23 @@ sequenceDiagram
   A->>A: clientKind x transporte, expiração, CSRF, gate de 2FA
   A->>P: SELECT * FROM app.memberships_for_user(userId)
   A->>A: resolveRequestContext + permissão da rota
-  A->>P: BEGIN, set_config x 3 (local), handler, COMMIT
+  A->>P: BEGIN, set_config (local), handler, COMMIT
   A->>P: access_log (transação própria, se conexão nova)
   A-->>C: resposta ou Problem Details
 ```
 
-1. `app.memberships_for_user` ([04 §4.4](04-dominio-e-dados.md)) devolve só memberships ativas de operadora ativa e cliente não encerrado.
+1. `app.memberships_for_user` ([04 §4.4](04-dominio-e-dados.md#44-funções-security-definer-lista-fechada)) devolve só memberships ativas de operadora ativa e cliente não encerrado.
 2. `X-Operator-Id` **seleciona, nunca autoriza**: só vale se o usuário tem membership nessa operadora; senão 404. Sem o header e com memberships em mais de uma operadora: 400 `OPERATOR_SELECTION_REQUIRED` com a lista das operadoras do próprio usuário.
-3. `resolveRequestContext(memberships, operatorId)` é pura (`packages/domain/src/auth/context.ts`): alguma membership de equipe (`tenant_id` NULL) na operadora → `{ scope: 'operator', operatorId }`; senão → `{ scope: 'tenant', operatorId, tenantIds }` com os tenants das memberships `tenant_owner`/`tenant_member`; nenhuma → 404 em toda rota de dados (`GET /api/v1/me` responde 200 com lista vazia). Exceção: `GET /api/v1/stream` sem membership ativa responde 401 `AUTH_REQUIRED`, para o cliente voltar ao login como no `close` `session_revoked` (CT-ALR-019, [07 §11](07-alertas-e-tempo-real.md)) [ADOTADO NA v2.0: T-008].
-4. Todo handler acessa dados por `withContext(pool, ctx, fn)` de `packages/db` (T-001). Rotas GET rodam com `SET TRANSACTION READ ONLY` [ADOTADO NA v2.0: 4º parâmetro opcional `{ readOnly: true }` em `withContext`, compatível com a T-001].
+3. `resolveRequestContext(memberships, operatorId)` é pura (`packages/domain/src/auth/context.ts`): alguma membership de equipe (`tenant_id` NULL) na operadora → `{ scope: 'operator', operatorId }`; senão → `{ scope: 'tenant', operatorId, tenantIds }` com os tenants das memberships `tenant_owner`/`tenant_member`; nenhuma → 404 em toda rota de dados (`GET /api/v1/me` responde 200 com lista vazia). Exceção: `GET /api/v1/stream` sem membership ativa responde 401 `AUTH_REQUIRED`, para o cliente voltar ao login como no `close` `session_revoked` (CT-ALR-019, [07 §11](07-alertas-e-tempo-real.md#11-tempo-real-get-apiv1stream-sse)) T-008.
+4. Todo handler acessa dados por `withContext(pool, ctx, fn)` de `packages/db` (T-001). Rotas GET rodam com `SET TRANSACTION READ ONLY` 4º parâmetro opcional `{ readOnly: true }` em `withContext`, compatível com a T-001.
 5. Restrições de papel dentro do escopo (`installer`, `search_team`, `tenant_member`) são aplicadas no handler antes da consulta, por função pura de `packages/domain/src/auth/`, e testadas pela matriz (REQ-SEG-009).
-6. O IP do cliente vem de `X-Forwarded-For` e a porta de origem de `X-Client-Port`, aceitos só quando a conexão chega da rede Docker do `caddy` (Caddyfile em [13](13-infra-e-operacao.md): `header_up X-Client-Port {http.request.remote.port}`). Essa rede é declarada em `TRUSTED_PROXY_CIDRS` do `api` (CIDRs separados por vírgula, padrão vazio = nenhum proxy confiável; [03 §13](03-arquitetura.md)) [ADOTADO NA v2.0: T-006].
+6. O IP do cliente vem de `X-Forwarded-For` e a porta de origem de `X-Client-Port`, aceitos só quando a conexão chega da rede Docker do `caddy` (Caddyfile em [13](13-infra-e-operacao.md): `header_up X-Client-Port {http.request.remote.port}`). Essa rede é declarada em `TRUSTED_PROXY_CIDRS` do `api` (CIDRs separados por vírgula, padrão vazio = nenhum proxy confiável; [03 §13](03-arquitetura.md#13-configuração)) T-006.
+7. O contexto ganha `app.user_id` (`userId` opcional em `withContext`, que a T-006 estende sem quebrar os testes da T-001), usado pelas políticas de tabelas de usuário (`device_key_self`, `push_token`) e por `membership_tenant_manage`. Sem `userId`, essas políticas não enxergam linha.
 
 ## 5. Acesso de suporte da Versix
 
 1. `platform_admin` = usuário Versix listado em `PLATFORM_ADMIN_USER_IDS` (UUIDs, variável de ambiente cifrada pelo SOPS), com TOTP obrigatório. Não tem membership.
-2. Acesso a dados de uma operadora só com `platform_support_grant` vigente criado pelo `operator_admin` no console: `granted_to`, `reason` (≥ 10 caracteres), `expires_at` ≤ criação + 72 h [PREMISSA, alinhado a [04 §4.5](04-dominio-e-dados.md)], revogável a qualquer momento.
+2. Acesso a dados de uma operadora só com `platform_support_grant` vigente criado pelo `operator_admin` no console: `granted_to`, `reason` (≥ 10 caracteres), `expires_at` ≤ criação + 72 h [PREMISSA, alinhado a [04 §4.5](04-dominio-e-dados.md#45-acesso-de-suporte-da-plataforma-f1)], revogável a qualquer momento.
 3. Requisição com `X-Operator-Id` da operadora → `app.active_support_grant(operatorId, userId)`; NULL → 404. Com grant: contexto `operator`, transação READ ONLY (escrita → SQLSTATE 25006 → 403 `FORBIDDEN`), 1 linha de `audit_log` `support.read` por requisição (`actor_type = 'support'`).
 4. O `operator_admin` vê no console os grants ativos e o `audit_log` de suporte. Criação e revogação de grant geram `audit_log` e e-mail ao `operator_admin`.
 5. No F0–F1 o `platform_admin` não tem rota HTTP de escrita: operadora nova é criada por CLI na VM (`pnpm --filter @tracksys/api cli operator:create`), com `audit_log` `operator.create` e `actor_type = 'system'`.
@@ -138,13 +172,14 @@ sequenceDiagram
 
 1. O app gera um par **P-256 não exportável** no Secure Enclave (iOS) ou no Android Keystore (StrongBox quando houver), com autenticação do usuário **a cada uso**: biometria forte; credencial do aparelho (PIN, padrão ou senha) só quando o aparelho não tem biometria cadastrada. Chave biométrica é invalidada por novo cadastro biométrico (iOS `biometryCurrentSet`; Android `setInvalidatedByBiometricEnrollment(true)`).
 2. `POST /api/v1/device-keys` com `{ "publicKey": "<SPKI DER base64url>", "platform": "android"|"ios", "label": "Galaxy A54", "userVerification": "biometric"|"device_credential" }`. Exige sessão `app` criada há ≤ 5 min (login com senha recente); senão 403 `STEP_UP_REQUIRED` com `requiredMethod: "password"`.
-3. O servidor valida: `createPublicKey({ key, format: 'der', type: 'spki' })`, `asymmetricKeyType === 'ec'`, `namedCurve === 'prime256v1'`, 91 bytes ([04 §3.4](04-dominio-e-dados.md)); senão 422 `VALIDATION_FAILED`.
-4. Cada usuário tem **no máximo 1 chave ativa**: cadastrar outra revoga a anterior na mesma transação [proposta para [04](04-dominio-e-dados.md): índice único parcial `device_key (user_id) WHERE revoked_at IS NULL` e colunas `label`, `user_verification`, `last_used_at`]. Grava `audit_log` `device_key.register` e enfileira e-mail "Novo aparelho autorizado a bloquear".
+3. O servidor valida: `createPublicKey({ key, format: 'der', type: 'spki' })`, `asymmetricKeyType === 'ec'`, `namedCurve === 'prime256v1'`, 91 bytes ([04 §3.4](04-dominio-e-dados.md#34-identidade)); senão 422 `VALIDATION_FAILED`.
+4. Cada usuário tem **no máximo 1 chave ativa**: cadastrar outra revoga a anterior na mesma transação [proposta para [04](04-dominio-e-dados.md): índice único parcial `device_key (user_id) WHERE revoked_at IS NULL` e colunas `label`, `user_verification`, `last_used_at`]. Grava `audit_log` `device_key.register`, envia push ao aparelho da chave anterior e enfileira e-mail "Novo aparelho autorizado a bloquear" com o link "Não fui eu".
 5. Sem atestação de hardware no F1 [PREMISSA]: o servidor confia que a chave está no hardware seguro; a compensação é login recente, chave única, e-mail e auditoria. Atestação (Key Attestation/App Attest) é avaliada no F2.
+6. **Carência de 24 h.** Chave cadastrada há menos de 24 h autoriza só `unblock`: `block` responde 422 `COMMAND_NOT_ALLOWED` com `reason = device_key_cooldown` ([06 §4.2](06-comandos-e-bloqueio.md#42-step-up-detalhe-em-08)), e o bloqueio nesse período é pela central. O link "Não fui eu" revoga as sessões do usuário e a chave nova. Motivo: o titular não tem 2FA, e senha roubada não pode virar bloqueio imediato com a biometria do atacante.
 
 ### 6.2 Desafio
 
-`POST /api/v1/vehicles/{vehicleId}/commands/challenges` com `{ "type": "block"|"unblock", "reasonCode": "theft_suspected" }` (catálogo de `reason_code` em [06 §6](06-comandos-e-bloqueio.md)):
+`POST /api/v1/vehicles/{vehicleId}/commands/challenges` com `{ "type": "block"|"unblock", "reasonCode": "theft_suspected" }` (catálogo de `reason_code` em [06 §6](06-comandos-e-bloqueio.md#6-modelo-de-dados)):
 1. Exige `command.execute` sobre o veículo e chave ativa (senão 403 `STEP_UP_REQUIRED`, `requiredMethod: "device_key_registration"`).
 2. Grava em `app.command_challenge` [proposta para [04](04-dominio-e-dados.md): tipo A, colunas `id`, `operator_id`, `tenant_id`, `vehicle_id`, `user_id`, `device_key_id`, `type`, `reason_code`, `nonce bytea` (32 bytes), `expires_at`, `consumed_at`, `created_at`; FK composta para `vehicle`]: nonce de 32 bytes de `crypto.randomBytes`, `expires_at = now() + 60 s`, amarrado a usuário, chave, veículo, tipo e motivo.
 3. Responde 201 `{ challengeId, nonce, expiresAt, deviceKeyId, vehicleId, type, reasonCode }`, com `nonce` em base64url sem padding (43 caracteres). Limite: 10 desafios/min por usuário.
@@ -158,7 +193,7 @@ tracksys-cmd-v1|{challengeId}|{nonce}|{vehicleId}|{type}|{reasonCode}
 tracksys-cmd-v1|0192a1b2-0c00-7000-8000-00000000c001|q3Jx8m2…43 caracteres…|0192a1b2-0000-7000-8000-0000000000f1|block|theft_suspected
 ```
 
-O app monta a string com os valores que exibiu ao usuário (placa, ação, motivo), pede a biometria e assina com ECDSA P-256/SHA-256 (iOS `ecdsaSignatureMessageX962SHA256`; Android `SHA256withECDSA`), assinatura DER em base64url. Envia em `POST /api/v1/vehicles/{vehicleId}/commands` ([09 §9.2](09-api-e-contratos.md)) com `stepUp: { kind: "device_key", challengeId, deviceKeyId, signature }`.
+O app monta a string com os valores que exibiu ao usuário (placa, ação, motivo), pede a biometria e assina com ECDSA P-256/SHA-256 (iOS `ecdsaSignatureMessageX962SHA256`; Android `SHA256withECDSA`), assinatura DER em base64url. Envia em `POST /api/v1/vehicles/{vehicleId}/commands` ([09 §9.2](09-api-e-contratos.md#92-post-apiv1vehiclesvehicleidcommands-f1)) com `stepUp: { kind: "device_key", challengeId, deviceKeyId, signature }`.
 
 Verificação no `api`, numa transação (depois da checagem de idempotência, que devolve o comando existente sem novo consumo):
 
@@ -181,16 +216,21 @@ O consumo do desafio e a criação do comando ([06](06-comandos-e-bloqueio.md)) 
 ### 6.4 Step-up no console (F1)
 
 1. `POST /api/v1/me/step-up` com `{ "code": "123456" }` (TOTP; código de recuperação não vale) grava `stepUpAt = now()` na sessão [VALIDAR — T-006: atualização de campo adicional da sessão; alternativa: tabela `auth.session_step_up (session_id, at)`] e `audit_log` `auth.step_up`. Limite: 5 tentativas por 15 min por usuário.
-2. Comando pelo console (`stepUp: { kind: "console_totp" }`), registro de contingência e nova versão de `command_policy` ([06 §4.2](06-comandos-e-bloqueio.md)) exigem `stepUpAt ≥ now() − 300 s` (senão 403 `STEP_UP_REQUIRED`, `requiredMethod: "totp"`); comando exige também `reasonCode` e `reason` em texto livre de 10 a 500 caracteres (senão 422).
+2. Comando pelo console (`stepUp: { kind: "console_totp" }`), registro de contingência e nova versão de `command_policy` ([06 §4.2](06-comandos-e-bloqueio.md#42-step-up-detalhe-em-08)) exigem `stepUpAt ≥ now() − 300 s` (senão 403 `STEP_UP_REQUIRED`, `requiredMethod: "totp"`); comando exige também `reasonCode` e `reason` em texto livre de 10 a 500 caracteres (senão 422).
 
 ### 6.5 Revogação da chave
 
-Revoga (`revoked_at = now()`, NOTIFY `auth_changed`): logout no app; cadastro de nova chave (troca de aparelho); `DELETE /api/v1/device-keys/{id}`; troca ou redefinição de senha; revogação da membership ou encerramento do cliente ([04 §9.2](04-dominio-e-dados.md)); `POST /api/v1/users/{userId}/revoke-sessions` pela central (celular roubado junto com o veículo: a central revoga sessões e chave e bloqueia pelo console). Desafio emitido para chave revogada falha com `STEP_UP_INVALID`.
+Revoga (`revoked_at = now()`, NOTIFY `auth_changed`): logout no app; cadastro de nova chave (troca de aparelho); `DELETE /api/v1/device-keys/{id}`; troca ou redefinição de senha; revogação da membership ou encerramento do cliente ([04 §9.2](04-dominio-e-dados.md#92-encerramento-tombstone-e-anonimização-dec-15)); `POST /api/v1/users/{userId}/revoke-sessions` pela central (celular roubado junto com o veículo: a central revoga sessões e chave e bloqueia pelo console). Desafio emitido para chave revogada falha com `STEP_UP_INVALID`.
+
+Garantias no banco ([04 §4.2 e §4.4](04-dominio-e-dados.md#42-tipos-de-tabela-e-políticas)):
+1. Política `device_key_self`: o `tracksys_app` só vê e altera as chaves do `app.user_id` do contexto.
+2. Gatilho `device_key_revoke_once`: `revoked_at` vai de NULL a um instante e nunca volta; chave revogada não reativa.
+3. A revogação pela central age sobre outro usuário e usa `app.revoke_device_keys(p_user_id uuid)`, função `SECURITY DEFINER` da lista fechada (CAT-07), com `audit_log` `device_key.revoke`.
 
 ## 7. Links temporários (F1)
 
 1. `POST /api/v1/share-links` com `{ vehicleId, ttlS, purpose: "family"|"police"|"other", showPlate }` e `Idempotency-Key`. `ttlS` padrão 3.600 (1 h), mínimo 300, máximo 86.400 (24 h); fora → 422. Token: 32 bytes aleatórios (256 bits), base64url. Persiste só `token_sha256`. Resposta 201 com `url = https://app.<domínio>/s#<token>`, exibida uma única vez.
-2. O token fica no fragmento (não vai ao servidor no GET da página). A página troca o token uma vez em `POST /api/v1/public/share-sessions` (`{ token }`) e apaga o fragmento com `history.replaceState`. A troca usa `app.resolve_share_token(p_token_sha256 bytea)` [proposta para a lista fechada de [04 §4.4](04-dominio-e-dados.md): `SECURITY DEFINER`, `tracksys_app`, devolve `(id, operator_id, tenant_id, vehicle_id, expires_at)` só de link ativo]. Token inválido, vencido ou revogado → 404 `NOT_FOUND`.
+2. O token fica no fragmento (não vai ao servidor no GET da página). A página troca o token uma vez em `POST /api/v1/public/share-sessions` (`{ token }`) e apaga o fragmento com `history.replaceState`. A troca usa `app.resolve_share_token(p_token_sha256 bytea)` [proposta para a lista fechada de [04 §4.4](04-dominio-e-dados.md#44-funções-security-definer-lista-fechada): `SECURITY DEFINER`, `tracksys_app`, devolve `(id, operator_id, tenant_id, vehicle_id, expires_at)` só de link ativo]. Token inválido, vencido ou revogado → 404 `NOT_FOUND`.
 3. Sessão pública: token `pss.<payload base64url>.<HMAC-SHA256 base64url>` com `{sid, op, tn, veh, exp}`, chave `SHARE_SESSION_SECRET` (≥ 32 bytes), `exp` = vencimento do link (nunca maior). Cada leitura confere HMAC, `exp` e, no banco, `revoked_at IS NULL AND expires_at > now()` com contexto `{scope:'tenant', operatorId: op, tenantIds:[tn]}` e transação READ ONLY.
 4. Escopo `live_location`: posição atual, velocidade, rumo, `lastFixAt`, `presence`, modelo, cor e placa (só com `showPlate`). Nunca histórico, IMEI, nome ou documento do titular, ignição, relé ou comando. SSE público em `GET /api/v1/public/stream` com `Authorization: Bearer <pss>` (a página usa `fetch` em stream, não `EventSource`, para não pôr token em URL).
 5. `DELETE /api/v1/share-links/{id}` → 204, NOTIFY `auth_changed` com `{"l": id}`; SSE público fecha em ≤ 5 s (meta) e ≤ 60 s (garantia).
@@ -206,6 +246,7 @@ Revoga (`revoked_at = now()`, NOTIFY `auth_changed`): logout no app; cadastro de
 6. A chave Asaas é só de escrita na API: `GET /api/v1/billing/account` devolve `apiKeyLast4`, `keyVersion`, `updatedAt`. Só o `worker` decifra (chamadas ao Asaas, [ADR-011](../adr/ADR-011-integrar-em-vez-de-construir.md)).
 7. **Token do webhook Asaas:** gerado pela TrackSys (32 bytes) e registrado no Asaas pelo worker; persiste só o SHA-256 em `billing_account.webhook_secret_ref`. Header enviado pelo Asaas: `asaas-access-token` [VALIDAR — tarefa de cobrança]. Comparação de SHA-256 com `timingSafeEqual`.
 8. **Logs:** redação do logger (pino) em `req.headers.authorization`, `req.headers.cookie`, `req.headers["asaas-access-token"]`, `req.headers["x-ingest-token"]` e campos `*.password`, `*.token`, `*.apiKey`, `*.signature`, `*.nonce`, `*.secret`, `*.code`; corpo de requisição nunca é logado; IMEI só com os 4 últimos dígitos (`***0001`); sem coordenadas ([03 REQ-ARQ-014](03-arquitetura.md)).
+9. **Senha SMS dos rastreadores (F1):** uma por operadora em `app.operator_secret` (`kind = 'sms_password'`), cifrada como no item 4, diferente da de fábrica e da usada na SmartGPS; só o `worker` decifra. Rotação a cada onda de migração ([11 §5](11-onboarding-e-migracao.md#5-modelos-de-sms-e-senha-do-dispositivo)) e a cada saída de pessoa com acesso. Nunca em log, CSV ou runbook.
 
 ## 9. Limites, CORS e headers
 
@@ -215,6 +256,7 @@ Revoga (`revoked_at = now()`, NOTIFY `auth_changed`): logout no app; cadastro de
 | `two-factor/verify-totp`, `POST /api/v1/me/step-up` | 5 / 15 min | usuário | 429; login 2FA pendente é invalidado |
 | `request-password-reset` | 3 / h; 10 / h | e-mail; IP | 200 sempre (sem enumeração) |
 | `invitations/accept`, `public/share-sessions` | 10 / min; 60 falhas / h bloqueiam o IP por 1 h | IP | 429 |
+| `activation-codes/redeem` | 5 tentativas / 15 min; a 5ª falha invalida o código | código; IP | 429; código invalidado |
 | Desafios de comando / comandos | 10 / min por usuário; 20 / h por veículo | usuário; veículo | 429 |
 | `GET .../history` | 30 / min | usuário | 429 |
 | Exportações | 5 em andamento por usuário; 20 / dia por operadora | usuário; operadora | 429 |
@@ -226,14 +268,14 @@ Os contadores HTTP ficam em memória do processo `api` (um processo no F0–F1);
 
 **CORS:** origem permitida só `https://app.<TRACKSYS_DOMAIN>` (e `http://localhost:5173` com `NODE_ENV=development`); `Access-Control-Allow-Credentials: true`; métodos GET, POST, PUT, PATCH, DELETE; headers permitidos `Authorization`, `Content-Type`, `Idempotency-Key`, `If-Match`, `Last-Event-ID`, `X-Operator-Id`, `X-Request-Id`, `X-App-Version`; expostos `ETag`, `Location`, `Retry-After`, `X-Request-Id`, `Idempotent-Replayed`; `max-age` 600. Origem fora da lista não recebe header CORS. O app nativo não usa CORS.
 
-**Headers:** `api.` responde com `Strict-Transport-Security: max-age=31536000; includeSubDomains`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` (toda resposta autenticada), `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, `Cross-Origin-Resource-Policy: same-site`. `app.` (Caddy, [13](13-infra-e-operacao.md)): `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tiles.openfreemap.org; connect-src 'self' https://api.<domínio> https://tiles.openfreemap.org; worker-src blob:; frame-ancestors 'none'` , mais HSTS e `nosniff`. Estilo (`https://tiles.openfreemap.org/styles/liberty`), sprites e fontes vêm só de `tiles.openfreemap.org`, conferido pela T-008; outro host observado vai para o Caddyfile da T-013. O host do Sentry do console fica para quem ligar o SDK no `apps/console` (fora da T-013; [15 §5](15-decisoes-riscos-premissas.md)) [VALIDAR — host de ingestão do Sentry].
+**Headers:** `api.` responde com `Strict-Transport-Security: max-age=31536000; includeSubDomains`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` (toda resposta autenticada), `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, `Cross-Origin-Resource-Policy: same-site`. `app.` (Caddy, [13](13-infra-e-operacao.md)): `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tiles.openfreemap.org; connect-src 'self' https://api.<domínio> https://tiles.openfreemap.org; worker-src blob:; frame-ancestors 'none'` , mais HSTS e `nosniff`. Estilo (`https://tiles.openfreemap.org/styles/liberty`), sprites e fontes vêm só de `tiles.openfreemap.org`, conferido pela T-008; outro host observado vai para o Caddyfile da T-013. O host do Sentry do console fica para quem ligar o SDK no `apps/console` (fora da T-013; [15 §5](15-decisoes-riscos-premissas.md#5-propostas-de-decisão-registradas-nos-capítulos)) [VALIDAR — host de ingestão do Sentry].
 
 ## 10. Ameaças
 
 | # | Ameaça | Vetor | Controles | REQ |
 |---|---|---|---|---|
-| 1 | IMEI forjado | gt06 não autentica: qualquer um abre TCP 5023 e se anuncia com o IMEI de um cliente (esconder furto, posição falsa) | F1: allowlist das faixas de saída da APN privada no firewall [VALIDAR — DEC-01]; flag `JUMP_SUSPECT` ([05 §4.1](05-ingestao-e-telemetria.md)); 3 `JUMP_SUSPECT` em 10 min → aviso na fila da central [proposta para [07](07-alertas-e-tempo-real.md)]; fix suspeito nunca é evidência de comando (INV-08); IMEI desconhecido rejeitado | SEG-024 |
-| 2 | SMS direto ao rastreador | Quem sabe o MSISDN e a senha SMS do J16 manda bloquear, desbloquear ou trocar servidor sem passar pela plataforma | Senha SMS trocada por aparelho na instalação ou migração; número administrador restrito, se o J16 suportar [VALIDAR — DEC-02]; envio de SMS só pela API emnify [VALIDAR — DEC-01 se o chip aceita SMS de celular comum] | [11](11-onboarding-e-migracao.md) |
+| 1 | IMEI forjado | gt06 não autentica: qualquer um abre TCP 5023 e se anuncia com o IMEI de um cliente (esconder furto, posição falsa) | F1: allowlist das faixas de saída da APN privada no firewall [VALIDAR — DEC-01], ou risco aceito por escrito em [15 §5](15-decisoes-riscos-premissas.md#5-propostas-de-decisão-registradas-nos-capítulos) (GC-8); fix de sessão fora da allowlist não é evidência ([06 §3.1](06-comandos-e-bloqueio.md#31-evidência-válida)); flag `JUMP_SUSPECT` ([05 §4.1](05-ingestao-e-telemetria.md#41-flags-de-positionflags)); 3 `JUMP_SUSPECT` em 10 min → aviso na fila da central [proposta para [07](07-alertas-e-tempo-real.md)]; fix suspeito nunca é evidência de comando (INV-08); IMEI desconhecido rejeitado | SEG-024 |
+| 2 | SMS direto ao rastreador | Quem sabe o MSISDN e a senha SMS do J16 (de fábrica, do instalador ou da SmartGPS) manda bloquear, desbloquear ou trocar servidor sem passar pela plataforma, inclusive em movimento | Senha por operadora, diferente da de fábrica e da usada na SmartGPS, trocada por SMS `set_password` [VALIDAR — DEC-02] na mesma onda e antes do `set_server_domain` (item sem rotação confirmada não conclui a onda; `migration_item.password_rotated_at`); chip bloqueia SMS MT P2P e SMS sai só pela API ou portal emnify [VALIDAR — DEC-01]; número administrador restrito, se o J16 suportar [VALIDAR — DEC-02]; GC-7 do G-CMD | [11](11-onboarding-e-migracao.md), [06 §9](06-comandos-e-bloqueio.md#9-desbloqueio-assimétrico) |
 | 3 | Roubo de sessão | Token copiado do aparelho ou cookie | Bearer no Keychain/Keystore; cookie `HttpOnly`; nada em URL ou log; revogação ≤ 60 s; bearer roubado não comanda (exige chave + biometria) | SEG-003, 004, 007 |
 | 4 | Força bruta e credential stuffing | Login, TOTP, convite, link | Limites da seção 9; resposta genérica; scrypt; senhas comuns recusadas; TOTP no admin; tokens de 256 bits só com hash | SEG-002, 006, 023 |
 | 5 | Webhook falso do Asaas | POST forjado marcando fatura paga | Token de autenticação comparado em tempo constante; efeito só em `invoice`; sync do worker reconcilia com a API do Asaas; nunca aciona comando (INV-09) | SEG-022 |
@@ -244,6 +286,7 @@ Os contadores HTTP ficam em memória do processo `api` (um processo no F0–F1);
 | 10 | Insider e suporte | Atendente exporta base; suporte Versix bisbilhota | Exportação limitada e auditada; pacote de evidências só `operator_admin`; grant temporário, READ ONLY, auditado e visível à operadora | SEG-011, 026 |
 | 11 | Segredo vazado | Repositório, log, VM comprometida | SOPS + age; gitleaks; redação de log; rotação de chave mestra; banco sem porta pública ([03](03-arquitetura.md)) | SEG-019, 020, 021 |
 | 12 | Replay de assinatura | Reenvio da mesma prova de step-up | Nonce de 32 bytes, 60 s, uso único, intenção amarrada | SEG-014 |
+| 13 | Sequestro de domínio, DNS ou contas do fundador | Quem controla `gps.<domínio>`, a conta Cloudflare, o token de DNS da standby ([13 §9.2](13-infra-e-operacao.md#92-failover-infrascriptsfailover-roda-na-standby)) ou o GitHub/CI recebe a frota num servidor gt06 falso e pode mandar `engineStop` ou `SERVER,` sem política | Chave FIDO2 em registro.br, Cloudflare, Oracle, GitHub, Apple e Google; bloqueio de transferência no registro.br; DNSSEC; token Cloudflare restrito aos registros `gps`, `api` e `app`; monitor do Kuma que resolve `gps.<domínio>` a cada 60 s e faz page se o A não for o IP do serviço ou da standby; deploy só de tag assinada | SEG-030 |
 
 ## 11. LGPD técnica, Marco Civil, auditoria e autoridades
 
@@ -251,30 +294,33 @@ Os contadores HTTP ficam em memória do processo `api` (um processo no F0–F1);
 
 **Minimização:** CPF/CNPJ só para a equipe da operadora (nunca no app do `tenant_member`, nunca em push); IMEI mascarado fora da tela de cadastro; visitante de link vê só o escopo da seção 7; `search_team` e `installer` limitados pela matriz; logs sem coordenadas; push sem endereço.
 
-**Consentimento e aceite (`consent`, F1):** `purpose` `block_terms` (termo de ciência do bloqueio, aceito pelo `tenant_owner` em `POST /api/v1/tenants/{tenantId}/block-terms`, `text_version = 'block-terms-v{N}/{kmh}kmh'`, regras em [06 §12](06-comandos-e-bloqueio.md)) e `sva_referral` com `partner_id` (um por parceiro, opt-in, revogável). Sem `block_terms` válido, bloqueio por app ou central → 422 `COMMAND_NOT_ALLOWED` com `reason: "block_terms_missing"`; desbloqueio continua (GC-4, [02 §4.3](02-escopo-e-fases.md)). Revogar `sva_referral` interrompe novas indicações àquele parceiro ([12](12-cobranca-e-svas.md)).
+**Consentimento e aceite (`consent`, F1):** `purpose` `block_terms` (termo de ciência do bloqueio, aceito pelo `tenant_owner` em `POST /api/v1/tenants/{tenantId}/block-terms`, `text_version = 'block-terms-v{N}/{kmh}kmh'`, regras em [06 §12](06-comandos-e-bloqueio.md#12-termo-de-ciência-do-bloqueio)) e `sva_referral` com `partner_id` (um por parceiro, opt-in, revogável). Sem `block_terms` válido, bloqueio por app ou central → 422 `COMMAND_NOT_ALLOWED` com `reason: "block_terms_missing"`; desbloqueio continua (GC-4, [02 §4.3](02-escopo-e-fases.md#43-gate-g-cmd-meta-1630112026)). Revogar `sva_referral` interrompe novas indicações àquele parceiro ([12](12-cobranca-e-svas.md)).
 
-**Direitos do titular (F1):** prazo de resposta **15 dias**. No app, "Privacidade": baixar meus dados (`POST /api/v1/me/data-exports`, ZIP com cadastro, memberships, consentimentos, alertas e posições dos últimos 90 dias, pronto em ≤ 24 h), revogar consentimentos e pedir correção ou eliminação (abre atendimento `lgpd` com vencimento em 15 dias para a operadora [proposta para [10](10-apps-e-ux.md): `ticket.category` e `ticket.due_at`]). Eliminação = encerramento e anonimização de [04 §9.2](04-dominio-e-dados.md), salvo legal hold ou obrigação legal (DEC-15).
+**Direitos do titular (F1):** prazo de resposta **15 dias**. No app, "Privacidade": baixar meus dados (`POST /api/v1/me/data-exports`, ZIP com cadastro, memberships, consentimentos, alertas e posições dos últimos 90 dias, pronto em ≤ 24 h), revogar consentimentos e pedir correção ou eliminação (abre atendimento `lgpd` com vencimento em 15 dias para a operadora [proposta para [10](10-apps-e-ux.md): `ticket.category` e `ticket.due_at`]). Eliminação = encerramento e anonimização de [04 §9.2](04-dominio-e-dados.md#92-encerramento-tombstone-e-anonimização-dec-15), salvo legal hold ou obrigação legal (DEC-15).
 
-**Marco Civil (`access_log`, 6 meses):** 1 linha por login, por conexão TCP nova de sessão autenticada (par IP + porta deduplicado em memória por 15 min) e por abertura de SSE ou de link público: `user_id` (NULL no visitante), `ip`, `source_port`, `user_agent`, `at` UTC. Expurgo por partição mensal ([04 §8.1](04-dominio-e-dados.md)). Entrega só por ordem judicial.
+**Marco Civil (`access_log`, 6 meses):** 1 linha por login, por conexão TCP nova de sessão autenticada (par IP + porta deduplicado em memória por 15 min) e por abertura de SSE ou de link público: `user_id` (NULL no visitante), `ip`, `source_port`, `user_agent`, `at` UTC. Expurgo por partição mensal ([04 §8.1](04-dominio-e-dados.md#81-prazos)).
 
-**`audit_log` (5 anos, append-only):** grava, na transação da mudança (`actor_type`, `actor_id`, `action`, alvo, `reason`, `result`, `ip`, `correlation_id`): `membership.invite|accept|revoke`, `auth.two_factor_enable|disable`, `auth.step_up`, `auth.sessions_revoke`, `device_key.register|revoke`, `tenant.create|update`, `vehicle.create|update|transfer`, `device.create|update`, `assignment.create|close`, `alert.acknowledge`, `watch_mode.activate|deactivate`, `brand.update`, `command_policy.update`, `command.request|cancel|step_up`, `share_link.create|revoke|open`, `support_grant.create|revoke`, `support.read`, `legal_hold.create|release`, `evidence.export`, `export.create|download`, `billing.credentials_update`, `audit.read`. Tentativa negada relevante grava `result = 'denied'`.
+Entrega só por ordem judicial, pelo passo 4 da seção "Autoridades".
 
-**Autoridades (F1):** procedimento no [Anexo C](../anexos/C-operacional.md) e base legal no [Anexo B](../anexos/B-juridico.md). Regra prática: histórico de localização e registros de acesso só com ordem judicial ou autorização escrita do titular (vítima); dados cadastrais conforme o Marco Civil [VALIDAR — DEC-08]. Passos técnicos:
-1. `operator_admin` cria `legal_hold` (`vehicleId`, `periodFrom`, `periodTo`, `reason`, `authorityRef` obrigatório, ex.: `Ofício 123/2026 — 1º DP`) → congela expurgo e anonimização da faixa ([04 §8.4](04-dominio-e-dados.md)).
+**`audit_log` (5 anos, append-only):** grava, na transação da mudança (`actor_type`, `actor_id`, `action`, alvo, `reason`, `result`, `ip`, `correlation_id`): `membership.invite|accept|revoke`, `auth.two_factor_enable|disable`, `auth.step_up`, `auth.sessions_revoke`, `device_key.register|revoke`, `tenant.create|update`, `vehicle.create|update|transfer`, `device.create|update`, `assignment.create|close`, `alert.acknowledge`, `watch_mode.activate|deactivate`, `brand.update`, `command_policy.update`, `command.request|cancel|step_up`, `share_link.create|revoke|open`, `support_grant.create|revoke`, `support.read`, `legal_hold.create|release`, `evidence.export`, `access_log.export`, `export.create|download`, `billing.credentials_update`, `audit.read`. Tentativa negada relevante grava `result = 'denied'`.
+
+**Autoridades (F1):** procedimento no [Anexo C](../anexos/C-operacional.md) e base legal no [Anexo B](../anexos/B-juridico.md). Regra prática: histórico de localização só com ordem judicial ou autorização escrita do titular vítima; `access_log` só com ordem judicial; dados cadastrais conforme o Marco Civil [VALIDAR — DEC-08]. Passos técnicos:
+1. `operator_admin` cria `legal_hold` (`vehicleId`, `periodFrom`, `periodTo`, `reason`, `authorityRef` obrigatório, ex.: `Ofício 123/2026 — 1º DP`) → congela expurgo e anonimização da faixa ([04 §8.4](04-dominio-e-dados.md#84-legal-hold)).
 2. `POST /api/v1/evidence-packages` (`legalHoldId`, conteúdo: `positions`, `alerts`, `commands`) → job do worker gera ZIP com `positions.csv`, `alerts.csv`, `commands.csv`, `resumo.pdf` e `manifest.json` (arquivos, linhas, SHA-256 de cada um, `generatedAt`, `generatedBy`, `legalHoldId`, `authorityRef`, `TRACKSYS_VERSION`). O SHA-256 do ZIP vai para `audit_log` `evidence.export` e para a tela, para citar no ofício de resposta.
 3. Download pela API (revalida permissão), disponível por 7 dias; cada download grava `audit_log`.
+4. Registros de acesso (`access_log` não tem `operator_id` e o `tracksys_app` só insere): o fundador roda na VM `pnpm --filter @tracksys/api cli access-log:export --user <uuid> --from <RFC 3339> --to <RFC 3339> --order-ref "<processo>"`, que chama a função `app.export_access_log(...)` (`SECURITY DEFINER`, lista fechada, CAT-07), gera CSV + SHA-256 e grava `audit_log` `access_log.export`.
 
 ## 12. Agentes de IA (INV-07, INV-11)
 
 1. **Agente de suporte (F2):** roda dentro do `api` e executa ferramentas como chamadas às rotas GET do registro marcadas `aiTool: true`, **com a sessão e o contexto RLS de quem pergunta**, em transação READ ONLY. Nunca tem credencial própria de dados. `audit_log` com `actor_type = 'ai_agent'` e `actor_id = 'support:<userId>'`.
-2. **Agente SRE (F1 leitura, F2 cardápio):** papel `tracksys_ops_ro` só com agregados ([04 §4.3](04-dominio-e-dados.md)); cardápio fechado de ações ([ADR-010](../adr/ADR-010-operacao-assistida-por-ia.md)).
+2. **Agente SRE (F1 leitura, F2 cardápio):** papel `tracksys_ops_ro` só com agregados ([04 §4.3](04-dominio-e-dados.md#43-papéis-de-banco-e-privilégios)); cardápio fechado de ações ([ADR-010](../adr/ADR-010-operacao-assistida-por-ia.md)).
 3. Nenhuma ferramenta, de nenhum agente, cria comando físico, altera cobrança, split, membership, grant ou segredo. O registro de rotas recusa no boot `aiTool: true` em método diferente de GET.
 4. Dados de usuário entram no prompt como dados delimitados; a defesa principal é de capacidade (o agente não tem como agir), não de texto. Saída exibida como texto puro, sem renderizar imagem ou link externo.
 5. Conjunto de avaliação com ≥ 20 casos de injeção (apelido, ticket, nome de cliente) roda a cada troca de modelo ou de prompt (DEC-13; [14](14-qualidade-e-processo-ia.md)).
 
 ## 13. Requisitos
 
-Fixture dos CTs ([02 §3](02-escopo-e-fases.md)): operadoras Alfa e Beta; clientes A1, A2 (Alfa) e B1 (Beta); `admin.alfa`, `agente.alfa`, `dono.a1`, `dono.a2`, `admin.beta`; V1 (TST1A23, A1), V2 (TST2B34, B1); domínio `tracksys.com.br`.
+Fixture dos CTs ([02 §3](02-escopo-e-fases.md#3-primeira-fatia-vertical)): operadoras Alfa e Beta; clientes A1, A2 (Alfa) e B1 (Beta); `admin.alfa`, `agente.alfa`, `dono.a1`, `dono.a2`, `admin.beta`; V1 (TST1A23, A1), V2 (TST2B34, B1); domínio `tracksys.com.br`.
 
 ### REQ-SEG-001 — Autenticação embutida sem cadastro público
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-07
@@ -324,7 +370,7 @@ Fixture dos CTs ([02 §3](02-escopo-e-fases.md)): operadoras Alfa e Beta; client
 ### REQ-SEG-010 — Convite e ciclo de vida da membership
 **Fase:** F0 · **Prioridade:** P1 · **Risco:** N0 · **Invariantes:** INV-07
 **Regra.** Convites DEVEM seguir as regras 3 e 4 da seção 2, com token de 256 bits, só hash persistido, validade de 72 h e uso único.
-**Aceite.** CT-SEG-010 — Dado `admin.alfa`, Quando convida `novo@exemplo.com` como `tenant_owner` de A1, Então 201 com membership `invited` e 1 job de e-mail, e o banco não contém o token em claro; Quando o convite é aceito 71 h depois, Então a membership fica `active`; Quando o mesmo token é reutilizado, Então 404 `INVITATION_INVALID`; Quando `agente.alfa` convida um `operator_admin`, Então 403.
+**Aceite.** CT-SEG-010 — Dado `admin.alfa`, Quando convida `novo@exemplo.com` como `tenant_owner` de A1, Então 201 com membership `invited` e 1 job de e-mail, e o banco não contém o token em claro; Quando o convite é aceito 71 h depois, Então a membership fica `active`; Quando o mesmo token é reutilizado, Então 404 `INVITATION_INVALID`; Quando `agente.alfa` convida um `operator_admin`, Então 403; Quando um `tenant_member` de A1 convida alguém, Então 403 (`membership_tenant_manage` exige membership `tenant_owner` ativa do usuário do contexto).
 
 ### REQ-SEG-011 — Acesso de suporte da plataforma
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-07, INV-11
@@ -333,8 +379,8 @@ Fixture dos CTs ([02 §3](02-escopo-e-fases.md)): operadoras Alfa e Beta; client
 
 ### REQ-SEG-012 — Cadastro da chave do aparelho
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-08
-**Regra.** O cadastro DEVE seguir a seção 6.1: P-256 SPKI de 91 bytes, sessão `app` de até 5 min, 1 chave ativa por usuário, auditoria e e-mail.
-**Aceite.** CT-SEG-012 — Dado `dono.a1` logado há 3 min com a chave K1 ativa, Quando cadastra K2 P-256 válida, Então 201, K1 recebe `revoked_at`, `audit_log` registra `device_key.register` e sai 1 job de e-mail; Dado sessão de 6 min, Então 403 `STEP_UP_REQUIRED` com `requiredMethod = "password"`; Dado chave P-384, Então 422.
+**Regra.** O cadastro DEVE seguir a seção 6.1: P-256 SPKI de 91 bytes, sessão `app` de até 5 min, 1 chave ativa por usuário, auditoria, e-mail, push ao aparelho anterior e carência de 24 h para `block`.
+**Aceite.** CT-SEG-012 — Dado `dono.a1` logado há 3 min com a chave K1 ativa, Quando cadastra K2 P-256 válida, Então 201, K1 recebe `revoked_at`, `audit_log` registra `device_key.register` e sai 1 job de e-mail; Dado sessão de 6 min, Então 403 `STEP_UP_REQUIRED` com `requiredMethod = "password"`; Dado chave P-384, Então 422; Dado K2 cadastrada às 10:00Z, Então o aparelho de K1 recebe 1 push e há e-mail com o link "Não fui eu"; `block` às 11:00Z → 422 `COMMAND_NOT_ALLOWED` com `reason = device_key_cooldown`; `unblock` às 11:00Z → 202; `block` a partir de 10:00Z do dia seguinte → disponível; o link "Não fui eu" às 12:00Z revoga as sessões e K2.
 
 ### REQ-SEG-013 — Desafio de comando
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-07, INV-08
@@ -353,8 +399,8 @@ Fixture dos CTs ([02 §3](02-escopo-e-fases.md)): operadoras Alfa e Beta; client
 
 ### REQ-SEG-016 — Revogação da chave do aparelho
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-08
-**Regra.** Os eventos da seção 6.5 DEVEM revogar a chave; desafio de chave revogada DEVE falhar.
-**Aceite.** CT-SEG-016 — Dado `dono.a1` com desafio C1 emitido às 21:10:00Z, Quando `agente.alfa` chama `POST /api/v1/users/{dono.a1}/revoke-sessions` às 21:10:10Z, Então a chave tem `revoked_at`, a assinatura válida de C1 às 21:10:20Z recebe 401 (sessão revogada) e, com nova sessão, 403 `STEP_UP_INVALID`; Quando `dono.a1` faz logout, Então a chave nova também é revogada.
+**Regra.** Os eventos da seção 6.5 DEVEM revogar a chave; desafio de chave revogada DEVE falhar; a revogação pela central DEVE usar `app.revoke_device_keys`, e chave revogada NÃO DEVE reativar.
+**Aceite.** CT-SEG-016 — Dado `dono.a1` com desafio C1 emitido às 21:10:00Z, Quando `agente.alfa` chama `POST /api/v1/users/{dono.a1}/revoke-sessions` às 21:10:10Z, Então a chave tem `revoked_at`, a assinatura válida de C1 às 21:10:20Z recebe 401 (sessão revogada) e, com nova sessão, 403 `STEP_UP_INVALID`; Quando `dono.a1` faz logout, Então a chave nova também é revogada; Quando `tracksys_app` com `app.user_id` de `dono.a2` faz UPDATE na chave de `dono.a1`, Então 0 linhas (`device_key_self`); Quando um UPDATE limpa `revoked_at`, Então erro do gatilho `device_key_revoke_once`.
 
 ### REQ-SEG-017 — Link temporário
 **Fase:** F1 · **Prioridade:** P1 · **Risco:** N0 · **Invariantes:** INV-07
@@ -393,7 +439,7 @@ Fixture dos CTs ([02 §3](02-escopo-e-fases.md)): operadoras Alfa e Beta; client
 
 ### REQ-SEG-024 — Porta TCP limitada e salto impossível
 **Fase:** F0 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** INV-08
-**Regra.** O host DEVE limitar conexões à porta 5023 por IP conforme a seção 9 (F1 com allowlist das faixas da emnify); fix com `JUMP_SUSPECT` NÃO DEVE servir de evidência de comando.
+**Regra.** O host DEVE limitar conexões à porta 5023 por IP conforme a seção 9 (F1 com allowlist das faixas da emnify); fix com `JUMP_SUSPECT`, ou de sessão fora da allowlist quando ela existir, NÃO DEVE servir de evidência de comando.
 **Aceite.** CT-SEG-024 — Dado o F0 e um host externo fora da allowlist, Quando abre 51 conexões simultâneas na 5023, Então a 51ª não completa o handshake e o J16 de bancada continua transmitindo; Dado V1 com último fix marcado `JUMP_SUSPECT` há 10 s, Quando a política de comando avalia evidência ([06](06-comandos-e-bloqueio.md)), Então trata como sem evidência válida.
 
 ### REQ-SEG-025 — CORS por allowlist e headers de segurança
@@ -420,3 +466,18 @@ Fixture dos CTs ([02 §3](02-escopo-e-fases.md)): operadoras Alfa e Beta; client
 **Fase:** F1 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** INV-07
 **Regra.** `block_terms` DEVE condicionar o bloqueio por app e central; `sva_referral` DEVE ser por parceiro e revogável; exportação dos dados do titular DEVE ficar pronta em ≤ 24 h e pedidos de correção ou eliminação DEVEM nascer com vencimento de 15 dias (seção 11).
 **Aceite.** CT-SEG-029 — Dado A1 sem `block_terms`, Quando `dono.a1` pede bloqueio pelo app, Então 422 `COMMAND_NOT_ALLOWED` com `reason = "block_terms_missing"`; Quando aceita `block-terms-v1/40kmh` com teto vigente de 40 km/h, Então essa checagem passa; Quando `dono.a1` pede exportação às 10:00Z de 02/12/2026, Então o ZIP fica pronto até 10:00Z de 03/12/2026 sem dados de A2; Quando pede eliminação, Então o atendimento nasce com vencimento em 17/12/2026.
+
+### REQ-SEG-030 — Monitor de DNS e proteção das contas do fundador
+**Fase:** F1 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** INV-08
+**Regra.** O monitor DEVE resolver `gps.<domínio>` a cada 60 s e fazer page ao fundador quando o registro A não for o IP do serviço nem o da standby; o token de DNS da Cloudflare DEVE valer só para os registros `gps`, `api` e `app`; registro.br, Cloudflare, Oracle, GitHub, Apple e Google DEVEM ter chave FIDO2, e o domínio, bloqueio de transferência e DNSSEC (ameaça 13). Dono: T-028.
+**Aceite.** CT-SEG-030 — Dado `gps.tracksys.com.br` resolvendo para o IP do serviço, Quando o registro A passa a 203.0.113.99, Então em ≤ 120 s existe 1 page ao fundador e o monitor fica `down`; Quando o registro passa ao IP da standby num failover planejado, Então 0 pages; Dado o token de DNS guardado na standby, Quando tenta alterar o registro `mail`, Então a Cloudflare responde 403.
+
+### REQ-SEG-031 — Primeiro acesso por código de ativação
+**Fase:** F1 · **Prioridade:** P1 · **Risco:** N0 · **Invariantes:** INV-07
+**Regra.** A central DEVE poder gerar, na C03, um código de ativação de 8 caracteres, de uso único e 72 h, com só o SHA-256 persistido; o app DEVE trocar código + CPF pela definição de senha, com 5 tentativas em 15 min, e o titular DEVE poder entrar depois por CPF + senha (seção 2, itens 5 e 6). Se a P-15 de [15 §4](15-decisoes-riscos-premissas.md#4-premissas) for falsa, a prioridade passa a P0. Dono: T-024.
+**Aceite.** CT-SEG-031 — Dado titular sem e-mail com código válido e CPF correto, Quando define a senha `Senha-forte-123`, Então 200, a membership fica `active`, o banco não contém o código em claro e o login por CPF + senha responde 200; Quando o mesmo código é reutilizado, Então 404 `INVITATION_INVALID`; Dado código novo e CPF errado 5 vezes em 15 min, Então a 5ª tentativa recebe 429, o código fica invalidado e o CPF certo depois recebe 404; Dado código com 72 h 01 min, Então 404.
+
+### REQ-SEG-032 — Registros de acesso só por ordem judicial e por função própria
+**Fase:** F1 · **Prioridade:** P1 · **Risco:** N0 · **Invariantes:** INV-07
+**Regra.** A exportação de `access_log` DEVE exigir `--order-ref`, rodar pela função `app.export_access_log(...)` (`SECURITY DEFINER`, CAT-07) executada pelo fundador, gerar CSV + SHA-256 e gravar `audit_log` `access_log.export`; o `tracksys_app` NÃO DEVE ler `access_log` (seção 11, passo 4). Dono: T-027.
+**Aceite.** CT-SEG-032 — Dado `access_log` com 3 linhas de `dono.a1` em 10/11/2026 e 2 de `dono.a2`, Quando o fundador roda `access-log:export --user <dono.a1> --from 2026-11-10T00:00:00Z --to 2026-11-11T00:00:00Z --order-ref "0001234-56.2026.8.19.0001"`, Então o CSV tem 3 linhas, só de `dono.a1`, o SHA-256 impresso confere com o arquivo e `audit_log` `access_log.export` guarda a referência da ordem e o SHA-256; sem `--order-ref`, Então erro e nenhum arquivo; Quando `tracksys_app` faz SELECT em `access_log`, Então SQLSTATE 42501.

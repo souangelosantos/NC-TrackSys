@@ -15,10 +15,10 @@
 | Fase | Requisitos |
 |---|---|
 | F0 | 155 |
-| F1 | 127 |
+| F1 | 141 |
 | F2 | 8 |
 | F3 | 1 |
-| **Total** | **292** |
+| **Total** | **307** |
 
 ## Matriz requisito → teste → tarefa
 
@@ -30,13 +30,13 @@
 | REQ-NEG-004 | Relatório mensal de unidade econômica | [01](01-visao-e-negocio.md) | F1 | P1 | N1 | INV-07, INV-12 | CT-NEG-006 | T-031 |
 | REQ-NEG-005 | Tempo de onboarding de operadora | [01](01-visao-e-negocio.md) | F2 | P1 | N1 | — | CT-NEG-007, CT-NEG-008 | — |
 | REQ-NEG-010 | Gate G0 | [02](02-escopo-e-fases.md) | F0 | P0 | N0 | INV-01, INV-05, INV-07 | CT-NEG-010, CT-NEG-011 | T-013, T-014, T-015 |
-| REQ-NEG-011 | Gate G-CMD trava o bloqueio real | [02](02-escopo-e-fases.md) | F1 | P0 | N0 | INV-08, INV-10, INV-11 | CT-NEG-012, CT-NEG-013 | T-022 |
+| REQ-NEG-011 | Gate G-CMD trava o bloqueio real | [02](02-escopo-e-fases.md) | F1 | P0 | N0 | INV-08, INV-10, INV-11 | CT-NEG-012, CT-NEG-013, CT-NEG-021 | T-022 |
 | REQ-NEG-012 | Gate G1 | [02](02-escopo-e-fases.md) | F1 | P0 | N0 | INV-10 | CT-NEG-014, CT-NEG-015 | T-028 |
 | REQ-NEG-013 | Gate G2 | [02](02-escopo-e-fases.md) | F2 | P1 | N1 | — | CT-NEG-016 | — |
 | REQ-NEG-014 | Primeira fatia vertical | [02](02-escopo-e-fases.md) | F0 | P0 | N0 | INV-01, INV-02, INV-04, INV-05, INV-07 | CT-NEG-017 | T-005, T-008 |
 | REQ-NEG-015 | Veículo com bloqueio só migra em onda após o G-CMD | [02](02-escopo-e-fases.md) | F1 | P0 | N0 | INV-03, INV-10 | CT-NEG-018 | T-022 |
 | REQ-NEG-016 | Registro de evidências dos gates | [02](02-escopo-e-fases.md) | F0 | P1 | N2 | — | CT-NEG-019 | T-015 |
-| REQ-NEG-017 | Plano de corte do F0 | [02](02-escopo-e-fases.md) | F0 | P1 | N2 | — | CT-NEG-020 | T-015 |
+| REQ-NEG-017 | Plano de corte do F0 | [02](02-escopo-e-fases.md) | F0 | P1 | N2 | — | CT-NEG-022, CT-NEG-020 | T-015 |
 | REQ-ARQ-001 | Dois processos do mesmo artefato | [03](03-arquitetura.md) | F0 | P0 | N1 | — | CT-ARQ-001 | T-004 |
 | REQ-ARQ-002 | Rotas internas fora da borda pública | [03](03-arquitetura.md) | F0 | P0 | N0 | INV-07 | CT-ARQ-002 | T-004 |
 | REQ-ARQ-003 | Superfície pública mínima | [03](03-arquitetura.md) | F0 | P0 | N0 | — | CT-ARQ-003 | T-003 |
@@ -45,26 +45,26 @@
 | REQ-ARQ-006 | Configuração por ambiente validada no boot | [03](03-arquitetura.md) | F0 | P0 | N1 | — | CT-ARQ-006 | T-004 |
 | REQ-ARQ-007 | Monorepo canônico com dependências verificadas | [03](03-arquitetura.md) | F0 | P0 | N1 | — | CT-ARQ-007 | T-004 |
 | REQ-ARQ-008 | `api` sem I/O externo na requisição | [03](03-arquitetura.md) | F0 | P1 | N1 | — | CT-ARQ-008 | T-006 |
-| REQ-ARQ-009 | Outbox transacional e relay com varredura | [03](03-arquitetura.md) | F0 | P0 | N1 | INV-01, INV-05 | CT-ARQ-009 | T-005, T-012 |
+| REQ-ARQ-009 | Outbox transacional e publicador com varredura | [03](03-arquitetura.md) | F0 | P0 | N1 | INV-01, INV-05 | CT-ARQ-009 | T-005, T-012 |
 | REQ-ARQ-010 | Job com ids e releitura sob RLS | [03](03-arquitetura.md) | F0 | P0 | N0 | INV-07 | CT-ARQ-010 | T-006 |
 | REQ-ARQ-011 | SSE com filtro de escopo | [03](03-arquitetura.md) | F0 | P0 | N1 | INV-04, INV-07 | CT-ARQ-011 | T-008 |
-| REQ-ARQ-012 | Limites de recurso e carga de pior caso | [03](03-arquitetura.md) | F0 | P1 | N1 | — | CT-ARQ-012 | T-013 |
+| REQ-ARQ-012 | Limites de recurso e carga de pior caso | [03](03-arquitetura.md) | F0 | P1 | N1 | — | CT-ARQ-012 | T-013, T-033 |
 | REQ-ARQ-013 | Identidade da instância de origem | [03](03-arquitetura.md) | F0 | P1 | N1 | INV-01 | CT-ARQ-013 | T-005 |
-| REQ-ARQ-014 | Logs estruturados e correlação | [03](03-arquitetura.md) | F0 | P1 | N1 | — | CT-ARQ-014 | T-004, T-013 |
+| REQ-ARQ-014 | Logs estruturados e correlação | [03](03-arquitetura.md) | F0 | P1 | N1 | — | CT-ARQ-014 | T-004, T-013, T-033 |
 | REQ-ARQ-015 | Gatilhos de evolução medidos | [03](03-arquitetura.md) | F1 | P1 | N1 | — | CT-ARQ-015 | T-028 |
 | REQ-ARQ-016 | Promoção ou restore sem reenvio físico | [03](03-arquitetura.md) | F1 | P0 | N0 | INV-05, INV-08 | CT-ARQ-016 | T-020 |
-| REQ-DAD-001 | Colunas de escopo obrigatórias e imutáveis | [04](04-dominio-e-dados.md) | F0 | P0 | N0 | INV-06, INV-07 | CT-DAD-001 | T-005, T-006, T-017 |
+| REQ-DAD-001 | Colunas de escopo obrigatórias e imutáveis | [04](04-dominio-e-dados.md) | F0 | P0 | N0 | INV-06, INV-07 | CT-DAD-001 | T-001, T-005, T-006, T-017 |
 | REQ-DAD-002 | Contexto RLS por transação, fechado por padrão | [04](04-dominio-e-dados.md) | F0 | P0 | N0 | INV-07 | CT-DAD-002 | T-001 |
 | REQ-DAD-003 | Políticas por tipo de tabela | [04](04-dominio-e-dados.md) | F0 | P0 | N0 | INV-07 | CT-DAD-003 | T-001, T-006, T-017 |
 | REQ-DAD-004 | Papéis de banco e privilégios mínimos | [04](04-dominio-e-dados.md) | F0 | P0 | N0 | INV-07, INV-11 | CT-DAD-004 | T-001, T-005 |
-| REQ-DAD-005 | Verificador de catálogo no CI | [04](04-dominio-e-dados.md) | F0 | P0 | N0 | INV-07 | CT-DAD-005 | T-001, T-005 |
+| REQ-DAD-005 | Verificador de catálogo no CI | [04](04-dominio-e-dados.md) | F0 | P0 | N0 | INV-07 | CT-DAD-005 | T-001, T-004, T-005 |
 | REQ-DAD-006 | Funções `SECURITY DEFINER` em lista fechada | [04](04-dominio-e-dados.md) | F0 | P0 | N0 | INV-07 | CT-DAD-006 | T-005, T-006, T-012 |
 | REQ-DAD-007 | Vínculo temporal sem sobreposição | [04](04-dominio-e-dados.md) | F0 | P0 | N1 | INV-06, INV-10 | CT-DAD-007 | T-005, T-007 |
 | REQ-DAD-008 | Posição compacta, particionada e append-only | [04](04-dominio-e-dados.md) | F0 | P0 | N1 | INV-03, INV-06, INV-12 | CT-DAD-008 | T-005 |
 | REQ-DAD-009 | Partições diárias antecipadas, sem default | [04](04-dominio-e-dados.md) | F0 | P0 | N1 | INV-02 | CT-DAD-009 | T-005, T-006 |
 | REQ-DAD-010 | Compactação de parado | [04](04-dominio-e-dados.md) | F0 | P1 | N1 | INV-02, INV-03 | CT-DAD-010 | T-005 |
 | REQ-DAD-011 | `device_state` com revisão monotônica e reset no vínculo | [04](04-dominio-e-dados.md) | F0 | P0 | N1 | INV-02, INV-03, INV-04, INV-06 | CT-DAD-011 | T-005, T-007 |
-| REQ-DAD-012 | Índices por consulta prevista | [04](04-dominio-e-dados.md) | F0 | P1 | N1 | — | CT-DAD-012 | T-005, T-008, T-028 |
+| REQ-DAD-012 | Índices por consulta prevista | [04](04-dominio-e-dados.md) | F0 | P1 | N1 | — | CT-DAD-012 | T-005, T-008, T-034 |
 | REQ-DAD-013 | Retenção da inbox, outbox e filas | [04](04-dominio-e-dados.md) | F1 | P1 | N1 | INV-01 | CT-DAD-013 | T-027 |
 | REQ-DAD-014 | Exportação quente → frio verificada | [04](04-dominio-e-dados.md) | F1 | P0 | N1 | INV-07 | CT-DAD-014 | T-027 |
 | REQ-DAD-015 | Legal hold sobre a retenção | [04](04-dominio-e-dados.md) | F1 | P0 | N1 | INV-06 | CT-DAD-015 | T-027 |
@@ -72,11 +72,15 @@
 | REQ-DAD-017 | Retenção do banco do Traccar | [04](04-dominio-e-dados.md) | F0 | P1 | N1 | — | CT-DAD-017 | T-003 |
 | REQ-DAD-018 | Transferência sem mover histórico | [04](04-dominio-e-dados.md) | F0 | P0 | N1 | INV-06, INV-07 | CT-DAD-018 | T-007, T-011 |
 | REQ-DAD-019 | Encerramento, tombstone e anonimização | [04](04-dominio-e-dados.md) | F1 | P1 | N1 | INV-06, INV-09 | CT-DAD-019 | T-027 |
-| REQ-DAD-020 | Migrations expand/contract | [04](04-dominio-e-dados.md) | F0 | P0 | N0 | INV-07 | CT-DAD-020 | T-013 |
+| REQ-DAD-020 | Migrations expand/contract | [04](04-dominio-e-dados.md) | F0 | P0 | N0 | INV-07 | CT-DAD-020 | T-013, T-033 |
 | REQ-DAD-021 | Linter de migrations | [04](04-dominio-e-dados.md) | F0 | P1 | N1 | — | CT-DAD-021 | T-019 |
 | REQ-DAD-022 | Unicidade de IMEI e ICCID sem revelar a outra operadora | [04](04-dominio-e-dados.md) | F0 | P1 | N1 | INV-07 | CT-DAD-022 | T-007 |
 | REQ-DAD-023 | Acesso de suporte da plataforma | [04](04-dominio-e-dados.md) | F1 | P0 | N0 | INV-07, INV-11 | CT-DAD-023 | T-027 |
 | REQ-DAD-024 | Conta de armazenamento medida | [04](04-dominio-e-dados.md) | F1 | P1 | N1 | — | CT-DAD-024 | T-031 |
+| REQ-DAD-025 | Desbloqueio nunca fica sem caminho | [04](04-dominio-e-dados.md) | F1 | P0 | N0 | INV-09 | CT-DAD-025 | T-018 |
+| REQ-DAD-026 | `device_key` e `membership` não escalam privilégio | [04](04-dominio-e-dados.md) | F1 | P0 | N0 | INV-07, INV-10 | CT-DAD-026 | T-017 |
+| REQ-DAD-027 | Alertas de comando sem colisão de episódio | [04](04-dominio-e-dados.md) | F1 | P0 | N0 | INV-08 | CT-DAD-027 | T-020 |
+| REQ-DAD-028 | Parquet frio cifrado no cliente | [04](04-dominio-e-dados.md) | F1 | P1 | N0 | INV-07 | CT-DAD-028 | T-027 |
 | REQ-ING-001 | Forward do Traccar configurado e versionado | [05](05-ingestao-e-telemetria.md) | F0 | P0 | N1 | INV-01, INV-03 | CT-ING-001 | T-003 |
 | REQ-ING-002 | Autenticação da origem | [05](05-ingestao-e-telemetria.md) | F0 | P0 | N0 | INV-07 | CT-ING-002 | T-005 |
 | REQ-ING-003 | Limite de tamanho e prazo | [05](05-ingestao-e-telemetria.md) | F0 | P0 | N1 | INV-01 | CT-ING-003 | T-005 |
@@ -97,7 +101,7 @@
 | REQ-ING-018 | Retenção da inbox | [05](05-ingestao-e-telemetria.md) | F1 | P1 | N1 | INV-01 | CT-ING-018 | T-027 |
 | REQ-ING-019 | Spike do J16 registrado como fixture | [05](05-ingestao-e-telemetria.md) | F0 | P0 | N1 | INV-03, INV-12 | CT-ING-019 | T-002 |
 | REQ-ING-020 | Propriedades INV-01 a INV-04 | [05](05-ingestao-e-telemetria.md) | F0 | P0 | N1 | INV-01, INV-02, INV-03, INV-04 | CT-ING-020 | T-005 |
-| REQ-ING-021 | Métricas e alarmes de ingestão | [05](05-ingestao-e-telemetria.md) | F0 | P1 | N1 | — | CT-ING-021 | T-005, T-013, T-028 |
+| REQ-ING-021 | Métricas e alarmes de ingestão | [05](05-ingestao-e-telemetria.md) | F0, F1 | P1 | N1 | — | CT-ING-021 | T-013, T-028, T-033 |
 | REQ-CMD-001 | Disponibilidade do bloqueio | [06](06-comandos-e-bloqueio.md) | F1 | P0 | N0 | INV-03, INV-10 | CT-CMD-001 | T-018 |
 | REQ-CMD-002 | Avaliação por `cut_point` | [06](06-comandos-e-bloqueio.md) | F1 | P0 | N0 | INV-03, INV-08 | CT-CMD-002 | T-016 |
 | REQ-CMD-003 | Evidência inválida nunca autoriza | [06](06-comandos-e-bloqueio.md) | F1 | P0 | N0 | INV-03, INV-05, INV-08 | CT-CMD-003 | T-016 |
@@ -120,6 +124,8 @@
 | REQ-CMD-020 | Auditoria | [06](06-comandos-e-bloqueio.md) | F1 | P0 | N0 | INV-06 | CT-CMD-020 | T-017 |
 | REQ-CMD-021 | UX mínima obrigatória | [06](06-comandos-e-bloqueio.md) | F1 | P0 | N0 | INV-03 | CT-CMD-021 | T-016 |
 | REQ-CMD-022 | Ocorrência e comandos | [06](06-comandos-e-bloqueio.md) | F1 | P1 | N0 | INV-08 | CT-CMD-022 | T-017 |
+| REQ-CMD-023 | Comando fora da plataforma vira alerta | [06](06-comandos-e-bloqueio.md) | F1 | P1 | N0 | INV-05, INV-08 | CT-CMD-023 | T-020 |
+| REQ-CMD-024 | Desbloqueio nunca fica sem caminho | [06](06-comandos-e-bloqueio.md) | F1 | P0 | N0 | INV-08, INV-09 | CT-CMD-024 | T-018 |
 | REQ-ALR-001 | Catálogo e disponibilidade por hardware | [07](07-alertas-e-tempo-real.md) | F0 | P0 | N1 | INV-03 | CT-ALR-001 | T-011, T-012 |
 | REQ-ALR-002 | Ignição ligada | [07](07-alertas-e-tempo-real.md) | F0 | P0 | N1 | INV-03 | CT-ALR-002 | T-011, T-012 |
 | REQ-ALR-003 | Ativação e desativação do modo vigilância | [07](07-alertas-e-tempo-real.md) | F0 | P1 | N1 | INV-03, INV-07 | CT-ALR-003 | T-011 |
@@ -142,7 +148,9 @@
 | REQ-ALR-020 | Bateria baixa | [07](07-alertas-e-tempo-real.md) | F1 | P1 | N1 | INV-03 | CT-ALR-020 | T-029 |
 | REQ-ALR-021 | Excesso de velocidade | [07](07-alertas-e-tempo-real.md) | F1 | P1 | N1 | INV-03 | CT-ALR-021 | T-029 |
 | REQ-ALR-022 | Cerca virtual | [07](07-alertas-e-tempo-real.md) | F1 | P1 | N1 | INV-06, INV-07 | CT-ALR-022 | T-029 |
-| REQ-ALR-023 | Crítico sem reconhecimento | [07](07-alertas-e-tempo-real.md) | F1 | P2 | N2 | — | CT-ALR-023 | T-029 |
+| REQ-ALR-023 | Crítico sem reconhecimento | [07](07-alertas-e-tempo-real.md) | F1 | P1 | N2 | — | CT-ALR-023 | T-029 |
+| REQ-ALR-024 | Crítico chega à central de plantão | [07](07-alertas-e-tempo-real.md) | F1 (01–15/11/2026, T-029) | P0 | N1 | INV-05 | CT-ALR-024 | T-029 |
+| REQ-ALR-025 | Alertas de comando não confirmado e falho | [07](07-alertas-e-tempo-real.md) | F1 | P0 | N0 | INV-05, INV-08 | CT-ALR-025 | T-020 |
 | REQ-SEG-001 | Autenticação embutida sem cadastro público | [08](08-identidade-e-seguranca.md) | F0 | P0 | N0 | INV-07 | CT-SEG-001 | T-006 |
 | REQ-SEG-002 | Política de senha e redefinição | [08](08-identidade-e-seguranca.md) | F0 | P1 | N0 | — | CT-SEG-002 | T-006 |
 | REQ-SEG-003 | Sessão do app por bearer, 30 dias deslizante | [08](08-identidade-e-seguranca.md) | F0 | P0 | N0 | — | CT-SEG-003 | T-006, T-009 |
@@ -172,6 +180,9 @@
 | REQ-SEG-027 | Legal hold e pacote de evidências | [08](08-identidade-e-seguranca.md) | F1 | P0 | N1 | INV-06, INV-07 | CT-SEG-027 | T-027 |
 | REQ-SEG-028 | Agentes de IA no escopo de quem pergunta | [08](08-identidade-e-seguranca.md) | F1 | P0 | N0 | INV-07, INV-11 | CT-SEG-028 | T-028 |
 | REQ-SEG-029 | Consentimento por finalidade e direitos do titular | [08](08-identidade-e-seguranca.md) | F1 | P1 | N1 | INV-07 | CT-SEG-029 | T-018 |
+| REQ-SEG-030 | Monitor de DNS e proteção das contas do fundador | [08](08-identidade-e-seguranca.md) | F1 | P0 | N1 | INV-08 | CT-SEG-030 | T-028 |
+| REQ-SEG-031 | Primeiro acesso por código de ativação | [08](08-identidade-e-seguranca.md) | F1 | P1 | N0 | INV-07 | CT-SEG-031 | T-024 |
+| REQ-SEG-032 | Registros de acesso só por ordem judicial e por função própria | [08](08-identidade-e-seguranca.md) | F1 | P1 | N0 | INV-07 | CT-SEG-032 | T-027 |
 | REQ-API-001 | Contrato único e registro de rotas | [09](09-api-e-contratos.md) | F0 | P0 | N1 | INV-12 | CT-API-001 | T-004 |
 | REQ-API-002 | OpenAPI e clientes gerados e versionados | [09](09-api-e-contratos.md) | F0 | P0 | N1 | — | CT-API-002 | T-004 |
 | REQ-API-003 | Mudança incompatível barrada | [09](09-api-e-contratos.md) | F0 | P0 | N1 | — | CT-API-003 | T-004 |
@@ -199,10 +210,10 @@
 | REQ-UX-006 | Início com mapa ao vivo | [10](10-apps-e-ux.md) | F0 | P0 | N2 | INV-04, INV-07 | CT-UX-006 | T-009 |
 | REQ-UX-007 | Detalhe do veículo | [10](10-apps-e-ux.md) | F0 | P0 | N2 | INV-03 | CT-UX-007 | T-009 |
 | REQ-UX-008 | Histórico do dia | [10](10-apps-e-ux.md) | F0 | P0 | N2 | INV-03, INV-06 | CT-UX-008 | T-008, T-010 |
-| REQ-UX-009 | Alerta a partir do push em até 2 toques | [10](10-apps-e-ux.md) | F0 | P0 | N2 | INV-07 | CT-UX-009 | T-012 |
-| REQ-UX-010 | Modo vigilância no app | [10](10-apps-e-ux.md) | F0 | P1 | N2 | INV-03 | CT-UX-010 | T-012 |
+| REQ-UX-009 | Alerta a partir do push em até 2 toques | [10](10-apps-e-ux.md) | F0 | P0 | N2 | INV-07 | CT-UX-009 | T-032 |
+| REQ-UX-010 | Modo vigilância no app | [10](10-apps-e-ux.md) | F0 | P1 | N2 | INV-03 | CT-UX-010 | T-032 |
 | REQ-UX-011 | Falar com a central e navegar até o veículo | [10](10-apps-e-ux.md) | F0 | P0 | N2 | — | CT-UX-011 | T-010 |
-| REQ-UX-012 | Notificações | [10](10-apps-e-ux.md) | F0 | P0 | N2 | — | CT-UX-012 | T-012 |
+| REQ-UX-012 | Notificações | [10](10-apps-e-ux.md) | F0 | P0 | N2 | — | CT-UX-012 | T-032 |
 | REQ-UX-013 | Desempenho do app | [10](10-apps-e-ux.md) | F0 | P1 | N2 | — | CT-UX-013 | T-009 |
 | REQ-UX-014 | Estabilidade | [10](10-apps-e-ux.md) | F1 | P1 | N2 | — | CT-UX-014 | T-030 |
 | REQ-UX-015 | Acessibilidade | [10](10-apps-e-ux.md) | F0 | P1 | N2 | — | CT-UX-015 | T-009 |
@@ -222,6 +233,7 @@
 | REQ-UX-029 | Visão da equipe de busca | [10](10-apps-e-ux.md) | F1 | P1 | N1 | INV-07, INV-08 | CT-UX-029 | T-025 |
 | REQ-UX-030 | Distribuição F0/F1 | [10](10-apps-e-ux.md) | F0 | P0 | N2 | — | CT-UX-030 | T-010 |
 | REQ-UX-031 | Portal web e opção B | [10](10-apps-e-ux.md) | F2 | P2 | N2 | INV-07 | CT-UX-031 | — |
+| REQ-UX-032 | Console: lista de rastreadores sem comunicação há dias | [10](10-apps-e-ux.md) | F1 | P1 | N2 | INV-03, INV-07 | CT-UX-032 | T-029 |
 | REQ-ONB-001 | Checklist de onboarding com dono e prazo | [11](11-onboarding-e-migracao.md) | F2 | P1 | N2 | — | CT-ONB-001 | — |
 | REQ-ONB-002 | Upload: formatos e limites | [11](11-onboarding-e-migracao.md) | F1 | P0 | N1 | — | CT-ONB-002 | T-024 |
 | REQ-ONB-003 | Mapeamento de colunas | [11](11-onboarding-e-migracao.md) | F1 | P1 | N1 | — | CT-ONB-003 | T-024 |
@@ -242,6 +254,8 @@
 | REQ-ONB-018 | Avisos aos clientes | [11](11-onboarding-e-migracao.md) | F1 | P1 | N2 | — | CT-ONB-018 | T-024 |
 | REQ-ONB-019 | Rastreador comunicando sem vínculo | [11](11-onboarding-e-migracao.md) | F0 | P1 | N0 | INV-07 | CT-ONB-019 | T-005, T-007 |
 | REQ-ONB-020 | Histórico anterior à migração | [11](11-onboarding-e-migracao.md) | F1 | P1 | N2 | INV-06 | CT-ONB-020 | T-024 |
+| REQ-ONB-021 | Janela de ondas só em dia útil sem feriado | [11](11-onboarding-e-migracao.md) | F1 | P1 | N1 | — | CT-ONB-021 | T-024 |
+| REQ-ONB-022 | Rotação da senha SMS na onda | [11](11-onboarding-e-migracao.md) | F1 | P0 | N0 | INV-10, INV-11 | CT-ONB-022 | T-014, T-024 |
 | REQ-COB-001 | Asaas da operadora como fonte da cobrança | [12](12-cobranca-e-svas.md) | F1 | P0 | N0 | INV-12 | CT-COB-001 | T-023 |
 | REQ-COB-002 | Vínculo da conta verificado | [12](12-cobranca-e-svas.md) | F1 | P0 | N0 | INV-07, INV-11 | CT-COB-002 | T-023 |
 | REQ-COB-003 | Webhook autenticado e idempotente | [12](12-cobranca-e-svas.md) | F1 | P0 | N0 | INV-01, INV-09 | CT-COB-003 | T-023 |
@@ -276,9 +290,9 @@
 | REQ-OPS-003 | Compose de produção com limites e autoheal | [13](13-infra-e-operacao.md) | F0 | P0 | N1 | — | CT-OPS-003 | T-003 |
 | REQ-OPS-004 | Postgres de produção sem dado sensível no log | [13](13-infra-e-operacao.md) | F0 | P0 | N1 | INV-07 | CT-OPS-004 | T-003 |
 | REQ-OPS-005 | Imagem do banco multi-arquitetura com WAL-G | [13](13-infra-e-operacao.md) | F0 | P0 | N1 | — | CT-OPS-005 | T-003 |
-| REQ-OPS-006 | Deploy por tag com rollback automático | [13](13-infra-e-operacao.md) | F0 | P0 | N1 | — | CT-OPS-006 | T-013 |
+| REQ-OPS-006 | Deploy por tag com rollback automático | [13](13-infra-e-operacao.md) | F0 | P0 | N1 | — | CT-OPS-006 | T-013, T-033 |
 | REQ-OPS-007 | Migrations expand/contract no deploy | [13](13-infra-e-operacao.md) | F0 | P0 | N0 | INV-07 | CT-OPS-007 | T-013 |
-| REQ-OPS-008 | Backup contínuo cifrado com cópia fora da Oracle | [13](13-infra-e-operacao.md) | F0 | P0 | N1 | — | CT-OPS-008 | T-013 |
+| REQ-OPS-008 | Backup contínuo cifrado com cópia fora da Oracle | [13](13-infra-e-operacao.md) | F0 | P0 | N1 | — | CT-OPS-008 | T-013, T-033 |
 | REQ-OPS-009 | Restore ensaiado sem efeito externo | [13](13-infra-e-operacao.md) | F0 | P0 | N1 | INV-05 | CT-OPS-009 | T-013 |
 | REQ-OPS-010 | Standby por streaming com WAL limitado | [13](13-infra-e-operacao.md) | F1 | P0 | N0 | — | CT-OPS-010 | T-028 |
 | REQ-OPS-011 | Failover com fencing antes da promoção | [13](13-infra-e-operacao.md) | F1 | P0 | N0 | INV-05, INV-08 | CT-OPS-011 | T-028 |
@@ -286,15 +300,16 @@
 | REQ-OPS-013 | SLO por minuto ruim | [13](13-infra-e-operacao.md) | F1 | P0 | N1 | INV-03 | CT-OPS-013 | T-028 |
 | REQ-OPS-014 | Manutenção anunciada e créditos | [13](13-infra-e-operacao.md) | F1 | P1 | N1 | INV-12 | CT-OPS-014 | T-028 |
 | REQ-OPS-015 | Status page pública | [13](13-infra-e-operacao.md) | F1 | P0 | N2 | — | CT-OPS-015 | T-028 |
-| REQ-OPS-016 | Observabilidade sem dado pessoal | [13](13-infra-e-operacao.md) | F0 | P1 | N1 | — | CT-OPS-016 | T-013 |
-| REQ-OPS-017 | Regras de alerta e paging | [13](13-infra-e-operacao.md) | F0 | P0 | N1 | — | CT-OPS-017 | T-013 |
-| REQ-OPS-018 | Gateway de incidentes independente das VMs | [13](13-infra-e-operacao.md) | F1 | P1 | N1 | — | CT-OPS-018 | T-028 |
-| REQ-OPS-019 | Agente SRE do F1: diagnóstico somente leitura | [13](13-infra-e-operacao.md) | F1 | P1 | N1 | INV-07, INV-11 | CT-OPS-019 | T-028 |
+| REQ-OPS-016 | Observabilidade sem dado pessoal | [13](13-infra-e-operacao.md) | F0 | P1 | N1 | — | CT-OPS-016 | T-013, T-033 |
+| REQ-OPS-017 | Regras de alerta e paging | [13](13-infra-e-operacao.md) | F0 | P0 | N1 | — | CT-OPS-017 | T-013, T-033 |
+| REQ-OPS-018 | Gateway de incidentes independente das VMs | [13](13-infra-e-operacao.md) | F1 | P1 | N1 | — | CT-OPS-018 | T-034 |
+| REQ-OPS-019 | Agente SRE do F1: diagnóstico somente leitura | [13](13-infra-e-operacao.md) | F1 | P1 | N1 | INV-07, INV-11 | CT-OPS-019 | T-034 |
 | REQ-OPS-020 | Cardápio fechado do F2 por forced-command | [13](13-infra-e-operacao.md) | F2 | P1 | N0 | INV-08, INV-11 | CT-OPS-020 | — |
 | REQ-OPS-021 | Auditoria de operação mesmo com o banco fora | [13](13-infra-e-operacao.md) | F1 | P0 | N1 | — | CT-OPS-021 | T-028 |
 | REQ-OPS-022 | Severidade, comunicação e postmortem | [13](13-infra-e-operacao.md) | F1 | P1 | N2 | — | CT-OPS-022 | T-028 |
 | REQ-OPS-023 | Dados no Brasil e transferências registradas | [13](13-infra-e-operacao.md) | F0 | P0 | N1 | — | CT-OPS-023 | T-003 |
 | REQ-OPS-024 | Runbook do plantonista e ensaio de contingência | [13](13-infra-e-operacao.md) | F1 | P0 | N2 | INV-08, INV-09 | CT-OPS-024 | T-028 |
+| REQ-OPS-025 | Sequestro de DNS detectado e Traccar sem comando externo | [13](13-infra-e-operacao.md) | F1 | P0 | N0 | INV-10 | CT-OPS-025 | T-028 |
 | REQ-QLD-001 | `AGENTS.md` como regra única e links verificados | [14](14-qualidade-e-processo-ia.md) | F0 | P0 | N0 | — | CT-QLD-001 | T-019 |
 | REQ-QLD-002 | Cartão no template canônico com DoR verificável | [14](14-qualidade-e-processo-ia.md) | F0 | P0 | N2 | — | CT-QLD-002 | T-019 |
 | REQ-QLD-003 | Nível de risco calculado pelo caminho | [14](14-qualidade-e-processo-ia.md) | F0 | P0 | N0 | INV-07, INV-08 | CT-QLD-003 | T-019 |
@@ -303,15 +318,15 @@
 | REQ-QLD-006 | Rótulos de exceção só pelo fundador | [14](14-qualidade-e-processo-ia.md) | F0 | P1 | N0 | — | CT-QLD-006 | T-019 |
 | REQ-QLD-007 | Revisão adversarial por outro fornecedor registrada | [14](14-qualidade-e-processo-ia.md) | F0 | P0 | N0 | INV-07, INV-08, INV-11 | CT-QLD-007 | T-019 |
 | REQ-QLD-008 | Merge só pelo fundador, com `main` protegida | [14](14-qualidade-e-processo-ia.md) | F0 | P0 | N0 | — | CT-QLD-008 | T-019 |
-| REQ-QLD-009 | Propriedades para INV-01 a INV-05 | [14](14-qualidade-e-processo-ia.md) | F0 | P0 | N1 | INV-01, INV-02, INV-03, INV-04, INV-05 | CT-QLD-009 | T-005 |
+| REQ-QLD-009 | Propriedades para INV-01 a INV-05 | [14](14-qualidade-e-processo-ia.md) | F0 | P0 | N1 | INV-01, INV-02, INV-03, INV-04, INV-05 | CT-QLD-009 | T-005, T-011, T-012 |
 | REQ-QLD-010 | Propriedades e mutação na política de comando | [14](14-qualidade-e-processo-ia.md) | F1 | P0 | N0 | INV-08, INV-10 | CT-QLD-010 | T-016 |
-| REQ-QLD-011 | Isolamento repetido em toda tabela nova, com Postgres real | [14](14-qualidade-e-processo-ia.md) | F0 | P0 | N0 | INV-07 | CT-QLD-011 | T-017 |
+| REQ-QLD-011 | Isolamento repetido em toda tabela nova, com Postgres real | [14](14-qualidade-e-processo-ia.md) | F0 | P0 | N0 | INV-07 | CT-QLD-011 | T-005, T-006, T-011, T-012, T-013, T-017, T-019 |
 | REQ-QLD-012 | E2E do console e do app | [14](14-qualidade-e-processo-ia.md) | F1 | P1 | N2 | INV-04, INV-07 | CT-QLD-012 | T-030 |
 | REQ-QLD-013 | Carga sustentada e rajada | [14](14-qualidade-e-processo-ia.md) | F1 | P1 | N1 | INV-01 | CT-QLD-013 | T-030 |
 | REQ-QLD-014 | Bancada a cada mudança do caminho físico | [14](14-qualidade-e-processo-ia.md) | F1 | P0 | N0 | INV-08, INV-10 | CT-QLD-014 | T-022 |
 | REQ-QLD-015 | Conventional Commits e template de PR | [14](14-qualidade-e-processo-ia.md) | F0 | P1 | N2 | — | CT-QLD-015 | T-019 |
 | REQ-QLD-016 | Agentes sem segredo, dado pessoal real ou credencial de produção | [14](14-qualidade-e-processo-ia.md) | F0 | P0 | N0 | INV-07, INV-11 | CT-QLD-016 | T-019 |
-| REQ-QLD-017 | Avaliação dos agentes de IA antes de ligar e a cada troca | [14](14-qualidade-e-processo-ia.md) | F1 | P0 | N0 | INV-07, INV-11 | CT-QLD-017 | T-028 |
+| REQ-QLD-017 | Avaliação dos agentes de IA antes de ligar e a cada troca | [14](14-qualidade-e-processo-ia.md) | F1 | P0 | N0 | INV-07, INV-11 | CT-QLD-017 | T-034 |
 | REQ-QLD-018 | Primeira tarefa sem perguntas; pergunta vira resposta registrada | [14](14-qualidade-e-processo-ia.md) | F0 | P0 | N2 | — | CT-QLD-018 | T-019 |
 | REQ-QLD-019 | Métricas do processo e tempo de CI | [14](14-qualidade-e-processo-ia.md) | F1 | P1 | N2 | — | CT-QLD-019 | T-031 |
 | REQ-QLD-020 | Registro de decisões atualizado na resolução | [15](15-decisoes-riscos-premissas.md) | F0 | P1 | N2 | — | CT-QLD-020 | T-019 |
@@ -323,52 +338,55 @@
 |---|---|
 | INV-01 | REQ-NEG-010, REQ-NEG-014, REQ-ARQ-009, REQ-ARQ-013, REQ-DAD-013, REQ-ING-001, REQ-ING-003, REQ-ING-004, REQ-ING-005, REQ-ING-010, REQ-ING-014, REQ-ING-016, REQ-ING-018, REQ-ING-020, REQ-CMD-008, REQ-ALR-006, REQ-ALR-009, REQ-ALR-012, REQ-API-015, REQ-COB-003, REQ-SVA-011, REQ-QLD-009, REQ-QLD-013 |
 | INV-02 | REQ-NEG-014, REQ-DAD-009, REQ-DAD-010, REQ-DAD-011, REQ-ING-009, REQ-ING-011, REQ-ING-012, REQ-ING-013, REQ-ING-020, REQ-API-012, REQ-QLD-009 |
-| INV-03 | REQ-NEG-015, REQ-DAD-008, REQ-DAD-010, REQ-DAD-011, REQ-ING-001, REQ-ING-006, REQ-ING-007, REQ-ING-012, REQ-ING-017, REQ-ING-019, REQ-ING-020, REQ-CMD-001, REQ-CMD-002, REQ-CMD-003, REQ-CMD-012, REQ-CMD-021, REQ-ALR-001, REQ-ALR-002, REQ-ALR-003, REQ-ALR-004, REQ-ALR-005, REQ-ALR-007, REQ-ALR-008, REQ-ALR-020, REQ-ALR-021, REQ-API-004, REQ-API-011, REQ-API-012, REQ-UX-004, REQ-UX-005, REQ-UX-007, REQ-UX-008, REQ-UX-010, REQ-UX-016, REQ-UX-018, REQ-ONB-004, REQ-COB-004, REQ-SVA-011, REQ-SVA-012, REQ-SVA-013, REQ-OPS-013, REQ-QLD-009 |
+| INV-03 | REQ-NEG-015, REQ-DAD-008, REQ-DAD-010, REQ-DAD-011, REQ-ING-001, REQ-ING-006, REQ-ING-007, REQ-ING-012, REQ-ING-017, REQ-ING-019, REQ-ING-020, REQ-CMD-001, REQ-CMD-002, REQ-CMD-003, REQ-CMD-012, REQ-CMD-021, REQ-ALR-001, REQ-ALR-002, REQ-ALR-003, REQ-ALR-004, REQ-ALR-005, REQ-ALR-007, REQ-ALR-008, REQ-ALR-020, REQ-ALR-021, REQ-API-004, REQ-API-011, REQ-API-012, REQ-UX-004, REQ-UX-005, REQ-UX-007, REQ-UX-008, REQ-UX-010, REQ-UX-016, REQ-UX-018, REQ-UX-032, REQ-ONB-004, REQ-COB-004, REQ-SVA-011, REQ-SVA-012, REQ-SVA-013, REQ-OPS-013, REQ-QLD-009 |
 | INV-04 | REQ-NEG-014, REQ-ARQ-011, REQ-DAD-011, REQ-ING-011, REQ-ING-014, REQ-ING-020, REQ-ALR-018, REQ-API-011, REQ-UX-004, REQ-UX-006, REQ-UX-026, REQ-QLD-009, REQ-QLD-012 |
-| INV-05 | REQ-NEG-010, REQ-NEG-014, REQ-ARQ-009, REQ-ARQ-016, REQ-ING-010, REQ-ING-015, REQ-ING-016, REQ-CMD-003, REQ-CMD-011, REQ-CMD-013, REQ-ALR-004, REQ-ALR-009, REQ-ALR-010, REQ-ONB-011, REQ-ONB-012, REQ-COB-006, REQ-COB-014, REQ-SVA-009, REQ-SVA-010, REQ-SVA-011, REQ-OPS-009, REQ-OPS-011, REQ-QLD-009 |
+| INV-05 | REQ-NEG-010, REQ-NEG-014, REQ-ARQ-009, REQ-ARQ-016, REQ-ING-010, REQ-ING-015, REQ-ING-016, REQ-CMD-003, REQ-CMD-011, REQ-CMD-013, REQ-CMD-023, REQ-ALR-004, REQ-ALR-009, REQ-ALR-010, REQ-ALR-024, REQ-ALR-025, REQ-ONB-011, REQ-ONB-012, REQ-COB-006, REQ-COB-014, REQ-SVA-009, REQ-SVA-010, REQ-SVA-011, REQ-OPS-009, REQ-OPS-011, REQ-QLD-009 |
 | INV-06 | REQ-NEG-002, REQ-DAD-001, REQ-DAD-007, REQ-DAD-008, REQ-DAD-011, REQ-DAD-015, REQ-DAD-018, REQ-DAD-019, REQ-ING-008, REQ-ING-009, REQ-CMD-020, REQ-ALR-022, REQ-SEG-027, REQ-API-012, REQ-UX-008, REQ-ONB-006, REQ-ONB-008, REQ-ONB-020, REQ-COB-011 |
-| INV-07 | REQ-NEG-004, REQ-NEG-010, REQ-NEG-014, REQ-ARQ-002, REQ-ARQ-004, REQ-ARQ-010, REQ-ARQ-011, REQ-DAD-001, REQ-DAD-002, REQ-DAD-003, REQ-DAD-004, REQ-DAD-005, REQ-DAD-006, REQ-DAD-014, REQ-DAD-016, REQ-DAD-018, REQ-DAD-020, REQ-DAD-022, REQ-DAD-023, REQ-ING-002, REQ-ING-008, REQ-CMD-007, REQ-ALR-003, REQ-ALR-011, REQ-ALR-013, REQ-ALR-014, REQ-ALR-016, REQ-ALR-017, REQ-ALR-019, REQ-ALR-022, REQ-SEG-001, REQ-SEG-007, REQ-SEG-008, REQ-SEG-009, REQ-SEG-010, REQ-SEG-011, REQ-SEG-013, REQ-SEG-017, REQ-SEG-018, REQ-SEG-020, REQ-SEG-022, REQ-SEG-026, REQ-SEG-027, REQ-SEG-028, REQ-SEG-029, REQ-API-006, REQ-API-008, REQ-API-011, REQ-API-012, REQ-API-013, REQ-API-018, REQ-UX-002, REQ-UX-006, REQ-UX-009, REQ-UX-022, REQ-UX-023, REQ-UX-024, REQ-UX-025, REQ-UX-026, REQ-UX-027, REQ-UX-028, REQ-UX-029, REQ-UX-031, REQ-ONB-006, REQ-ONB-007, REQ-ONB-010, REQ-ONB-019, REQ-COB-002, REQ-COB-005, REQ-COB-009, REQ-COB-016, REQ-SVA-001, REQ-SVA-002, REQ-SVA-003, REQ-SVA-008, REQ-SVA-010, REQ-OPS-004, REQ-OPS-007, REQ-OPS-019, REQ-QLD-003, REQ-QLD-005, REQ-QLD-007, REQ-QLD-011, REQ-QLD-012, REQ-QLD-016, REQ-QLD-017 |
-| INV-08 | REQ-NEG-011, REQ-ARQ-016, REQ-CMD-002, REQ-CMD-003, REQ-CMD-004, REQ-CMD-005, REQ-CMD-006, REQ-CMD-009, REQ-CMD-010, REQ-CMD-011, REQ-CMD-012, REQ-CMD-013, REQ-CMD-014, REQ-CMD-015, REQ-CMD-016, REQ-CMD-022, REQ-SEG-012, REQ-SEG-013, REQ-SEG-014, REQ-SEG-015, REQ-SEG-016, REQ-SEG-024, REQ-API-009, REQ-API-014, REQ-UX-016, REQ-UX-017, REQ-UX-018, REQ-UX-019, REQ-UX-020, REQ-UX-029, REQ-OPS-011, REQ-OPS-020, REQ-OPS-024, REQ-QLD-003, REQ-QLD-007, REQ-QLD-010, REQ-QLD-014 |
-| INV-09 | REQ-NEG-002, REQ-DAD-019, REQ-CMD-017, REQ-SEG-022, REQ-API-014, REQ-UX-021, REQ-COB-003, REQ-COB-007, REQ-COB-008, REQ-COB-016, REQ-OPS-024 |
-| INV-10 | REQ-NEG-011, REQ-NEG-012, REQ-NEG-015, REQ-DAD-007, REQ-CMD-001, REQ-CMD-018, REQ-CMD-019, REQ-API-014, REQ-UX-017, REQ-UX-025, REQ-ONB-004, REQ-QLD-010, REQ-QLD-014 |
-| INV-11 | REQ-NEG-011, REQ-DAD-004, REQ-DAD-023, REQ-CMD-007, REQ-CMD-017, REQ-SEG-009, REQ-SEG-011, REQ-SEG-020, REQ-SEG-028, REQ-COB-002, REQ-COB-010, REQ-COB-012, REQ-COB-016, REQ-SVA-005, REQ-SVA-007, REQ-SVA-009, REQ-OPS-019, REQ-OPS-020, REQ-QLD-007, REQ-QLD-016, REQ-QLD-017 |
+| INV-07 | REQ-NEG-004, REQ-NEG-010, REQ-NEG-014, REQ-ARQ-002, REQ-ARQ-004, REQ-ARQ-010, REQ-ARQ-011, REQ-DAD-001, REQ-DAD-002, REQ-DAD-003, REQ-DAD-004, REQ-DAD-005, REQ-DAD-006, REQ-DAD-014, REQ-DAD-016, REQ-DAD-018, REQ-DAD-020, REQ-DAD-022, REQ-DAD-023, REQ-DAD-026, REQ-DAD-028, REQ-ING-002, REQ-ING-008, REQ-CMD-007, REQ-ALR-003, REQ-ALR-011, REQ-ALR-013, REQ-ALR-014, REQ-ALR-016, REQ-ALR-017, REQ-ALR-019, REQ-ALR-022, REQ-SEG-001, REQ-SEG-007, REQ-SEG-008, REQ-SEG-009, REQ-SEG-010, REQ-SEG-011, REQ-SEG-013, REQ-SEG-017, REQ-SEG-018, REQ-SEG-020, REQ-SEG-022, REQ-SEG-026, REQ-SEG-027, REQ-SEG-028, REQ-SEG-029, REQ-SEG-031, REQ-SEG-032, REQ-API-006, REQ-API-008, REQ-API-011, REQ-API-012, REQ-API-013, REQ-API-018, REQ-UX-002, REQ-UX-006, REQ-UX-009, REQ-UX-022, REQ-UX-023, REQ-UX-024, REQ-UX-025, REQ-UX-026, REQ-UX-027, REQ-UX-028, REQ-UX-029, REQ-UX-031, REQ-UX-032, REQ-ONB-006, REQ-ONB-007, REQ-ONB-010, REQ-ONB-019, REQ-COB-002, REQ-COB-005, REQ-COB-009, REQ-COB-016, REQ-SVA-001, REQ-SVA-002, REQ-SVA-003, REQ-SVA-008, REQ-SVA-010, REQ-OPS-004, REQ-OPS-007, REQ-OPS-019, REQ-QLD-003, REQ-QLD-005, REQ-QLD-007, REQ-QLD-011, REQ-QLD-012, REQ-QLD-016, REQ-QLD-017 |
+| INV-08 | REQ-NEG-011, REQ-ARQ-016, REQ-DAD-027, REQ-CMD-002, REQ-CMD-003, REQ-CMD-004, REQ-CMD-005, REQ-CMD-006, REQ-CMD-009, REQ-CMD-010, REQ-CMD-011, REQ-CMD-012, REQ-CMD-013, REQ-CMD-014, REQ-CMD-015, REQ-CMD-016, REQ-CMD-022, REQ-CMD-023, REQ-CMD-024, REQ-ALR-025, REQ-SEG-012, REQ-SEG-013, REQ-SEG-014, REQ-SEG-015, REQ-SEG-016, REQ-SEG-024, REQ-SEG-030, REQ-API-009, REQ-API-014, REQ-UX-016, REQ-UX-017, REQ-UX-018, REQ-UX-019, REQ-UX-020, REQ-UX-029, REQ-OPS-011, REQ-OPS-020, REQ-OPS-024, REQ-QLD-003, REQ-QLD-007, REQ-QLD-010, REQ-QLD-014 |
+| INV-09 | REQ-NEG-002, REQ-DAD-019, REQ-DAD-025, REQ-CMD-017, REQ-CMD-024, REQ-SEG-022, REQ-API-014, REQ-UX-021, REQ-COB-003, REQ-COB-007, REQ-COB-008, REQ-COB-016, REQ-OPS-024 |
+| INV-10 | REQ-NEG-011, REQ-NEG-012, REQ-NEG-015, REQ-DAD-007, REQ-DAD-026, REQ-CMD-001, REQ-CMD-018, REQ-CMD-019, REQ-API-014, REQ-UX-017, REQ-UX-025, REQ-ONB-004, REQ-ONB-022, REQ-OPS-025, REQ-QLD-010, REQ-QLD-014 |
+| INV-11 | REQ-NEG-011, REQ-DAD-004, REQ-DAD-023, REQ-CMD-007, REQ-CMD-017, REQ-SEG-009, REQ-SEG-011, REQ-SEG-020, REQ-SEG-028, REQ-ONB-022, REQ-COB-002, REQ-COB-010, REQ-COB-012, REQ-COB-016, REQ-SVA-005, REQ-SVA-007, REQ-SVA-009, REQ-OPS-019, REQ-OPS-020, REQ-QLD-007, REQ-QLD-016, REQ-QLD-017 |
 | INV-12 | REQ-NEG-001, REQ-NEG-002, REQ-NEG-003, REQ-NEG-004, REQ-DAD-008, REQ-ING-006, REQ-ING-019, REQ-API-001, REQ-API-004, REQ-API-005, REQ-UX-021, REQ-ONB-004, REQ-COB-001, REQ-COB-004, REQ-COB-009, REQ-COB-010, REQ-COB-011, REQ-COB-012, REQ-COB-013, REQ-SVA-007, REQ-SVA-008, REQ-SVA-012, REQ-OPS-014 |
 
 ## Tarefa → requisitos
 
 | Tarefa | Fase | Risco | Requisitos |
 |---|---|---|---|
-| [T-001 — Fundação: monorepo, Postgres local e isolamento em 3 níveis](../../tasks/T-001-fundacao-monorepo-e-isolamento.md) | F0 | N0 | REQ-DAD-002, REQ-DAD-003, REQ-DAD-004, REQ-DAD-005, REQ-QLD-005 |
+| [T-001 — Fundação: monorepo, Postgres local e isolamento em 3 níveis](../../tasks/T-001-fundacao-monorepo-e-isolamento.md) | F0 | N0 | REQ-DAD-001, REQ-DAD-002, REQ-DAD-003, REQ-DAD-004, REQ-DAD-005, REQ-QLD-005 |
 | [T-002 — Spike J16 em bancada: capturas, `capability_profile` draft](../../tasks/T-002-spike-j16-bancada.md) | F0 | N1 | REQ-ING-019 |
 | [T-003 — VM primária, Docker Compose, firewall e DNS](../../tasks/T-003-vm-primaria-compose-firewall-dns.md) | F0 | N1 | REQ-OPS-001, REQ-OPS-002, REQ-OPS-003, REQ-OPS-004, REQ-OPS-005, REQ-OPS-023, REQ-ARQ-003, REQ-ARQ-004, REQ-ING-001, REQ-DAD-017, REQ-SEG-019, REQ-SEG-024 |
-| [T-004 — Contratos iniciais (Zod → OpenAPI 3.1 → clientes TS e Dart) e esqueleto de `api` e `worker`](../../tasks/T-004-contratos-e-esqueleto-api-worker.md) | F0 | N1 | REQ-API-001, REQ-API-002, REQ-API-003, REQ-API-004, REQ-API-005, REQ-API-007, REQ-API-019, REQ-ARQ-001, REQ-ARQ-002, REQ-ARQ-005, REQ-ARQ-006, REQ-ARQ-007, REQ-ARQ-014, REQ-SEG-021, REQ-SEG-025 |
-| [T-005 — Ingestão Traccar → `ingest_inbox` → `position`/`device_state`/`outbox`](../../tasks/T-005-ingestao-traccar-inbox-projecao.md) | F0 | N1 | REQ-ING-002, REQ-ING-015, REQ-ING-017, REQ-ING-020, REQ-DAD-001, REQ-DAD-004, REQ-DAD-006, REQ-DAD-011, REQ-DAD-005, REQ-DAD-012, REQ-NEG-014, REQ-ARQ-009, REQ-ARQ-013, REQ-ING-021, REQ-API-015, REQ-ONB-019, REQ-QLD-009, REQ-ING-003, REQ-ING-004, REQ-ING-005, REQ-ING-006, REQ-ING-007, REQ-ING-008, REQ-ING-009, REQ-ING-010, REQ-ING-011, REQ-ING-012, REQ-ING-013, REQ-ING-014, REQ-DAD-007, REQ-DAD-008, REQ-DAD-009, REQ-DAD-010 |
-| [T-006 — Autenticação (Better Auth) e contexto RLS por requisição](../../tasks/T-006-autenticacao-e-contexto-rls.md) | F0 | N0 | REQ-SEG-001, REQ-SEG-002, REQ-SEG-003, REQ-SEG-004, REQ-SEG-005, REQ-SEG-006, REQ-SEG-007, REQ-SEG-008, REQ-SEG-009, REQ-SEG-010, REQ-SEG-023, REQ-SEG-026, REQ-API-008, REQ-API-009, REQ-API-018, REQ-ARQ-008, REQ-ARQ-010, REQ-DAD-001, REQ-DAD-003, REQ-DAD-006, REQ-DAD-009 |
+| [T-004 — Contratos iniciais (Zod → OpenAPI 3.1 → clientes TS e Dart) e esqueleto de `api` e `worker`](../../tasks/T-004-contratos-e-esqueleto-api-worker.md) | F0 | N0 | REQ-DAD-005, REQ-API-001, REQ-API-002, REQ-API-003, REQ-API-004, REQ-API-005, REQ-API-007, REQ-API-019, REQ-ARQ-001, REQ-ARQ-002, REQ-ARQ-005, REQ-ARQ-006, REQ-ARQ-007, REQ-ARQ-014, REQ-SEG-021, REQ-SEG-025 |
+| [T-005 — Ingestão Traccar → `ingest_inbox` → `position`/`device_state`/`outbox`](../../tasks/T-005-ingestao-traccar-inbox-projecao.md) | F0 | N0 | REQ-ING-002, REQ-ING-015, REQ-ING-017, REQ-ING-020, REQ-DAD-001, REQ-DAD-004, REQ-DAD-012, REQ-NEG-014, REQ-ARQ-009, REQ-ARQ-013, REQ-API-015, REQ-ONB-019, REQ-QLD-009, REQ-QLD-011, REQ-ING-003, REQ-ING-004, REQ-ING-005, REQ-ING-006, REQ-ING-007, REQ-ING-008, REQ-ING-009, REQ-ING-010, REQ-ING-011, REQ-ING-012, REQ-ING-013, REQ-ING-014, REQ-DAD-005, REQ-DAD-006, REQ-DAD-007, REQ-DAD-008, REQ-DAD-009, REQ-DAD-010, REQ-DAD-011 |
+| [T-006 — Autenticação (Better Auth) e contexto RLS por requisição](../../tasks/T-006-autenticacao-e-contexto-rls.md) | F0 | N0 | REQ-SEG-001, REQ-SEG-002, REQ-SEG-003, REQ-SEG-004, REQ-SEG-005, REQ-SEG-006, REQ-SEG-007, REQ-SEG-008, REQ-SEG-009, REQ-SEG-010, REQ-SEG-023, REQ-SEG-026, REQ-API-008, REQ-API-009, REQ-API-018, REQ-ARQ-008, REQ-ARQ-010, REQ-DAD-001, REQ-DAD-003, REQ-DAD-006, REQ-DAD-009, REQ-QLD-011 |
 | [T-007 — Console: login e cadastro de cliente, veículo, rastreador e vínculo](../../tasks/T-007-console-login-e-cadastro.md) | F0 | N2 | REQ-UX-025, REQ-UX-001, REQ-API-004, REQ-API-006, REQ-API-008, REQ-API-010, REQ-API-018, REQ-DAD-007, REQ-DAD-011, REQ-DAD-018, REQ-DAD-022, REQ-SEG-009, REQ-SEG-026, REQ-ONB-019 |
-| [T-008 — Console: mapa ao vivo (SSE) e histórico por veículo/dia](../../tasks/T-008-console-mapa-ao-vivo-e-historico.md) | F0 | N2 | REQ-ALR-016, REQ-ALR-017, REQ-ALR-018, REQ-ALR-019, REQ-ARQ-011, REQ-API-011, REQ-API-012, REQ-API-006, REQ-API-008, REQ-API-018, REQ-DAD-012, REQ-NEG-014, REQ-UX-004, REQ-UX-005, REQ-UX-008, REQ-UX-026 |
-| [T-009 — App: login, lista, mapa ao vivo com estados honestos e marca básica da operadora](../../tasks/T-009-app-login-lista-mapa-ao-vivo-marca.md) | F0 | N2 | REQ-UX-001, REQ-UX-002, REQ-UX-003, REQ-UX-004, REQ-UX-005, REQ-UX-006, REQ-UX-007, REQ-UX-013, REQ-UX-015, REQ-UX-016, REQ-SEG-003 |
-| [T-010 — App: histórico do dia e deep links (WhatsApp da central e navegação)](../../tasks/T-010-app-historico-e-deep-links.md) | F0 | N2 | REQ-UX-008, REQ-UX-011, REQ-UX-030 |
-| [T-011 — Motor de alertas do F0](../../tasks/T-011-motor-de-alertas-f0.md) | F0 | N1 | REQ-ALR-001, REQ-ALR-010, REQ-ALR-014, REQ-ALR-015, REQ-DAD-018, REQ-ALR-002, REQ-ALR-003, REQ-ALR-004, REQ-ALR-005, REQ-ALR-006, REQ-ALR-007, REQ-ALR-008, REQ-ALR-009 |
-| [T-012 — Push FCM: tokens, `alert_delivery`, recebimento no app](../../tasks/T-012-push-fcm-tokens-e-entregas.md) | F0 | N1 | REQ-ALR-011, REQ-ALR-012, REQ-ALR-013, REQ-ALR-002, REQ-ALR-005, REQ-ALR-006, REQ-ALR-007, REQ-ALR-009, REQ-ALR-010, REQ-ALR-001, REQ-ALR-015, REQ-DAD-006, REQ-UX-009, REQ-UX-010, REQ-UX-012, REQ-ARQ-009 |
-| [T-013 — Deploy, backup WAL-G, restore testado e sondas](../../tasks/T-013-deploy-backup-restore-sondas.md) | F0 | N1 | REQ-OPS-006, REQ-OPS-007, REQ-OPS-008, REQ-OPS-009, REQ-OPS-016, REQ-OPS-017, REQ-ARQ-012, REQ-DAD-020, REQ-ING-021, REQ-ARQ-014, REQ-NEG-010 |
-| [T-014 — Migração manual por SMS e rollback](../../tasks/T-014-migracao-manual-sms-e-rollback.md) | F0 | N1 | REQ-ONB-008, REQ-ONB-009, REQ-ONB-015, REQ-ONB-016, REQ-NEG-010 |
+| [T-008 — Console: mapa ao vivo (SSE) e histórico por veículo/dia](../../tasks/T-008-console-mapa-ao-vivo-e-historico.md) | F0 | N0 | REQ-ALR-016, REQ-ALR-017, REQ-ALR-018, REQ-ALR-019, REQ-ARQ-011, REQ-API-011, REQ-API-012, REQ-API-006, REQ-API-008, REQ-API-018, REQ-DAD-012, REQ-NEG-014, REQ-UX-004, REQ-UX-005, REQ-UX-008, REQ-UX-026 |
+| [T-009 — App: login, lista, mapa ao vivo com estados honestos e marca básica da operadora](../../tasks/T-009-app-login-lista-mapa-ao-vivo-marca.md) | F0 | N0 | REQ-UX-001, REQ-UX-002, REQ-UX-003, REQ-UX-004, REQ-UX-005, REQ-UX-006, REQ-UX-007, REQ-UX-013, REQ-UX-015, REQ-UX-016, REQ-SEG-003 |
+| [T-010 — App: histórico do dia e deep links (WhatsApp da central e navegação)](../../tasks/T-010-app-historico-e-deep-links.md) | F0 | N0 | REQ-UX-008, REQ-UX-011, REQ-UX-030 |
+| [T-011 — Motor de alertas do F0](../../tasks/T-011-motor-de-alertas-f0.md) | F0 | N0 | REQ-ALR-001, REQ-ALR-010, REQ-ALR-014, REQ-ALR-015, REQ-DAD-018, REQ-QLD-009, REQ-QLD-011, REQ-ALR-002, REQ-ALR-003, REQ-ALR-004, REQ-ALR-005, REQ-ALR-006, REQ-ALR-007, REQ-ALR-008, REQ-ALR-009 |
+| [T-012 — Push FCM no servidor: tokens, preferências, `alert_delivery` e entrega](../../tasks/T-012-push-fcm-tokens-e-entregas.md) | F0 | N0 | REQ-ALR-011, REQ-ALR-012, REQ-ALR-013, REQ-ALR-002, REQ-ALR-005, REQ-ALR-006, REQ-ALR-007, REQ-ALR-009, REQ-ALR-010, REQ-ALR-001, REQ-ALR-015, REQ-DAD-006, REQ-ARQ-009, REQ-QLD-009, REQ-QLD-011 |
+| [T-013 — Deploy por tag, backup WAL-G, restore testado e sondas do F0](../../tasks/T-013-deploy-backup-restore-sondas.md) | F0 | N0 | REQ-OPS-006, REQ-OPS-007, REQ-OPS-008, REQ-OPS-009, REQ-OPS-016, REQ-OPS-017, REQ-ARQ-012, REQ-DAD-020, REQ-ING-021, REQ-ARQ-014, REQ-NEG-010, REQ-QLD-011 |
+| [T-014 — Migração manual por SMS, rollback e `pilot provision`](../../tasks/T-014-migracao-manual-sms-e-rollback.md) | F0 | N1 | REQ-ONB-008, REQ-ONB-009, REQ-ONB-015, REQ-ONB-016, REQ-ONB-022, REQ-NEG-010 |
 | [T-015 — Consultas do G0 e relatório de evidências](../../tasks/T-015-consultas-g0-e-relatorio-de-evidencias.md) | F0 | N2 | REQ-NEG-010, REQ-NEG-016, REQ-ALR-015, REQ-NEG-017, REQ-ING-016 |
 | [T-016 — Domínio de comandos puro: avaliador, máquina de estados e textos](../../tasks/T-016-dominio-de-comandos.md) | F1 | N0 | REQ-CMD-002, REQ-CMD-003, REQ-CMD-005, REQ-CMD-009, REQ-CMD-012, REQ-CMD-015, REQ-CMD-018, REQ-CMD-021, REQ-QLD-010 |
-| [T-017 — Migration do F1 de comandos, chave do aparelho, consentimento e segredos da operadora](../../tasks/T-017-migration-f1-comandos.md) | F1 | N0 | REQ-CMD-004, REQ-CMD-009, REQ-CMD-010, REQ-CMD-020, REQ-CMD-022, REQ-DAD-001, REQ-DAD-003, REQ-SEG-020, REQ-QLD-011 |
-| [T-018 — API de comandos com step-up, chave do aparelho e termo de ciência](../../tasks/T-018-api-de-comandos-e-step-up.md) | F1 | N0 | REQ-CMD-001, REQ-CMD-004, REQ-CMD-006, REQ-CMD-007, REQ-CMD-008, REQ-CMD-010, REQ-CMD-016, REQ-CMD-017, REQ-CMD-019, REQ-SEG-012, REQ-SEG-013, REQ-SEG-014, REQ-SEG-015, REQ-SEG-016, REQ-SEG-029, REQ-API-014 |
-| [T-019 — Guardas de processo no CI](../../tasks/T-019-guardas-de-processo-no-ci.md) | F0 | N0 | REQ-QLD-001, REQ-QLD-002, REQ-QLD-003, REQ-QLD-004, REQ-QLD-006, REQ-QLD-007, REQ-QLD-008, REQ-QLD-015, REQ-QLD-016, REQ-QLD-018, REQ-QLD-020, REQ-QLD-021, REQ-DAD-021 |
-| [T-020 — Despachante de comandos no worker](../../tasks/T-020-despachante-de-comandos-no-worker.md) | F1 | N0 | REQ-CMD-011, REQ-CMD-013, REQ-CMD-014, REQ-ARQ-016 |
+| [T-017 — Migration do F1 de comandos, chave do aparelho, consentimento e segredos da operadora](../../tasks/T-017-migration-f1-comandos.md) | F1 | N0 | REQ-CMD-004, REQ-CMD-009, REQ-CMD-010, REQ-CMD-020, REQ-CMD-022, REQ-DAD-001, REQ-DAD-003, REQ-SEG-020, REQ-DAD-026, REQ-QLD-011 |
+| [T-018 — API de comandos com step-up, chave do aparelho e termo de ciência](../../tasks/T-018-api-de-comandos-e-step-up.md) | F1 | N0 | REQ-CMD-001, REQ-CMD-004, REQ-CMD-006, REQ-CMD-007, REQ-CMD-008, REQ-CMD-010, REQ-CMD-016, REQ-CMD-017, REQ-CMD-019, REQ-CMD-024, REQ-DAD-025, REQ-SEG-012, REQ-SEG-013, REQ-SEG-014, REQ-SEG-015, REQ-SEG-016, REQ-SEG-029, REQ-API-014 |
+| [T-019 — Guardas de processo no CI](../../tasks/T-019-guardas-de-processo-no-ci.md) | F0 | N0 | REQ-QLD-001, REQ-QLD-002, REQ-QLD-003, REQ-QLD-004, REQ-QLD-006, REQ-QLD-007, REQ-QLD-008, REQ-QLD-011, REQ-QLD-015, REQ-QLD-016, REQ-QLD-018, REQ-QLD-020, REQ-QLD-021, REQ-DAD-021 |
+| [T-020 — Despachante de comandos no worker](../../tasks/T-020-despachante-de-comandos-no-worker.md) | F1 | N0 | REQ-CMD-011, REQ-CMD-013, REQ-CMD-014, REQ-CMD-023, REQ-ARQ-016, REQ-ALR-025, REQ-DAD-027 |
 | [T-021 — UX de comando no app e no console](../../tasks/T-021-ux-de-comando-app-e-console.md) | F1 | N0 | REQ-UX-017, REQ-UX-018, REQ-UX-019 |
 | [T-022 — Homologação do perfil J16 em bancada e checklist do G-CMD (tarefa mista)](../../tasks/T-022-homologacao-j16-e-g-cmd.md) | F1 | N0 | REQ-NEG-011, REQ-NEG-015, REQ-QLD-014, REQ-CMD-018 |
 | [T-023 — Cobrança Asaas: vínculo, webhooks, inadimplência, PIX no app e split](../../tasks/T-023-cobranca-asaas-split-pix.md) | F1 | N0 | REQ-COB-001, REQ-COB-016, REQ-SEG-022, REQ-UX-021, REQ-NEG-001, REQ-NEG-002, REQ-COB-002, REQ-COB-003, REQ-COB-004, REQ-COB-005, REQ-COB-006, REQ-COB-007, REQ-COB-008, REQ-COB-009, REQ-COB-010, REQ-COB-011, REQ-COB-012, REQ-COB-013, REQ-COB-014, REQ-COB-015 |
-| [T-024 — Importador de planilha e ondas de migração por SMS](../../tasks/T-024-importador-e-ondas-de-migracao.md) | F1 | N0 | REQ-ONB-002, REQ-ONB-007, REQ-ONB-010, REQ-ONB-014, REQ-ONB-017, REQ-ONB-018, REQ-ONB-020, REQ-ONB-003, REQ-ONB-004, REQ-ONB-005, REQ-ONB-006, REQ-ONB-011, REQ-ONB-012, REQ-ONB-013 |
+| [T-024 — Importador de planilha e ondas de migração por SMS](../../tasks/T-024-importador-e-ondas-de-migracao.md) | F1 | N0 | REQ-ONB-002, REQ-ONB-007, REQ-ONB-010, REQ-ONB-014, REQ-ONB-017, REQ-ONB-018, REQ-ONB-020, REQ-ONB-021, REQ-ONB-022, REQ-SEG-031, REQ-ONB-003, REQ-ONB-004, REQ-ONB-005, REQ-ONB-006, REQ-ONB-011, REQ-ONB-012, REQ-ONB-013 |
 | [T-025 — Modo ocorrência, visão da equipe de busca e compartilhamento temporário](../../tasks/T-025-ocorrencia-busca-e-compartilhamento.md) | F1 | N0 | REQ-UX-020, REQ-UX-023, REQ-UX-029, REQ-SEG-017, REQ-SEG-018, REQ-API-013 |
 | [T-026 — Guincho parceiro: botão no app, indicação, consentimento e relatório mensal](../../tasks/T-026-guincho-parceiro-e-indicacoes.md) | F1 | N0 | REQ-SVA-001, REQ-SVA-009, REQ-UX-022, REQ-SVA-002, REQ-SVA-003, REQ-SVA-004, REQ-SVA-005, REQ-SVA-006, REQ-SVA-007, REQ-SVA-008 |
-| [T-027 — Auditoria, acesso de suporte, legal hold e retenção quente/frio](../../tasks/T-027-auditoria-suporte-legal-hold-e-retencao.md) | F1 | N0 | REQ-DAD-013, REQ-DAD-014, REQ-DAD-015, REQ-DAD-016, REQ-DAD-019, REQ-DAD-023, REQ-ING-018, REQ-SEG-011, REQ-SEG-027 |
-| [T-028 — Standby, failover com fencing, SLO, status page e agente SRE de diagnóstico](../../tasks/T-028-standby-failover-slo-e-agente-sre.md) | F1 | N0 | REQ-NEG-012, REQ-OPS-010, REQ-OPS-015, REQ-OPS-018, REQ-OPS-019, REQ-OPS-021, REQ-OPS-022, REQ-OPS-024, REQ-SEG-028, REQ-QLD-017, REQ-ARQ-015, REQ-DAD-012, REQ-ING-016, REQ-ING-021, REQ-OPS-011, REQ-OPS-012, REQ-OPS-013, REQ-OPS-014 |
-| [T-029 — Console do F1: carteira completa, atendimento, marca, cercas e alertas novos](../../tasks/T-029-console-f1-carteira-atendimento-e-alertas.md) | F1 | N1 | REQ-UX-024, REQ-UX-027, REQ-UX-028, REQ-ALR-020, REQ-ALR-021, REQ-ALR-022, REQ-ALR-023 |
-| [T-030 — Publicação nas lojas, versão mínima do app, E2E e carga](../../tasks/T-030-lojas-qualidade-e-versao-minima.md) | F1 | N1 | REQ-UX-014, REQ-API-016, REQ-API-017, REQ-QLD-012, REQ-QLD-013 |
+| [T-027 — Auditoria, acesso de suporte, legal hold e retenção quente/frio](../../tasks/T-027-auditoria-suporte-legal-hold-e-retencao.md) | F1 | N0 | REQ-DAD-013, REQ-DAD-014, REQ-DAD-015, REQ-DAD-016, REQ-DAD-019, REQ-DAD-023, REQ-ING-018, REQ-SEG-011, REQ-SEG-027, REQ-SEG-032, REQ-DAD-028 |
+| [T-028 — Standby, failover com fencing, SLO e status page](../../tasks/T-028-standby-failover-slo-e-agente-sre.md) | F1 | N0 | REQ-NEG-012, REQ-OPS-010, REQ-OPS-015, REQ-OPS-021, REQ-OPS-022, REQ-OPS-024, REQ-OPS-025, REQ-SEG-028, REQ-SEG-030, REQ-ARQ-015, REQ-ING-016, REQ-ING-021, REQ-OPS-011, REQ-OPS-012, REQ-OPS-013, REQ-OPS-014 |
+| [T-029 — Console do F1: carteira completa, atendimento, marca, cercas e alertas novos](../../tasks/T-029-console-f1-carteira-atendimento-e-alertas.md) | F1 | N1 | REQ-UX-024, REQ-UX-027, REQ-UX-028, REQ-ALR-020, REQ-ALR-021, REQ-ALR-022, REQ-ALR-023, REQ-ALR-024, REQ-UX-032 |
+| [T-030 — Publicação nas lojas, versão mínima do app e E2E](../../tasks/T-030-lojas-qualidade-e-versao-minima.md) | F1 | N1 | REQ-UX-014, REQ-API-016, REQ-API-017, REQ-QLD-012, REQ-QLD-013 |
 | [T-031 — Relatório de unidade econômica e conta de armazenamento](../../tasks/T-031-unidade-economica-e-custos.md) | F1 | N1 | REQ-NEG-003, REQ-NEG-004, REQ-DAD-024, REQ-QLD-019 |
+| [T-032 — App: push, telas de alertas (A05), modo vigilância (A06) e notificações (A09)](../../tasks/T-032-app-push-alertas-vigilancia-notificacoes.md) | F0 | N0 | REQ-UX-009, REQ-UX-010, REQ-UX-012 |
+| [T-033 — Operação avançada: deploy automatizado com rollback, Alloy/Grafana/Alertmanager, migration-compat, teste de carga e cópia R2](../../tasks/T-033-operacao-avancada-deploy-observabilidade-carga.md) | F1 | N0 | REQ-OPS-006, REQ-OPS-008, REQ-OPS-016, REQ-OPS-017, REQ-ARQ-012, REQ-DAD-020, REQ-ARQ-014, REQ-ING-021 |
+| [T-034 — Gateway de incidentes e agente SRE de diagnóstico](../../tasks/T-034-gateway-de-incidentes-e-agente-sre.md) | F1 | N0 | REQ-OPS-018, REQ-OPS-019, REQ-QLD-017, REQ-DAD-012 |
 
 ## Lacunas (F0/F1 sem tarefa)
 

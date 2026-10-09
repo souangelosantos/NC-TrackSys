@@ -3,7 +3,7 @@
 | Campo | Valor |
 |---|---|
 | Fase | F0 (semana S4: 28–31/10/2026; avaliação do G0 em 31/10/2026 após 12:00 BRT) |
-| Requisitos | REQ-NEG-010 (G0-1, G0-2 e G0-5 por consultas versionadas; avaliação dos 9 itens), REQ-NEG-016 (registro de evidências), REQ-ALR-015 (latência computável por consulta), REQ-NEG-017 (cortes registrados lidos pelo relatório), REQ-ING-016 (parte F0: reconciliação Traccar × inbox por id, consultas e relatório, só leitura; o job `ingest.reconcile` que projeta em modo `backfill`, o CLI de backfill e o CT-ING-016 são da T-028, F1 [ADOTADO NA v2.0]) |
+| Requisitos | REQ-NEG-010 (G0-1, G0-2 e G0-5 por consultas versionadas; avaliação dos 9 itens), REQ-NEG-016 (registro de evidências), REQ-ALR-015 (latência computável por consulta), REQ-NEG-017 (cortes registrados lidos pelo relatório), REQ-ING-016 (parte F0: reconciliação Traccar × inbox por id, consultas e relatório, só leitura; o job `ingest.reconcile` que projeta em modo `backfill`, o CLI de backfill e o CT-ING-016 são da T-028, F1) |
 | Invariantes | INV-01 (reconciliação Traccar × inbox prova ausência de perda e de duplicata), INV-03 (sem medida → `pendente`, nunca `ok`; entrega sem `originAt` não vira latência zero), INV-07 (consultas filtram a operadora e devolvem só agregados), INV-12 (UTC, segundos) |
 | Risco de revisão | N2 (tabela 2.3 de [02](../docs/spec/02-escopo-e-fases.md)). Esta tarefa **não** cria tabela, função, política nem migration; se a implementação precisar de uma, pare e registre no PR (vira N0). A revisão confere que os `.sql` só leem e só devolvem agregados |
 | Depende de | T-005, T-012. Usa artefatos já entregues: T-011 (`evidence.timings.originAt`), T-013 (relatório de restore e artefato `acceptance-report`), T-014 (seções do piloto no `G0.md` e `g0-markdown.ts`) |
@@ -13,19 +13,19 @@
 
 ## Objetivo
 
-Tornar o G0 medível e reexecutável: quatro consultas SQL versionadas em `infra/scripts/gates/` (lacunas por rastreador, reconciliação com o Traccar por contagem e por id, e latência de alerta), um coletor que as roda na VM e guarda só agregados, e um relatório que lê essas saídas, as seções do `G0.md` (piloto, termos, lacunas explicadas, cortes), o relatório de restore e o resultado do CI, avalia os itens G0-1 a G0-9 com as regras de [02 §2.5](../docs/spec/02-escopo-e-fases.md) e reescreve a tabela de itens do `docs/runbooks/gates/G0.md` no formato de [02 §10](../docs/spec/02-escopo-e-fases.md). Gate aprovado = 9 itens `ok`; só o fundador aprova.
+Tornar o G0 medível e reexecutável: quatro consultas SQL versionadas em `infra/scripts/gates/` (lacunas por rastreador, reconciliação com o Traccar por contagem e por id, e latência de alerta), um coletor que as roda na VM e guarda só agregados, e um relatório que lê essas saídas, as seções do `G0.md` (piloto, termos, lacunas explicadas, cortes), o relatório de restore e o resultado do CI, avalia os itens G0-1 a G0-9 com as regras de [02 §2.5](../docs/spec/02-escopo-e-fases.md#25-gate-g0-31102026) e reescreve a tabela de itens do `docs/runbooks/gates/G0.md` no formato de [02 §10](../docs/spec/02-escopo-e-fases.md#10-registro-de-evidências-dos-gates). Gate aprovado = 9 itens `ok`; só o fundador aprova.
 
 ## Contexto obrigatório
 
-- [02 §2.4, §2.5, §10 e REQ-NEG-010, REQ-NEG-016, REQ-NEG-017](../docs/spec/02-escopo-e-fases.md).
-- [07 §10](../docs/spec/07-alertas-e-tempo-real.md): marcos t0–t4 e consulta de referência do p95.
-- [05 §12](../docs/spec/05-ingestao-e-telemetria.md) item 1 e REQ-ING-016: janela de reconciliação (`now − 80 min` a `now − 20 min`) e identidade `(source_instance, kind, source_event_id)` (INV-01).
+- [02 §2.4, §2.5, §10 e REQ-NEG-010, REQ-NEG-016, REQ-NEG-017](../docs/spec/02-escopo-e-fases.md#24-plano-de-corte).
+- [07 §10](../docs/spec/07-alertas-e-tempo-real.md#10-medição-de-latência): marcos t0–t4 e consulta de referência do p95.
+- [05 §12](../docs/spec/05-ingestao-e-telemetria.md#12-queda-prolongada-reconciliação-e-backfill) item 1 e REQ-ING-016: janela de reconciliação (`now − 80 min` a `now − 20 min`) e identidade `(source_instance, kind, source_event_id)` (INV-01).
 - [T-013](T-013-deploy-backup-restore-sondas.md) (front matter do relatório de restore; artefato `acceptance-report`) e [T-014](T-014-migracao-manual-sms-e-rollback.md) (seções `## Migração do piloto` e `## Termos de participação (G0-9)`).
 
 ## Escopo — fazer
 
 1. As 4 consultas SQL da seção 1 (lacunas, reconciliação por contagem, reconciliação por id e latência) e o renderizador de variáveis psql para testes (`packages/testkit/src/psql-vars.ts`).
-2. Coletor `infra/scripts/gates/g0-collect.sh` (seção 2), com o modo `--recent` que roda só a reconciliação na janela de [05 §12](../docs/spec/05-ingestao-e-telemetria.md) (REQ-ING-016, parte F0), para o fundador conferir perda no forward durante o piloto.
+2. Coletor `infra/scripts/gates/g0-collect.sh` (seção 2), com o modo `--recent` que roda só a reconciliação na janela de [05 §12](../docs/spec/05-ingestao-e-telemetria.md#12-queda-prolongada-reconciliação-e-backfill) (REQ-ING-016, parte F0), para o fundador conferir perda no forward durante o piloto.
 3. Avaliador puro `evaluateG0` e esquemas Zod em `packages/domain/src/gates/g0.ts` (seção 3).
 4. Extensão de `g0-markdown.ts` (itens, lacunas explicadas, cortes) e CLI `pnpm gates:g0` (seção 4).
 5. `G0.md` com as seções que faltam, `evidencias/g0/manual.json` modelo e roteiro manual de G0-3/G0-4 (seção 5).
@@ -33,7 +33,7 @@ Tornar o G0 medível e reexecutável: quatro consultas SQL versionadas em `infra
 
 ## Fora do escopo
 
-- Funções `ops.*` `SECURITY DEFINER`, métrica de minuto ruim e SLO mensal: F1 ([13 §10](../docs/spec/13-infra-e-operacao.md)).
+- Funções `ops.*` `SECURITY DEFINER`, métrica de minuto ruim e SLO mensal: F1 ([13 §10](../docs/spec/13-infra-e-operacao.md#10-slo-e-medição)).
 - Bloqueio técnico da criação de onda antes do G0 (onda é F1); `G-CMD.md`, `G1.md`, `G2.md`.
 - Executar o restore (T-013), migrar veículos (T-014) ou provocar alertas (roteiro do fundador).
 - Projetar posição faltante (job `ingest.reconcile` em modo `backfill`, CLI `ingest:backfill`, métrica `ingest_reconciled_missing_total`) e o CT-ING-016: T-028 (F1). Aqui a reconciliação só lê e relata; nada é gravado no banco.
@@ -195,7 +195,7 @@ FROM params p;
 
 Usa o índice único `ingest_inbox_identity_key` (INV-01). Ids de posição do Traccar não são dado pessoal; nenhum IMEI, coordenada ou payload sai da consulta.
 
-`infra/scripts/gates/g0-latencia-alerta.sql` (G0-5; mesma definição de [07 §10](../docs/spec/07-alertas-e-tempo-real.md), por entrega como em G0-5):
+`infra/scripts/gates/g0-latencia-alerta.sql` (G0-5; mesma definição de [07 §10](../docs/spec/07-alertas-e-tempo-real.md#10-medição-de-latência), por entrega como em G0-5):
 
 ```sql
 -- T-015 · G0-5: latência t4 − t0 (sent_at − evidence.timings.originAt) por entrega 'sent' na janela. Só agregados.
@@ -230,7 +230,7 @@ SELECT json_build_object(
 1. Valida argumentos (uuid, `Z`, `from < to`); janela ≠ 48 h imprime "janela ≠ 48 h: só ensaio". Lê `INGEST_SOURCE_INSTANCE`, `TRACCAR_API_USER` e `TRACCAR_API_PASSWORD` de `/run/tracksys/prod.env` sem ecoar.
 2. Para cada `.sql`: `docker compose -f /opt/tracksys/infra/docker-compose.yml exec -T -u postgres -e PGOPTIONS='-c default_transaction_read_only=on -c statement_timeout=120s -c TimeZone=UTC' db psql -X -At -v ON_ERROR_STOP=1 -d tracksys -v operator_id=… -v source_instance=… -v from=… -v to=… [-v gap_threshold_s=… | -v operator_ids='{…}'] -f - < arquivo`. `--alert-operators` ausente = `{<operator>}`; o fundador acrescenta a operadora da bancada quando os alertas provocados saíram do J16 de bancada.
 3. Para cada `traccarDeviceId`: `GET http://172.30.0.6:8082/api/positions?deviceId=<id>&from=<from>&to=<to>` com `Accept: application/json` e credencial passada por `curl -K -` (nunca na linha de comando); da resposta só se extraem os ids (`jq -c '[.[].id]'`, convertidos para `{…}`), e o resto é descartado sem ir a disco; roda `g0-reconciliacao-ids.sql` com `-v traccar_device_id=<id> -v traccar_ids='{…}'` (ids acima de 100 KB vão por arquivo temporário em `/run/tracksys`, modo 0600, apagado no fim) e acrescenta `traccar`, `matched`, `missingFromInbox` e `missingSample` ao rastreador em `reconciliacao.json` [VALIDAR — DEC-02: o Traccar filtra por `fixTime`].
-   - **Modo `--recent`** (REQ-ING-016, parte F0): `g0-collect.sh --operator <uuid> --recent` usa `from = now − 80 min` e `to = now − 20 min` arredondados ao minuto ([05 §12](../docs/spec/05-ingestao-e-telemetria.md) item 1), roda só a reconciliação (contagem e ids), grava `reconciliacao.json` e `meta.json` com `mode: "recent"` e imprime `N rastreadores; M posições ausentes na inbox`; sai 3 se `M > 0`. Nada é gravado no banco; a recuperação é o backfill da T-028 (F1) ou, no F0, a lacuna explicada.
+   - **Modo `--recent`** (REQ-ING-016, parte F0): `g0-collect.sh --operator <uuid> --recent` usa `from = now − 80 min` e `to = now − 20 min` arredondados ao minuto ([05 §12](../docs/spec/05-ingestao-e-telemetria.md#12-queda-prolongada-reconciliação-e-backfill) item 1), roda só a reconciliação (contagem e ids), grava `reconciliacao.json` e `meta.json` com `mode: "recent"` e imprime `N rastreadores; M posições ausentes na inbox`; sai 3 se `M > 0`. Nada é gravado no banco; a recuperação é o backfill da T-028 (F1) ou, no F0, a lacuna explicada.
 4. Grava em `<out>/<AAAAMMDDTHHMMZ>/`: `lacunas.json`, `reconciliacao.json`, `latencia.json` e `meta.json` (`window`, `thresholdSeconds`, `sourceInstance`, `operatorId`, `alertOperatorIds`, `deployedTag` de `/etc/tracksys/current-version`, `generatedAt`, `sqlSha256` por arquivo). Imprime só o diretório e totais. Dois IMEIs mascarados iguais no piloto → `exit 2` "colisão de IMEI mascarado".
 
 O fundador copia o diretório para `docs/runbooks/gates/evidencias/g0/` (`scp` pela Tailscale) e commita.
@@ -245,12 +245,12 @@ O fundador copia o diretório para `docs/runbooks/gates/evidencias/g0/` (`scp` p
 | G0-2 | Por veículo `traccar = inbox`, `missingFromInbox = 0` e `quarantinedWithoutReason = 0`; `failed = 0`; `pendingOver5Min = 0` | Qualquer condição violada | Sem `reconciliation` ou rastreador sem `missingFromInbox` |
 | G0-3, G0-4 | `manual.result = ok` com `evidence.android` e (`evidence.ios` ou corte 6 em `cuts`) | `manual.result = falhou` | Sem registro; `ok` sem vídeo exigido |
 | G0-5 | `withoutOrigin = 0`, `p95Seconds ≤ 60`, `deliveries ≥ 20` e `byType` com ≥ 1 de cada `activeAlertTypes` | `withoutOrigin > 0` ou `p95Seconds > 60` (avaliados antes da amostra) | Sem `latency`; amostra < 20; tipo ativo sem entrega |
-| G0-6 | `failed = 0`, `skipped = 0` e `files` com caminhos em `tests/acceptance/T-001/`, `T-005/`, `T-006/` e `T-008/` (a metade HTTP/SSE do CT-NEG-017 está na T-008, [02 §3](../docs/spec/02-escopo-e-fases.md)) | `failed > 0`, `skipped > 0` ou suíte ausente | Sem `ci` |
+| G0-6 | `failed = 0`, `skipped = 0` e `files` com caminhos em `tests/acceptance/T-001/`, `T-005/`, `T-006/` e `T-008/` (a metade HTTP/SSE do CT-NEG-017 está na T-008, [02 §3](../docs/spec/02-escopo-e-fases.md#3-primeira-fatia-vertical)) | `failed > 0`, `skipped > 0` ou suíte ausente | Sem `ci` |
 | G0-7 | `durationSeconds ≤ 7200`, `lossSeconds ≤ 300`, `countsMatch`, `catalogOk`, `externalCalls = 0` | Qualquer condição violada | Sem `restore` |
 | G0-8 | Linha `rollback` `de volta no tracker-net` com duração ≤ 600 s **e** linha `migrar` `migrado` posterior do mesmo veículo | Só há rollback acima de 600 s ou `não voltou` | Nenhuma linha `rollback` |
-| G0-9 | Todo veículo com linha `migrar` aparece num termo com `Assinado em` anterior ao 1º SMS dele | Algum SMS antes do termo, ou veículo sem termo | Nenhuma linha `migrar` |
+| G0-9 | Todo veículo com linha `senha` ou `migrar` aparece num termo com `Assinado em` anterior ao 1º SMS dele (de qualquer tipo) | Algum SMS antes do termo, ou veículo sem termo | Nenhuma linha `migrar` |
 
-`approved` = 9 `ok`; `status` = `reprovado` se algum `falhou`, senão `pendente` se algum `pendente`, senão `aprovado`. Medidas (texto exato, decimal com vírgula, durações por `formatElapsed` da T-014 e `H h M min` acima de 1 h): G0-1 `6 veículos; maior lacuna sem causa: 7 min` (maior lacuna não explicada entre os veículos) ou `6 veículos; 2 lacunas sem causa (maior: 30 min)`; G0-2 `6 veículos; 0 divergência; 0 failed; 0 pending > 5 min; 21 quarantined com motivo`; G0-5 `34 entregas; p95 = 41 s` ou `34 entregas; p95 = 75 s (limite 60 s)` ou `amostra insuficiente: 12 < 20` ou `falta alerta provocado: power_cut`; G0-6 `412 testes; 0 falha; 0 pulado (tag v0.9.0)`; G0-7 `restore em 1 h 20 min; perda 3 min`; G0-8 `rollback em 6 min; veículo migrado de novo`; G0-9 `6 termos; 6 titulares; 0 SMS antes do termo`. Critérios fixos: os textos da coluna "Critério" de [02 §2.5](../docs/spec/02-escopo-e-fases.md) resumidos como no modelo de §10.
+`approved` = 9 `ok`; `status` = `reprovado` se algum `falhou`, senão `pendente` se algum `pendente`, senão `aprovado`. Medidas (texto exato, decimal com vírgula, durações por `formatElapsed` da T-014 e `H h M min` acima de 1 h): G0-1 `6 veículos; maior lacuna sem causa: 7 min` (maior lacuna não explicada entre os veículos) ou `6 veículos; 2 lacunas sem causa (maior: 30 min)`; G0-2 `6 veículos; 0 divergência; 0 failed; 0 pending > 5 min; 21 quarantined com motivo`; G0-5 `34 entregas; p95 = 41 s` ou `34 entregas; p95 = 75 s (limite 60 s)` ou `amostra insuficiente: 12 < 20` ou `falta alerta provocado: power_cut`; G0-6 `412 testes; 0 falha; 0 pulado (tag v0.9.0)`; G0-7 `restore em 1 h 20 min; perda 3 min`; G0-8 `rollback em 6 min; veículo migrado de novo`; G0-9 `6 termos; 6 titulares; 0 SMS antes do termo`. Critérios fixos: os textos da coluna "Critério" de [02 §2.5](../docs/spec/02-escopo-e-fases.md#25-gate-g0-31102026) resumidos como no modelo de §10.
 
 ### (4) Relatório — `pnpm gates:g0`
 
@@ -280,7 +280,7 @@ O fundador copia o diretório para `docs/runbooks/gates/evidencias/g0/` (`scp` p
 | ***0025 | 2026-10-30T02:10:00Z | 2026-10-30T05:40:00Z | Garagem subterrânea sem sinal (titular confirmou) | WhatsApp da Lider 30/10 08:12 |
 ```
 
-`parseCuts` aceita linhas `- Corte <n> …` (REQ-NEG-017). `docs/runbooks/gates/g0-roteiro-manual.md`: passos de G0-3 e G0-4 de [02 §2.5](../docs/spec/02-escopo-e-fases.md) com 2 contas `tenant_owner` de clientes diferentes, vídeo ≤ 2 min por plataforma, link guardado fora do git quando mostrar dado pessoal, e como preencher `manual.json`. Roteiro do fundador em 31/10: `g0-collect.sh --operator <Lider> --from 2026-10-29T15:00:00Z --to 2026-10-31T15:00:00Z` (12:00 BRT = 15:00Z) → copiar evidências → `gh run download <run do deploy da tag implantada> -n acceptance-report` → `pnpm gates:g0 …` → PR de aprovação com `pnpm gates:g0 --check` verde.
+`parseCuts` aceita linhas `- Corte <n> …` (REQ-NEG-017). `docs/runbooks/gates/g0-roteiro-manual.md`: passos de G0-3 e G0-4 de [02 §2.5](../docs/spec/02-escopo-e-fases.md#25-gate-g0-31102026) com 2 contas `tenant_owner` de clientes diferentes, vídeo ≤ 2 min por plataforma, link guardado fora do git quando mostrar dado pessoal, e como preencher `manual.json`. Roteiro do fundador em 31/10: `g0-collect.sh --operator <Lider> --from 2026-10-29T15:00:00Z --to 2026-10-31T15:00:00Z` (12:00 BRT = 15:00Z) → copiar evidências → `gh run download <run do deploy da tag implantada> -n acceptance-report` → `pnpm gates:g0 …` → PR de aprovação com `pnpm gates:g0 --check` verde.
 
 ## Testes de aceite (congelados)
 
@@ -293,7 +293,7 @@ O fundador copia o diretório para `docs/runbooks/gates/evidencias/g0/` (`scp` p
   - Reconciliação por id (REQ-ING-016, parte F0): `***0017` com `traccar_ids = {1001,…,1010}` e a inbox da mesma `source_instance` com `source_event_id` 1001 a 1008 `processed` e 1009 `pending` (1010 nunca chegou; 1010 existe só em outra `source_instance`) → `{traccar: 10, matched: 9, missingFromInbox: 1, missingSample: [1010]}`; ids repetidos no array contam uma vez; `traccar_ids = '{}'` → `{traccar: 0, matched: 0, missingFromInbox: 0, missingSample: []}`. Depois da consulta, `count(*)` de `app.ingest_inbox` é o mesmo de antes (nada gravado).
   - Estático: os 4 arquivos não contêm `INSERT`, `UPDATE`, `DELETE`, `CREATE`, `ALTER`, `DROP`, `GRANT`, `TRUNCATE` nem `COPY` fora de comentários; as variáveis usadas são exatamente as listadas no cabeçalho de cada arquivo.
 - `evaluate.test.ts` — CT-NEG-010: janela `2026-10-29T15:00:00Z`–`2026-10-31T15:00:00Z`, 6 veículos com maior lacuna de 420 s e `gaps` vazios, reconciliação sem divergência, 34 entregas com p95 = 41 s cobrindo os 4 tipos ativos, CI com 0 falha e 0 pulado nas suítes T-001/T-005/T-006/T-008, restore de 4.800 s com perda de 180 s, rollback de 360 s seguido de nova migração, 6 termos anteriores aos SMS e G0-3/G0-4 `ok` com vídeos → 9 itens `ok`, `approved = true`, `status = 'aprovado'`, medidas `6 veículos; maior lacuna sem causa: 7 min`, `34 entregas; p95 = 41 s`, `restore em 1 h 20 min; perda 3 min`, `rollback em 6 min; veículo migrado de novo`. CT-NEG-011: o mesmo com p95 = 75 s → G0-5 `falhou` com `34 entregas; p95 = 75 s (limite 60 s)` e `status = 'reprovado'`. CT-NEG-019: o mesmo sem `restore` → G0-7 `pendente`, 8 `ok`, `approved = false`, `status = 'pendente'`. Bordas: `missingFromInbox = 1` num veículo com `traccar = inbox` (uma perda compensada por uma duplicata na contagem) → G0-2 `falhou` com `1 divergência`; `files` sem `tests/acceptance/T-008/` → G0-6 `falhou`; lacuna de 1.800 s explicada → G0-1 `ok`; não explicada → `falhou`; janela de 36 h → `pendente`; `power_cut` ativo sem entrega → G0-5 `pendente`; termo assinado depois do SMS → G0-9 `falhou`; rollback de 660 s → G0-8 `falhou`; G0-3 `ok` sem vídeo do iPhone e sem corte 6 → `pendente`, com corte 6 → `ok`.
-- `markdown.test.ts` — `parseExplainedGaps` e `parseCuts` sobre `fixtures/G0.md` devolvem 1 lacuna de `***0025` e `[6]`; `renderItemsBlock` troca só o trecho entre os marcadores (resto idêntico, byte a byte); arquivo sem as seções ganha `## Itens`, `## Cortes` e `## Lacunas explicadas` sem perder as seções da T-014 nem as demonstrações registradas pela T-005, T-008 e T-012 ([02 §2.3](../docs/spec/02-escopo-e-fases.md), "Donos de fronteira").
+- `markdown.test.ts` — `parseExplainedGaps` e `parseCuts` sobre `fixtures/G0.md` devolvem 1 lacuna de `***0025` e `[6]`; `renderItemsBlock` troca só o trecho entre os marcadores (resto idêntico, byte a byte); arquivo sem as seções ganha `## Itens`, `## Cortes` e `## Lacunas explicadas` sem perder as seções da T-014 nem as demonstrações registradas pela T-005, T-008 e T-012 ([02 §2.3](../docs/spec/02-escopo-e-fases.md#23-cartões-de-tarefa-do-f0), "Donos de fronteira").
 - `report-cli.test.ts` — Dado `fixtures/caso-aprovado/` (cópia de `G0.md`, evidências, restore, `acceptance-report.json` e `manual.json` do CT-NEG-010), Quando `pnpm gates:g0 --evidence … --g0 <cópia temporária> …`, Então sai 0, imprime `G0: aprovado` e a tabela tem 9 linhas `ok`; Quando roda de novo, Então o arquivo não muda; Quando `--check`, Então sai 0. Dado `fixtures/caso-sem-restore/`, Então imprime `G0: pendente (G0-7 pendente)` e `--check` sai 1. Dado `latencia.json` sem `p95Seconds`, Então sai 2 citando `latencia.json`. `g0-collect.sh --recent` com fakes de `docker`, `curl` e `date` (fixado em `D 12:00:00Z`) → chama o Traccar com `from=D 10:40:00Z` e `to=D 11:40:00Z`, não roda `g0-lacunas.sql` nem `g0-latencia-alerta.sql`, grava `meta.json` com `mode: "recent"` e sai 3 quando o fake de `psql` devolve `missingFromInbox: 2`.
 
 ## Comandos de verificação
@@ -315,17 +315,18 @@ pnpm verify
 - [ ] Em 31/10, evidências do G0 em `docs/runbooks/gates/evidencias/g0/` e tabela de itens gerada; PR de aprovação do fundador com `pnpm gates:g0 --check` verde, ou itens pendentes/reprovados listados.
 - [ ] PR `feat(gates): consultas do G0 e relatório de evidências (T-015)` com REQ/INV/risco e revisão cruzada.
 
-## Decisões já tomadas (não pergunte, siga)
+## Decisões já tomadas
 
 | Dúvida provável | Resposta |
 |---|---|
-| Com que papel as consultas rodam em produção? | Como `postgres` pelo socket local, com `default_transaction_read_only=on` e `statement_timeout=120s`, só agregados. `tracksys_ops_ro` não tem USAGE em `app` e as funções `ops.*` (que exigiriam `SECURITY DEFINER`, CAT-07 e N0) são do F1. É o mesmo caminho do ensaio de restore da T-013. |
-| Lacuna medida por `serverTime` ou `received_at`? | `serverTime` do Traccar (recebimento da mensagem), com `received_at` como reserva; janelas tratadas como `[from, to)` e com as bordas contando como pontos, para pegar silêncio no início ou no fim. |
-| Latência por entrega ou só a 1ª entrega do alerta? | Por entrega `sent`, como o G0-5 e a consulta de [07 §10](../docs/spec/07-alertas-e-tempo-real.md); a frase "primeira entrega" de 07 §10 item 1 fica registrada no PR para alinhar o capítulo. |
-| Placa no relatório ou nas evidências? | Não. Veículo = IMEI mascarado, como na T-014 (REQ-QLD-016: o repositório é lido por agentes). |
-| Quando rodar o coletor? | Até 7 dias após o início da janela: depois disso o Traccar descarta posições (`historyDays = 7`) e G0-2 fica sem medida. O payload da inbox fica além de 7 dias no F0 (retenção adiada para a T-027, risco aceito em [15](../docs/spec/15-decisoes-riscos-premissas.md)), mas o G0 não depende disso. Durante a janela de 48 h, `--recent` 3 vezes ao dia junto com o `pilot status` da T-014. |
-| Reconciliação por contagem não basta? | Não: uma perda e uma duplicata se anulam na contagem. O id do Traccar contra `(source_instance, kind, source_event_id)` prova as duas coisas (INV-01); a contagem fica como conferência rápida. |
-| Amostra de alertas abaixo de 20 é `falhou`? | `pendente`: o fundador provoca mais alertas e roda de novo. p95 acima de 60 s ou entrega sem `originAt` é `falhou` mesmo com amostra pequena. |
-| Quais tipos de alerta são "ativos no F0"? | Os listados em `manual.json` → `activeAlertTypes`, conforme DEC-02 e os cortes 2 e 3 aplicados; o relatório não deduz. |
-| O agente pode marcar o G0 como aprovado? | Não. Agentes preenchem medidas; só o fundador aprova, mergeando o PR (REQ-NEG-016). Nenhum item é dispensado. |
-| Precisa de dependência nova (YAML, CSV)? | Não. Front matter do restore com parser plano (o mesmo da T-014) e JSON nativo. |
+| 1. Com que papel as consultas rodam em produção? | Como `postgres` pelo socket local, com `default_transaction_read_only=on` e `statement_timeout=120s`, só agregados. `tracksys_ops_ro` não tem USAGE em `app` e as funções `ops.*` (que exigiriam `SECURITY DEFINER`, CAT-07 e N0) são do F1. É o mesmo caminho do ensaio de restore da T-013. |
+| 2. Lacuna medida por `serverTime` ou `received_at`? | `serverTime` do Traccar (recebimento da mensagem), com `received_at` como reserva; janelas tratadas como `[from, to)` e com as bordas contando como pontos, para pegar silêncio no início ou no fim. |
+| 3. Latência por entrega ou só a 1ª entrega do alerta? | Por entrega `sent`, como o G0-5 e a consulta de [07 §10](../docs/spec/07-alertas-e-tempo-real.md#10-medição-de-latência); a frase "primeira entrega" de 07 §10 item 1 fica registrada no PR para alinhar o capítulo. |
+| 4. Placa no relatório ou nas evidências? | Não. Veículo = IMEI mascarado, como na T-014 (REQ-QLD-016: o repositório é lido por agentes). |
+| 5. Quando rodar o coletor? | Até 7 dias após o início da janela: depois disso o Traccar descarta posições (`historyDays = 7`) e G0-2 fica sem medida. O payload da inbox fica além de 7 dias no F0 (retenção adiada para a T-027, risco aceito em [15](../docs/spec/15-decisoes-riscos-premissas.md)), mas o G0 não depende disso. Durante a janela de 48 h, `--recent` 3 vezes ao dia junto com o `pilot status` da T-014. |
+| 6. Reconciliação por contagem não basta? | Não: uma perda e uma duplicata se anulam na contagem. O id do Traccar contra `(source_instance, kind, source_event_id)` prova as duas coisas (INV-01); a contagem fica como conferência rápida. |
+| 7. Amostra de alertas abaixo de 20 é `falhou`? | `pendente`: o fundador provoca mais alertas e roda de novo. p95 acima de 60 s ou entrega sem `originAt` é `falhou` mesmo com amostra pequena. |
+| 8. Quais tipos de alerta são "ativos no F0"? | Os listados em `manual.json` → `activeAlertTypes`, conforme DEC-02 e os cortes 2 e 3 aplicados; o relatório não deduz. |
+| 9. O agente pode marcar o G0 como aprovado? | Não. Agentes preenchem medidas; só o fundador aprova, mergeando o PR (REQ-NEG-016). Nenhum item é dispensado. |
+| 10. Precisa de dependência nova (YAML, CSV)? | Não. Front matter do restore com parser plano (o mesmo da T-014) e JSON nativo. |
+| 11. Linhas `senha` do `G0.md` (T-014) entram na conta? | Entram só no G0-9 (o 1º SMS de qualquer tipo vem depois do termo). G0-8 olha `rollback` e `migrar`; `parsePilotRows` devolve `kind: 'senha'` e o avaliador não as conta como migração. |

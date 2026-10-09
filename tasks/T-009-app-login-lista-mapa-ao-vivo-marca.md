@@ -5,7 +5,7 @@
 | Fase | F0 (semana S2: 14–20/10/2026; marco de 20/10: `dono.a1` vê V1 no app) |
 | Requisitos | REQ-UX-001, REQ-UX-002, REQ-UX-003, REQ-UX-004 e REQ-UX-005 (lado Dart), REQ-UX-006, REQ-UX-007, REQ-UX-013 (medida informativa no F0), REQ-UX-015 (A02 e A03), REQ-UX-016; REQ-SEG-003 (lado do app) |
 | Invariantes | INV-03, INV-04, INV-07, INV-08 (offline sem ação que escreve), INV-12 |
-| Risco de revisão | N2 |
+| Risco de revisão | **N0 pelo caminho:** `.github/workflows/ci.yml` (job `mobile`); `package.json` só aditivo (N1). Demais arquivos N2 (app Flutter). Leitura linha a linha e revisor de outro fornecedor só no `ci.yml`; o resto segue o checklist N2 |
 | Depende de | T-004 (cliente Dart `tracksys_api`; `build_runner` roda no app), T-006 (login Bearer, `GET /api/v1/me`, `sign-out`). Integração real com `GET /api/v1/vehicles` (estado) e `GET /api/v1/stream` da T-008, que corre na mesma semana: plano B na decisão 1 |
 | Estimativa | 3 sessões de agente (1: projeto, tokens, UX puro, sessão e marca; 2: SSE, Início e Detalhe; 3: offline, acessibilidade, testes e CI) |
 | Bloqueado por decisão | nenhuma para Android e desenvolvimento. DEC-03 só para instalar no iPhone por TestFlight (distribuição é da T-010). DEC-04 não bloqueia (`API_BASE_URL` por `--dart-define`) |
@@ -16,10 +16,10 @@ Criar o app Flutter único (`apps/mobile`, [ADR-007](../docs/adr/ADR-007-app-uni
 
 ## Contexto obrigatório
 
-- [10 §1–§6, §8, §12](../docs/spec/10-apps-e-ux.md): caminhos, princípios, tokens, marca, estados honestos, telas A01–A03 e A10, desempenho, acessibilidade, offline, identificador e versões mínimas.
-- [07 §11](../docs/spec/07-alertas-e-tempo-real.md) itens 1–5: snapshot, reconexão, `close`, campos e uso só em primeiro plano.
-- [08 §2](../docs/spec/08-identidade-e-seguranca.md): sessão `app` só por Bearer (30 dias, renovação ≤ 1 vez/24 h), token fora de URL e log.
-- [09 §2, §6, §9.1](../docs/spec/09-api-e-contratos.md): `GET /api/v1/me`, `GET /api/v1/operator/brand`, item de veículo.
+- [10 §1–§6, §8, §12](../docs/spec/10-apps-e-ux.md#1-onde-fica-o-código): caminhos, princípios, tokens, marca, estados honestos, telas A01–A03 e A10, desempenho, acessibilidade, offline, identificador e versões mínimas.
+- [07 §11](../docs/spec/07-alertas-e-tempo-real.md#11-tempo-real-get-apiv1stream-sse) itens 1–5: snapshot, reconexão, `close`, campos e uso só em primeiro plano.
+- [08 §2](../docs/spec/08-identidade-e-seguranca.md#2-autenticação-better-auth): sessão `app` só por Bearer (30 dias, renovação ≤ 1 vez/24 h), token fora de URL e log.
+- [09 §2, §6, §9.1](../docs/spec/09-api-e-contratos.md#2-convenções): `GET /api/v1/me`, `GET /api/v1/operator/brand`, item de veículo.
 - Cartão T-008: contratos `VehicleItem`/`VehicleStateEvent`, `presentationOf` em TS e os vetores que este cartão reproduz em Dart.
 
 ## Escopo — fazer
@@ -38,7 +38,7 @@ Criar o app Flutter único (`apps/mobile`, [ADR-007](../docs/adr/ADR-007-app-uni
 ## Fora do escopo
 
 - A04 Histórico, A07 "Falar com a central", A08 "Navegar até o veículo" e o workflow de distribuição (T-010).
-- Push, canais, A09 e `firebase_messaging` (T-012). A05 Alertas e A06 Modo vigilância também são da T-012 [ADOTADO NA v2.0]; este cartão só deixa a rota `/inicio?veiculo=` e o A03 prontos para ela acrescentar o interruptor.
+- Push, canais, A09 e `firebase_messaging` (T-012). A05 Alertas e A06 Modo vigilância também são da T-012; este cartão só deixa a rota `/inicio?veiculo=` e o A03 prontos para ela acrescentar o interruptor.
 - Comandos, `local_auth` e chave do aparelho (F1). `PUT /api/v1/operator/brand` e tela C13 (F1). Tema claro e flavors (F2).
 - Pedir localização, câmera ou contatos do celular (proibido, 10 §12 item 2).
 
@@ -123,7 +123,7 @@ criar    tests/acceptance/T-009/mobile/pubspec.yaml  tests/acceptance/T-009/mobi
 2. Abertura com sessão: `main()` lê o JSON de marca antes de `runApp` (1º quadro já com a marca) e, em segundo plano, `GET /api/v1/operator/brand` com `If-None-Match` (quando houver `etag`). 304 → nada; 200 → grava e guarda como pendente; a marca pendente vale na **próxima troca de rota** (observer do `go_router`), nunca no meio da tela.
 3. Uso: `brandFill`/`onBrand` em botões primários e cabeçalho, `brandAccent` em ícones, links e aba selecionada; `secondaryColor` só decora. Cores de estado e textos de segurança nunca mudam. Cabeçalho (`brand_header.dart`): logo de 32 dp + `displayName`.
 4. `logo_loader.dart`: `Dio` **separado, sem interceptadores** (o Bearer nunca vai a host de terceiro); só `https://`; aborta acima de 262.144 bytes; `Content-Type` `image/png` ou `image/webp`; decodifica e recusa acima de 512 × 512 px. Falhou → iniciais sobre `brandFill` com `onBrand` (uma palavra → 1ª letra; duas ou mais → 1ª letra das duas primeiras: "Lider Rastreamento" → "LR").
-5. Ordem de entrega dentro da tarefa: nome → cor → logo, para que o corte 1 do plano de corte ([02 §2.4](../docs/spec/02-escopo-e-fases.md)) retire só a cauda.
+5. Ordem de entrega dentro da tarefa: nome → cor → logo, para que o corte 1 do plano de corte ([02 §2.4](../docs/spec/02-escopo-e-fases.md#24-plano-de-corte)) retire só a cauda.
 
 ### (8) Tempo real
 
@@ -196,7 +196,7 @@ Roteiro manual (registrar no PR; ensaio do G0-3 em Android, build debug apontand
 - [ ] Comandos de verificação verdes local e no CI (job `mobile` incluído); testes congelados intactos.
 - [ ] `operator-brand.get` no registro com caso em `scope-fixtures.ts`; `seed:brand` executado para a Alfa (teste) e a Lider.
 - [ ] Nenhum hex de token fora de `tokens.g.dart`/`tokens.json`/`tokens.ts`; nenhum segredo no binário.
-- [ ] PR `feat(mobile): login, lista, mapa ao vivo e marca da operadora (T-009)` com REQ, INV, CT, risco N2, medidas de desempenho e as pendências das decisões 1 e 12.
+- [ ] PR `feat(mobile): login, lista, mapa ao vivo e marca da operadora (T-009)` com REQ, INV, CT, `Risco declarado: N0` (pelo caminho: `ci.yml`; demais N2), medidas de desempenho e as pendências das decisões 1 e 12.
 
 ## Decisões já tomadas (não pergunte, siga)
 
@@ -213,6 +213,6 @@ Roteiro manual (registrar no PR; ensaio do G0-3 em Android, build debug apontand
 | 9 | Fuso de exibição? | UTC−03:00 fixo, igual à T-008 (sem pacote de fuso). |
 | 10 | Rota que a T-012 usa ao tocar o push? | O toque abre `/alertas/:id` (A05, T-012); o "Ver no mapa" do detalhe usa `/inicio?veiculo=<vehicleId>`, que este cartão entrega: centraliza o veículo e abre o card. |
 | 11 | Conta de equipe (`operator_*`) no app? | Pode entrar; `operator_admin` com 2FA recebe a mensagem de usar o console (o app não implementa TOTP). |
-| 12 | A05 Alertas e A06 Vigilância (F0 em 10 §6)? | Não são deste cartão: entram na T-012 [ADOTADO NA v2.0], e a A06 sai junto com o corte 3 de [02 §2.4](../docs/spec/02-escopo-e-fases.md). O cliente SSE deste cartão já decodifica o evento `alert` (`alert_event.dart`) para a T-012 consumir. |
+| 12 | A05 Alertas e A06 Vigilância (F0 em 10 §6)? | Não são deste cartão: entram na T-012, e a A06 sai junto com o corte 3 de [02 §2.4](../docs/spec/02-escopo-e-fases.md#24-plano-de-corte). O cliente SSE deste cartão já decodifica o evento `alert` (`alert_event.dart`) para a T-012 consumir. |
 | 13 | Estilo de mapa escuro? | Usa `liberty` (stack canônica, DEC-11); o tema escuro vale para a interface do app. |
 | 14 | Pedir permissão de notificação aqui? | Não; é da T-012 (A09). Este cartão não pede nenhuma permissão. |

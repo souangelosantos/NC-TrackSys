@@ -442,7 +442,7 @@ Regras que este SQL materializa e que **toda migration futura** deve seguir:
 - Tabela de cliente: `operator_id` e `tenant_id` NOT NULL, FK composta `(operator_id, tenant_id) → app.tenant (operator_id, id)`, política padrão `operator_id = app.current_operator_id() AND (app.current_scope() = 'operator' OR tenant_id = ANY (app.current_tenant_ids()))` em `USING` e `WITH CHECK`.
 - Tabela da operadora: política `FOR ALL` restrita ao escopo `operator` + política `FOR SELECT` para o escopo `tenant` quando o cliente precisar ler (ex.: marca).
 - Sem `GRANT DELETE` para `tracksys_app`: desativação é por `status`/`archived_at`.
-- Toda migration começa com `SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '60s';` (o dbmate roda cada arquivo numa transação) e cada `CREATE TABLE` do schema `app` leva o comentário `-- rls: <tipo>` ([04](../docs/spec/04-dominio-e-dados.md) §4.2).
+- Toda migration começa com `SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '60s';` (o dbmate roda cada arquivo numa transação) e cada `CREATE TABLE` do schema `app` leva o comentário `-- rls: <tipo>` ([04 §4.2](../docs/spec/04-dominio-e-dados.md#42-tipos-de-tabela-e-políticas)).
 - FK composta liga as colunas **na mesma posição**: `(operator_id, tenant_id) → (operator_id, id)` de `app.tenant`; `(operator_id, tenant_id, vehicle_id) → (operator_id, tenant_id, id)` de `app.vehicle`.
 
 ### (4) Pacote `@tracksys/db`
@@ -1037,7 +1037,7 @@ Resultado esperado de `pnpm verify`: Biome sem erros; `tsc` sem erros; `Applied:
 | Validar as chaves da allowlist como identificador SQL? | Não é preciso: as consultas usam parâmetros (`$1`) e nunca interpolam o nome. |
 | `withContext` com LISTEN, advisory lock de sessão ou prepared statement nomeado? | Fora do contrato. `RESET ALL` não desfaz essas coisas: use conexão dedicada fora do pool (T-004 e T-008). |
 | Erro tipado para transação abortada? | Não nesta tarefa. O teste só exige `Error` com a palavra `abortada`; a T-004 pode envolvê-lo num erro de domínio. |
-| Nomes das variáveis de banco? | `DATABASE_URL` (dono: dbmate, `db:check`), `DATABASE_URL_APP` (aplicação e testes), `DATABASE_URL_ADMIN` (superusuário local, só testes e semeadura; nunca em `apps/`). São os nomes canônicos de [03](../docs/spec/03-arquitetura.md) §13; a T-005 acrescenta `DATABASE_URL_INGEST`. |
+| Nomes das variáveis de banco? | `DATABASE_URL` (dono: dbmate, `db:check`), `DATABASE_URL_APP` (aplicação e testes), `DATABASE_URL_ADMIN` (superusuário local, só testes e semeadura; nunca em `apps/`). São os nomes canônicos de [03 §13](../docs/spec/03-arquitetura.md#13-configuração); a T-005 acrescenta `DATABASE_URL_INGEST`. |
 | Zod em `packages/db`? | Sim: valida ambiente, contexto e allowlist (regra "Zod em toda fronteira" do `AGENTS.md`). |
 | Por que `RESET ALL` e não `DISCARD ALL`? | `DISCARD ALL` apaga os prepared statements que o driver guarda por conexão e quebraria o próximo uso. `RESET ALL` limpa os parâmetros de sessão (inclusive `app.*`), que é o que importa para o isolamento. |
 | Por que `withoutOperatorId` em vez de deixar passar tabela sem `operator_id`? | Tabela sem coluna de escopo é exceção que precisa de justificativa revisada (N0). As tarefas que criam tabelas de plataforma ou de usuário (ex.: `capability_profile`, `ingest_inbox`, `push_token`) acrescentam a entrada no mesmo PR. |

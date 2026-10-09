@@ -9,6 +9,25 @@
 > - Infra concreta: 2 VMs Oracle Always Free, orçamento de RAM fechado, só 80/443 e a porta do protocolo expostas.
 > - "Evolução condicionada a evidências" vira gatilhos numéricos (seção 14).
 
+**Nesta página**
+
+- [1. Princípios](#1-princípios)
+- [2. Diagrama de componentes](#2-diagrama-de-componentes)
+- [3. Componentes: responsabilidade e limites](#3-componentes-responsabilidade-e-limites)
+- [4. Módulos do monólito e donos de tabelas](#4-módulos-do-monólito-e-donos-de-tabelas)
+- [5. Ingestão síncrona com fallback](#5-ingestão-síncrona-com-fallback)
+- [6. Eventos de domínio e barramento](#6-eventos-de-domínio-e-barramento)
+- [7. Tempo real (SSE + LISTEN/NOTIFY)](#7-tempo-real-sse--listennotify)
+- [8. Sequência de comando](#8-sequência-de-comando)
+- [9. Modos degradados](#9-modos-degradados)
+- [10. Fronteiras de confiança e portas](#10-fronteiras-de-confiança-e-portas)
+- [11. Orçamento de recursos (VM de 12 GB, 2 OCPU Ampere)](#11-orçamento-de-recursos-vm-de-12-gb-2-ocpu-ampere)
+- [12. Monorepo e regras de dependência](#12-monorepo-e-regras-de-dependência)
+- [13. Configuração](#13-configuração)
+- [14. Gatilhos objetivos de evolução](#14-gatilhos-objetivos-de-evolução)
+- [15. Por que esta arquitetura serve ao fundador solo](#15-por-que-esta-arquitetura-serve-ao-fundador-solo)
+- [16. Requisitos](#16-requisitos)
+
 ## 1. Princípios
 
 1. **Uma fonte de verdade.** Todo estado durável (inbox, posições, estado atual, outbox, jobs, sessões) vive no cluster Postgres e entra no mesmo backup e na mesma réplica.
@@ -92,7 +111,7 @@ Tracejado: chamada iniciada no aparelho do usuário, resolução de DNS ou cópi
 | `caddy` | TLS automático e HTTP/2 para `api.` e `app.`; proxy `api.` → `api:3000`; serve o build de `apps/console`; redireciona 80 → 443 | Rotear `/internal/*`; tocar no TCP dos rastreadores; ter regra de negócio |
 | `traccar` | Sessões TCP; decodificação gt06; gravação no próprio banco `traccar`; forward de posições e eventos para `api:3001`; envio de comandos pedidos via REST | Conhecer operadora ou cliente; cadastrar IMEI desconhecido; expor 8082; ser lido ou escrito por SQL da TrackSys ([ADR-003](../adr/ADR-003-traccar-borda-de-protocolos.md)) |
 | `api` | `/api/v1` (console, app, webhooks), autenticação Better Auth, autorização, SSE, `/internal/v1` com projeção síncrona, criação de comandos até READY/ARMED | Chamar serviço externo durante a requisição; consumir fila pg-boss; enviar push; chamar o Traccar |
-| `worker` | Relay outbox → pg-boss; motor de alertas e entrega FCM; despachante de comandos; reprocessamento de inbox `pending`; sync Asaas; SMS emnify; e-mail; varredura de sem comunicação; provisionamento de dispositivo no Traccar; retenção (partições, Parquet) | Servir HTTP além do health; aceitar escrita de usuário; repetir bloqueio após UNKNOWN (INV-08) |
+| `worker` | Publicador da outbox (`outbox-publisher`) → pg-boss; motor de alertas e entrega FCM; despachante de comandos; reprocessamento de inbox `pending`; sync Asaas; SMS emnify; e-mail; varredura de sem comunicação; provisionamento de dispositivo no Traccar; retenção (partições, Parquet) | Servir HTTP além do health; aceitar escrita de usuário; repetir bloqueio após UNKNOWN (INV-08) |
 | `db` | Cluster único: banco `tracksys` (schemas `app`, `auth`, `pgboss`) e banco `traccar` (papel próprio, sem acesso ao `tracksys`); RLS | Porta pública; ser acessado pela aplicação como superusuário ou dono |
 | VM standby | Réplica, Uptime Kuma, página `status.`, agente SRE; alvo de failover com imagens já baixadas | Aceitar escrita antes da promoção; rodar `traccar`, `api` ou `worker` antes do failover |
 | Agente SRE | Diagnóstico (F1) e cardápio fechado de ações (F2) | Tudo que [ADR-010](../adr/ADR-010-operacao-assistida-por-ia.md) proíbe (INV-11) |
@@ -102,7 +121,7 @@ Tracejado: chamada iniciada no aparelho do usuário, resolução de DNS ou cópi
 | Módulo | Processo | Tabelas que escreve | Dono do fluxo |
 |---|---|---|---|
 | `identity` | api | `auth.*`, `membership`, `platform_support_grant`, `push_token`, `device_key` | [08](08-identidade-e-seguranca.md) |
-| `fleet` | api; worker (provisiona no Traccar: no F0, subcomando `pilot provision` da T-014; job automático no F1, com o importador da T-024; ver [02](02-escopo-e-fases.md) §2.3) | `operator`, `operator_brand`, `tenant`, `vehicle`, `device`, `sim_card`, `device_assignment`, `capability_profile`; `device_state` só ao criar o rastreador e no reset ao abrir ou encerrar vínculo (REQ-DAD-011) | [04](04-dominio-e-dados.md) |
+| `fleet` | api; worker (provisiona no Traccar: no F0, subcomando `pilot provision` da T-014; job automático no F1, com o importador da T-024; ver [02 §2.3](02-escopo-e-fases.md#23-cartões-de-tarefa-do-f0)) | `operator`, `operator_brand`, `tenant`, `vehicle`, `device`, `sim_card`, `device_assignment`, `capability_profile`; `device_state` só ao criar o rastreador e no reset ao abrir ou encerrar vínculo (REQ-DAD-011) | [04](04-dominio-e-dados.md) |
 | `ingestion` | api (síncrono); worker (`pending`) | `ingest_inbox`, `position`, `device_state` | [05](05-ingestao-e-telemetria.md) |
 | `alerts` | worker (avaliação, entrega); api (reconhecimento, vigilância) | `alert`, `alert_delivery`, `watch_mode` | [07](07-alertas-e-tempo-real.md) |
 | `commands` | api (pedido); worker (despacho) | `command`, `command_attempt`, `command_event`, `command_policy`, `occurrence` | [06](06-comandos-e-bloqueio.md) |
@@ -147,7 +166,7 @@ sequenceDiagram
     A-->>T: 202
   end
   P-->>W: NOTIFY outbox_new após o commit
-  W->>P: relay lê a outbox e cria jobs pg-boss
+  W->>P: publicador da outbox lê a outbox e cria jobs pg-boss
   Note over W,P: pending reprocessado com backoff, 5 falhas viram quarantined com alerta
   Note over T,A: banco fora gera 503 e o Traccar reenvia conforme sua política de retry
 ```
@@ -166,8 +185,8 @@ sequenceDiagram
 
 Regras do barramento ([ADR-002](../adr/ADR-002-postgres-unico-fila-barramento.md)):
 1. O evento é gravado em `app.outbox` na mesma transação da mudança. O payload segue o schema de `packages/contracts` (camelCase, versão no nome do tipo).
-2. A transação chama `pg_notify('outbox_new', <id>)`. O relay do worker escuta `outbox_new` e também varre a outbox a cada 5 s (NOTIFY sem ouvinte se perde).
-3. O relay lê lotes de até 500 linhas por `id` com `FOR UPDATE SKIP LOCKED`, cria um job por par (evento, consumidor) numa fila própria do consumidor e marca `published_at`.
+2. A transação chama `pg_notify('outbox_new', <id>)`. O publicador da outbox do worker escuta `outbox_new` e também varre a outbox a cada 5 s (NOTIFY sem ouvinte se perde).
+3. O publicador lê lotes de até 500 linhas por `id` com `FOR UPDATE SKIP LOCKED`, cria um job por par (evento, consumidor) numa fila própria do consumidor e marca `published_at`.
 4. Entrega é pelo menos uma vez. Cada consumidor é idempotente pela chave do efeito (`episode_key`, `delivery_key`, `command_attempt`).
 5. Job carrega só ids e escopo (`eventId`, `type`, `operatorId`, `tenantId`, `entityId`); o consumidor relê o estado sob RLS.
 6. Replay e reprocessamento de quarentena rodam em modo sem efeito externo (INV-05).
@@ -327,7 +346,7 @@ Verificação: pnpm isola `node_modules`, então importar pacote não declarado 
 
 ## 13. Configuração
 
-Toda configuração vem de variáveis de ambiente validadas por Zod no boot (REQ-ARQ-006). Variáveis de banco com nomes canônicos [ADOTADO NA v2.0]: `DATABASE_URL` (dono), `DATABASE_URL_APP`, `DATABASE_URL_INGEST` e `DATABASE_URL_ADMIN` (só testes); `APP_DATABASE_URL`, `ADMIN_DATABASE_URL` e `INGEST_DATABASE_URL` não existem. Nomes em `SCREAMING_SNAKE_CASE`, prefixo por integração (`TRACCAR_`, `ASAAS_`, `EMNIFY_`, `FCM_`, `S3_`); [12](12-cobranca-e-svas.md) e [13](13-infra-e-operacao.md) acrescentam as suas na mesma regra.
+Toda configuração vem de variáveis de ambiente validadas por Zod no boot (REQ-ARQ-006). Variáveis de banco com nomes canônicos : `DATABASE_URL` (dono), `DATABASE_URL_APP`, `DATABASE_URL_INGEST` e `DATABASE_URL_ADMIN` (só testes); `APP_DATABASE_URL`, `ADMIN_DATABASE_URL` e `INGEST_DATABASE_URL` não existem. Nomes em `SCREAMING_SNAKE_CASE`, prefixo por integração (`TRACCAR_`, `ASAAS_`, `EMNIFY_`, `FCM_`, `S3_`); [12](12-cobranca-e-svas.md) e [13](13-infra-e-operacao.md) acrescentam as suas na mesma regra.
 
 | Variável | Processo | Regra |
 |---|---|---|
@@ -348,10 +367,10 @@ Toda configuração vem de variáveis de ambiente validadas por Zod no boot (REQ
 | `RESEND_API_KEY` / `EMAIL_FILE_DIR` | worker | Obrigatória com `resend` / diretório do driver `file`, padrão `.tmp/emails` |
 | `SENTRY_DSN` | api, worker | URL, opcional |
 | `VITE_SENTRY_DSN` | console (build) | URL, opcional; sem DSN, o SDK do Sentry fica desligado (T-007) |
-| `SENTRY_CSP_HOST` | Caddy (`app.`) | Origem de ingestão do Sentry do console acrescentada ao `connect-src` da CSP de `app.`; vazia → CSP inalterada (T-013, [13 §6](13-infra-e-operacao.md)) |
-| `OUTBOX_RELAY` | worker | `on` (padrão) ou `off`; `off` só é aceito com `NODE_ENV=test` (harness de teste do relay, T-005) |
+| `SENTRY_CSP_HOST` | Caddy (`app.`) | Origem de ingestão do Sentry do console acrescentada ao `connect-src` da CSP de `app.`; vazia → CSP inalterada (T-013, [13 §6](13-infra-e-operacao.md#6-configuração-e-segredos)) |
+| `OUTBOX_PUBLISHER` | worker | `on` (padrão) ou `off`; `off` só é aceito com `NODE_ENV=test` (harness de teste do publicador da outbox, `runPublisherOnce`, T-005) |
 
-[ADOTADO NA v2.0] Provedor de e-mail do F0: Resend [PREMISSA], atrás da porta `EmailSender` do `worker` (T-006). Trocar por Brevo é um adaptador novo, sem mudança de contrato.
+Provedor de e-mail do F0: Resend [PREMISSA], atrás da porta `EmailSender` do `worker` (T-006). Trocar por Brevo é um adaptador novo, sem mudança de contrato.
 
 ## 14. Gatilhos objetivos de evolução
 
@@ -400,7 +419,7 @@ Menos peças significa menos runbooks para o fundador e para o plantonista, um �
 
 ### REQ-ARQ-005 — Health e readiness por processo
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** —
-**Regra.** `api` e `worker` DEVEM expor `GET /health/live` (200 sem checar dependências, ≤ 50 ms) e `GET /health/ready` (200 só se o banco responde `SELECT 1` em ≤ 1 s; no `worker`, também pg-boss iniciado e LISTEN do relay ativo; senão 503 com a lista de checagens falhas). Em `https://api.<domínio>/health/ready` o corpo DEVE ser só `{"status":"ok"}` ou `{"status":"unavailable"}`. Healthcheck do Docker em `http://127.0.0.1:3001/health/ready` (`api`) e `:3002` (`worker`), a cada 10 s, 3 falhas; contêiner `unhealthy` DEVE ser reiniciado em ≤ 90 s (mecanismo em [13](13-infra-e-operacao.md)).
+**Regra.** `api` e `worker` DEVEM expor `GET /health/live` (200 sem checar dependências, ≤ 50 ms) e `GET /health/ready` (200 só se o banco responde `SELECT 1` em ≤ 1 s; no `worker`, também pg-boss iniciado e LISTEN do publicador da outbox ativo; senão 503 com a lista de checagens falhas). Em `https://api.<domínio>/health/ready` o corpo DEVE ser só `{"status":"ok"}` ou `{"status":"unavailable"}`. Healthcheck do Docker em `http://127.0.0.1:3001/health/ready` (`api`) e `:3002` (`worker`), a cada 10 s, 3 falhas; contêiner `unhealthy` DEVE ser reiniciado em ≤ 90 s (mecanismo em [13](13-infra-e-operacao.md)).
 **Aceite.** CT-ARQ-005 — Dado a stack no ar, Quando o contêiner `db` é parado, Então em ≤ 5 s `/health/ready` na porta interna do `api` (`INTERNAL_PORT`, 3001) e na do `worker` (`WORKER_HEALTH_PORT`, 3002) responde 503 com `checks.db = "fail"`, na porta pública do `api` (3000) responde 503 só com `{"status":"unavailable"}`, e `/health/live` responde 200; Quando o `db` volta, Então `/health/ready` volta a 200 em ≤ 15 s.
 
 ### REQ-ARQ-006 — Configuração por ambiente validada no boot
@@ -418,10 +437,10 @@ Menos peças significa menos runbooks para o fundador e para o plantonista, um �
 **Regra.** Handlers do `api` DEVEM fazer I/O só com o Postgres. Chamadas a Traccar, Asaas, emnify, FCM, e-mail e API Claude DEVEM virar jobs executados pelo `worker`. Exceção: envio assíncrono de telemetria de observabilidade (Sentry, logs).
 **Aceite.** CT-ARQ-008 — Dado o fake de e-mail do `packages/testkit` com latência de 10 s, Quando um usuário pede recuperação de senha, Então a resposta chega em ≤ 500 ms e existe um job de e-mail no estado `created`; e `apps/api/package.json` não declara `firebase-admin`.
 
-### REQ-ARQ-009 — Outbox transacional e relay com varredura
+### REQ-ARQ-009 — Outbox transacional e publicador com varredura
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** INV-01, INV-05
-**Regra.** Todo evento da seção 6 DEVE ser gravado em `app.outbox` na mesma transação da mudança de estado, com `pg_notify('outbox_new', <id>)`. O relay DEVE seguir as regras 2 a 4 da seção 6 e os consumidores DEVEM ser idempotentes.
-**Aceite.** CT-ARQ-009 — Dado uma projeção com falha injetada após o INSERT na outbox, Quando o savepoint é desfeito, Então a outbox não tem a linha e nenhum job é criado; Dado o relay sem conexão LISTEN, Quando 10 eventos são gravados, Então os 10 viram jobs em ≤ 10 s; Dado o mesmo `alert.opened.v1` entregue 2 vezes ao consumidor de push, Então existe 1 `alert_delivery`.
+**Regra.** Todo evento da seção 6 DEVE ser gravado em `app.outbox` na mesma transação da mudança de estado, com `pg_notify('outbox_new', <id>)`. O publicador da outbox DEVE seguir as regras 2 a 4 da seção 6 e os consumidores DEVEM ser idempotentes.
+**Aceite.** CT-ARQ-009 — Dado uma projeção com falha injetada após o INSERT na outbox, Quando o savepoint é desfeito, Então a outbox não tem a linha e nenhum job é criado; Dado o publicador da outbox sem conexão LISTEN, Quando 10 eventos são gravados, Então os 10 viram jobs em ≤ 10 s; Dado o mesmo `alert.opened.v1` entregue 2 vezes ao consumidor de push, Então existe 1 `alert_delivery`.
 
 ### REQ-ARQ-010 — Job com ids e releitura sob RLS
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-07
@@ -455,5 +474,5 @@ Menos peças significa menos runbooks para o fundador e para o plantonista, um �
 
 ### REQ-ARQ-016 — Promoção ou restore sem reenvio físico
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-05, INV-08
-**Regra.** Depois de failover ou restore, o `worker` DEVE subir com despacho de comandos desligado [ADOTADO NA v2.0: variável `COMMAND_DISPATCH_ENABLED=false` ligada pelo script de failover só após a reconciliação]. A reconciliação DEVE levar todo comando em DISPATCHING ou AWAITING_CONFIRMATION para UNKNOWN com motivo `failover` e descartar jobs de despacho anteriores à promoção. Nenhum bloqueio é reenviado automaticamente; desbloqueios seguem a política de [06](06-comandos-e-bloqueio.md) após a reconciliação.
+**Regra.** Depois de failover ou restore, o `worker` DEVE subir com despacho de comandos desligado variável `COMMAND_DISPATCH_ENABLED=false` ligada pelo script de failover só após a reconciliação. A reconciliação DEVE levar todo comando em DISPATCHING ou AWAITING_CONFIRMATION para UNKNOWN com motivo `failover` e descartar jobs de despacho anteriores à promoção. Nenhum bloqueio é reenviado automaticamente; desbloqueios seguem a política de [06](06-comandos-e-bloqueio.md) após a reconciliação.
 **Aceite.** CT-ARQ-016 — Dado um bloqueio em AWAITING_CONFIRMATION na primária, Quando a standby é promovida, Então em ≤ 60 s após o `worker` subir o comando está UNKNOWN com motivo `failover`, `command_event` registra a transição com ator `system` e o fake de Traccar não recebe `POST /api/commands/send` para ele.

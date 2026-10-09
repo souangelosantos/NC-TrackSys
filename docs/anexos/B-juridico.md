@@ -16,7 +16,7 @@
 | S2 | até 20/10/2026 | Política de privacidade da plataforma v0 (§9.1) | Publicada em `https://app.<domínio>/privacidade`; as lojas exigem URL de política e formulário de dados antes de distribuir a testadores externos [VALIDAR] | URL cadastrada no TestFlight e no Google Play |
 | G0 | 31/10/2026 | Termo de participação (§5.1) e acordo de piloto Versix–Lider (§5.2) | Uso antes da revisão. 1 termo por titular, assinado antes do SMS de migração (G0-9) | Termos digitalizados em pasta privada da Lider; lista no `docs/runbooks/gates/G0.md` sem dados pessoais |
 | G-CMD | 2ª quinzena de novembro | Termo de ciência `block-terms-v1` (§10) | Uso antes da revisão. Publicado em `packages/contracts/src/consent/texts/block-terms-v1.md`; aceito pelo titular do veículo do teste supervisionado (GC-4) | Linha em `consent` + SHA-256 no `consent/manifest.json` |
-| F1 (guincho) | quando o botão entrar | `sva-referral-v1` ([12 §16](../spec/12-cobranca-e-svas.md)) | Uso antes da revisão | Idem |
+| F1 (guincho) | quando o botão entrar | `sva-referral-v1` ([12 §16](../spec/12-cobranca-e-svas.md#16-consentimento-e-transparência)) | Uso antes da revisão | Idem |
 | G1 | 31/12/2026 | Contrato SaaS (§6), DPA (§7), termos de uso (§8), políticas revisadas (§9), DEC-15 | Revisados e assinados pela Lider; política da Lider publicada no app (G1-4) | Contrato assinado; URLs publicadas |
 | F2 | antes da 2ª operadora | Pacote revisado | Plano B da DEC-08: nenhuma operadora além da Lider sem revisão | — |
 | F2 | antes do agente de suporte IA | DPA com Anthropic como suboperador e mecanismo de transferência (§7.2) | Lista de suboperadores atualizada e avisada com 30 dias | Aviso enviado às operadoras |
@@ -27,18 +27,18 @@
 |---|---|---|---|
 | Serviço de rastreamento ao cliente final: posição, histórico, alertas, comandos, ocorrência, compartilhamento, atendimento, cobrança | Operadora de rastreamento | Versix (TrackSys) e suboperadores da §7.2 | Versix trata só por instrução documentada: contrato, DPA e configuração feita pela operadora no console (LGPD art. 39 [VALIDAR]) |
 | Indicação de SVA (registro, apuração, repasse) | Versix, para a finalidade própria de receber do parceiro; operadora, para a parte dela | — | Base: consentimento por parceiro (§11). Controladoria conjunta ou independente: pergunta Q-02 |
-| Atendimento pelo parceiro após indicação consentida | Parceiro, controlador independente | — | Recebe só o que o titular enviou ou consentiu ([12 §15](../spec/12-cobranca-e-svas.md)) |
+| Atendimento pelo parceiro após indicação consentida | Parceiro, controlador independente | — | Recebe só o que o titular enviou ou consentiu ([12 §15](../spec/12-cobranca-e-svas.md#15-motor-de-indicações)) |
 | Registros de acesso (Marco Civil) | Versix, como provedora da aplicação TrackSys publicada nas lojas [VALIDAR — Q-04] | — | `access_log`, 6 meses |
-| Segurança da plataforma e antifraude (IMEI forjado, limites de taxa, salto impossível) | Versix (legítimo interesse) [VALIDAR] | — | [08 §10](../spec/08-identidade-e-seguranca.md) |
-| Cobrança no Asaas | Operadora; o Asaas é contratado por ela | Versix acessa a conta por conta e ordem da operadora | Chave cifrada ([08 §8](../spec/08-identidade-e-seguranca.md)) |
+| Segurança da plataforma e antifraude (IMEI forjado, limites de taxa, salto impossível) | Versix (legítimo interesse) [VALIDAR] | — | [08 §10](../spec/08-identidade-e-seguranca.md#10-ameaças) |
+| Cobrança no Asaas | Operadora; o Asaas é contratado por ela | Versix acessa a conta por conta e ordem da operadora | Chave cifrada ([08 §8](../spec/08-identidade-e-seguranca.md#8-segredos)) |
 | Tarifa da Versix (`platform_fee`, split) | Versix | Asaas (conta da Versix) | Operadora MEI é pessoa natural: dados dela são pessoais [VALIDAR] |
-| Operação da plataforma (métricas, sondas, agente SRE) | Versix | — | Sem dado pessoal (INV-11; [13 §11](../spec/13-infra-e-operacao.md)) |
+| Operação da plataforma (métricas, sondas, agente SRE) | Versix | — | Sem dado pessoal (INV-11; [13 §11](../spec/13-infra-e-operacao.md#11-observabilidade)) |
 
 **Titulares:** cliente final (`tenant_owner`); familiares e condutores (`tenant_member` e condutores sem conta); equipe da operadora (`operator_admin`, `operator_agent`, `installer`, `search_team`); visitante de link compartilhado (IP e horário); contato do parceiro. O contratante declara nos termos de uso (§8) que informou os condutores habituais de que o veículo é rastreado.
 
 ## 3. Finalidades, bases legais e retenção
 
-Serve de registro das operações de tratamento (LGPD art. 37 [VALIDAR]). Base legal pelo art. 7º da LGPD [VALIDAR]. Prazos canônicos de [04 §8.1](../spec/04-dominio-e-dados.md).
+Serve de registro das operações de tratamento (LGPD art. 37 [VALIDAR]). Base legal pelo art. 7º da LGPD [VALIDAR]. Prazos canônicos de [04 §8.1](../spec/04-dominio-e-dados.md#81-prazos).
 
 | # | Finalidade | Dados | Base legal | Retenção |
 |---|---|---|---|---|
@@ -48,27 +48,27 @@ Serve de registro das operações de tratamento (LGPD art. 37 [VALIDAR]). Base l
 | T4 | Auditoria de comandos e ações administrativas | `audit_log`, `command_event` | Exercício regular de direitos (VI) [VALIDAR — Q-05] | 5 anos (prescrição do CDC art. 27 [VALIDAR]) |
 | T5 | Ocorrência, equipe de busca e link para a polícia | Posição ao vivo, linha do tempo, número do BO | Execução de contrato (V) a pedido do titular; risco iminente à vida: proteção da vida (VII) [VALIDAR] | Como T1 e T3 |
 | T6 | Compartilhamento temporário (família) | Posição atual, modelo, cor, placa opcional | Execução de contrato (V), por ação do titular | Link ≤ 24 h |
-| T7 | Segurança e antifraude | Envelope bruto do Traccar, identidade de dedupe, IP, limites | Legítimo interesse (IX), com teste de balanceamento registrado (art. 10 [VALIDAR]) | Bruto 7 dias; identidade 90 dias (expurgo automático a partir do F1, T-027; no F0, risco aceito R-21 de [15](../spec/15-decisoes-riscos-premissas.md) §3) |
+| T7 | Segurança e antifraude | Envelope bruto do Traccar, identidade de dedupe, IP, limites | Legítimo interesse (IX), com teste de balanceamento registrado (art. 10 [VALIDAR]) | Bruto 7 dias; identidade 90 dias (expurgo automático a partir do F1, T-027; no F0, risco aceito R-21 de [15 §3](../spec/15-decisoes-riscos-premissas.md#3-riscos)) |
 | T8 | Registros de acesso | IP, porta de origem, data e hora UTC, user agent | Obrigação legal (II): Marco Civil art. 15 [VALIDAR] | 6 meses |
 | T9 | Cobrança e PIX | Nome, CPF, faturas, código PIX | Execução de contrato (V); obrigação legal fiscal (II) [VALIDAR] | 5 anos |
 | T10 | Atendimento | Ticket, notas, veículo, alerta | Execução de contrato (V) | Até a anonimização do cliente |
 | T11 | Indicação de SVA | Veículo, serviço, localização enviada, valores | Consentimento (I) por parceiro e finalidade | 5 anos como registro financeiro; localização zerada em 90 dias |
 | T12 | Termo de ciência do bloqueio | Versão aceita, data, usuário | Não é consentimento como base legal: é aceite informado ligado ao contrato (V) e prova do dever de informar (CDC art. 6º, III [VALIDAR]) | 5 anos |
 | T13 | Agente de IA de suporte (F2) | Dados no escopo de quem pergunta | Execução de contrato (V) com a operadora | [DECISÃO DO FUNDADOR PENDENTE: conversas por 90 dias] |
-| T14 | Cliente encerrado | Cadastro e veículos | — | Anonimização após 12 meses, salvo legal hold ou obrigação legal (DEC-15; [04 §9.2](../spec/04-dominio-e-dados.md)) |
+| T14 | Cliente encerrado | Cadastro e veículos | — | Anonimização após 12 meses, salvo legal hold ou obrigação legal (DEC-15; [04 §9.2](../spec/04-dominio-e-dados.md#92-encerramento-tombstone-e-anonimização-dec-15)) |
 
-**Fora de escopo:** marketing a clientes finais, venda ou cessão de dados, perfilamento para seguradora. O score de risco (M10, F3) exige nova avaliação, RIPD e base legal própria. Localização não é dado sensível na LGPD (art. 5º, II [VALIDAR]), mas revela rotina: vale a minimização de [08 §11](../spec/08-identidade-e-seguranca.md).
+**Fora de escopo:** marketing a clientes finais, venda ou cessão de dados, perfilamento para seguradora. O score de risco (M10, F3) exige nova avaliação, RIPD e base legal própria. Localização não é dado sensível na LGPD (art. 5º, II [VALIDAR]), mas revela rotina: vale a minimização de [08 §11](../spec/08-identidade-e-seguranca.md#11-lgpd-técnica-marco-civil-auditoria-e-autoridades).
 
 ## 4. Encarregado, canal e direitos do titular
 
 1. **Encarregado da Versix:** o fundador ({nome do fundador}), `privacidade@<domínio>` [PREMISSA até DEC-04], publicado na política da plataforma. É nomeado mesmo se a Versix for dispensada como agente de pequeno porte (Res. CD/ANPD 2/2022 [VALIDAR]), porque rastreamento contínuo pode ser tratamento de alto risco (Q-01). Atuação do encarregado: Res. CD/ANPD 18/2024 [VALIDAR].
 2. **Encarregado da operadora:** cada operadora indica o seu ou o canal equivalente; aparece na política da marca (§9.2). Lider: o titular da MEI [PREMISSA].
-3. **Canal no app:** Conta (A10) › Privacidade ([08 §11](../spec/08-identidade-e-seguranca.md)): baixar meus dados (ZIP pronto em ≤ 24 h), revogar consentimentos, pedir correção ou eliminação (atendimento `lgpd` com vencimento em 15 dias) e excluir conta.
+3. **Canal no app:** Conta (A10) › Privacidade ([08 §11](../spec/08-identidade-e-seguranca.md#11-lgpd-técnica-marco-civil-auditoria-e-autoridades)): baixar meus dados (ZIP pronto em ≤ 24 h), revogar consentimentos, pedir correção ou eliminação (atendimento `lgpd` com vencimento em 15 dias) e excluir conta.
 4. **Identidade:** pedido feito dentro da sessão do app vale como identificado. Pedido por e-mail ou WhatsApp é confirmado pelo canal cadastrado; dados nunca vão para endereço diferente do cadastrado.
 
 | Direito (LGPD art. 18 [VALIDAR]) | Como a TrackSys atende | Quem responde | Prazo |
 |---|---|---|---|
-| Confirmação e acesso | ZIP self-service (cadastro, memberships, consentimentos, alertas, posições de 90 dias); período anterior: relatório frio ([04 §8.3](../spec/04-dominio-e-dados.md)) | Operadora; Versix gera | 15 dias (art. 19, II [VALIDAR]); self-service ≤ 24 h |
+| Confirmação e acesso | ZIP self-service (cadastro, memberships, consentimentos, alertas, posições de 90 dias); período anterior: relatório frio ([04 §8.3](../spec/04-dominio-e-dados.md#83-consulta-fria)) | Operadora; Versix gera | 15 dias (art. 19, II [VALIDAR]); self-service ≤ 24 h |
 | Correção | Atendimento `lgpd`; a central corrige no console | Operadora | 15 dias |
 | Anonimização, bloqueio ou eliminação de dado excessivo | Atendimento `lgpd`; avaliação pela operadora | Operadora | 15 dias |
 | Portabilidade | Mesmo ZIP, em CSV e JSON | Operadora | 15 dias [VALIDAR: regulamentação pendente na ANPD] |
@@ -78,19 +78,19 @@ Serve de registro das operações de tratamento (LGPD art. 37 [VALIDAR]). Base l
 | Oposição a tratamento por legítimo interesse | Atendimento `lgpd` | Controladora do tratamento | 15 dias |
 | Revisão de decisão automatizada (art. 20 [VALIDAR]) | Não se aplica: comando nasce de pedido humano; a política só recusa ou adia | — | — |
 
-**Excluir conta:** revoga sessões e chave do aparelho na hora e abre atendimento `lgpd` de eliminação; a eliminação segue o encerramento e a anonimização de [04 §9.2](../spec/04-dominio-e-dados.md). As lojas exigem caminho de exclusão de conta dentro do app (Apple 5.1.1(v); política do Google Play) [VALIDAR].
+**Excluir conta:** revoga sessões e chave do aparelho na hora e abre atendimento `lgpd` de eliminação; a eliminação segue o encerramento e a anonimização de [04 §9.2](../spec/04-dominio-e-dados.md#92-encerramento-tombstone-e-anonimização-dec-15). As lojas exigem caminho de exclusão de conta dentro do app (Apple 5.1.1(v); política do Google Play) [VALIDAR].
 
 ## 5. Rascunho 1 — Piloto Zero (uso antes da revisão)
 
 ### 5.1 Termo de participação (titular ↔ operadora; Versix como plataforma)
 
-Minuta simples, 1 página, para assinar até 27/10/2026, antes do SMS de migração.
+Minuta simples, 1 página, para assinar antes do SMS de migração: o 1º termo até 21/10/2026 (veículo de 22/10) e os demais até 27/10/2026.
 1. **Partes.** {operadora: razão social, CPF/CNPJ}; participante {nome, CPF}; veículo {placa, modelo, cor}. Versix Solutions ({CNPJ do fundador}, DEC-14) aparece como fornecedora da plataforma TrackSys.
 2. **Objeto.** Testar a TrackSys com o rastreador já instalado, de {data} até a assinatura dos termos de uso definitivos ou 31/01/2027, o que vier primeiro.
 3. **Gratuidade.** A participação não gera cobrança. A mensalidade com a {operadora} não muda, salvo acordo entre as partes.
 4. **O que muda.** O rastreador é reconfigurado por SMS para o servidor da TrackSys. O participante usa o app TrackSys em teste (TestFlight ou teste fechado do Google Play), com a marca da {operadora}. O veículo deixa de aparecer no tracker-net.
 5. **Bloqueio.** Marcar uma: ( ) o veículo fica **sem bloqueio remoto** pelo app e pela central durante o piloto; ( ) o bloqueio continua pelo tracker-net, só se o J16 aceitar servidor secundário [VALIDAR — DEC-02]. Em furto ou roubo: ligar 190 e avisar a central; a localização continua no app.
-6. **Riscos.** App em teste: pode falhar ou ficar fora do ar. Alertas podem atrasar ou não chegar. Tudo depende de sinal celular, GPS e energia do veículo. Não é serviço de emergência.
+6. **Riscos.** App em teste: pode falhar ou ficar fora do ar. Alertas podem atrasar ou não chegar. No piloto, o pânico avisa só o titular pelo app; a central não é acionada automaticamente. Tudo depende de sinal celular, GPS e energia do veículo. Não é serviço de emergência.
 7. **Saída.** O participante sai quando quiser, pelo WhatsApp da central. A {operadora} devolve o rastreador ao tracker-net por SMS em até 48 h [PREMISSA].
 8. **Dados.** Cadastro (nome, e-mail, telefone), veículo, posições, alertas e registros de acesso, para prestar o rastreamento e avaliar o piloto. A {operadora} é controladora; a Versix é operadora. Servidores no Brasil (Oracle); push por Google e Apple; cópia de backup cifrada fora do Brasil. Retenção de 12 meses. Direitos: central da {operadora} ou `privacidade@<domínio>`. Sem marketing. Números do piloto só entram no case de forma agregada, sem identificar o participante.
 9. **Condutores.** O participante informa os condutores habituais de que o veículo é rastreado. Veículo da frota da {operadora}: o funcionário que dirige assina a ciência dos itens 6 e 8.
@@ -99,7 +99,7 @@ Minuta simples, 1 página, para assinar até 27/10/2026, antes do SMS de migraç
 ### 5.2 Acordo de piloto Versix–Lider (1 página)
 
 1. **Vigência:** da assinatura até a assinatura do contrato SaaS revisado ou 31/01/2027, o que vier primeiro.
-2. **Preço:** F0 gratuito. Desde 01/11/2026, R$ 3,90 por veículo ativo por mês ([REQ-NEG-002](../spec/01-visao-e-negocio.md)); adesão conforme a opção escolhida em [Anexo A §5](A-comercial.md); veículo de cliente inadimplente conforme DEC-06.
+2. **Preço:** F0 gratuito. Desde 01/11/2026, R$ 3,90 por veículo ativo por mês ([REQ-NEG-002](../spec/01-visao-e-negocio.md)); adesão conforme a opção escolhida em [Anexo A §5](A-comercial.md#5-proposta-para-a-lider-parceira-de-design); veículo de cliente inadimplente conforme DEC-06.
 3. **Dados:** Lider controladora, Versix operadora. Valem desde já as cláusulas 1, 3, 4, 5, 7 e 11 do DPA (§7.1).
 4. **Comandos (a partir do G-CMD):** valem os itens 1 a 9 da §6.3. A Lider aprova por escrito a `command_policy` com o teto escolhido (DEC-07).
 5. **Saída:** exportação completa em 30 dias (§6.5, cláusula de portabilidade); a Lider reaponta os rastreadores.
@@ -115,11 +115,11 @@ Minuta simples, 1 página, para assinar até 27/10/2026, antes do SMS de migraç
 | Objeto | Licença de uso, como serviço, da TrackSys: recepção de dados de rastreadores homologados, app com a marca da operadora (opção C), console, alertas, comandos, integração Asaas e SVA. Fora do objeto: rastreador, chip, instalação, central de monitoramento, atendimento ao cliente final, recuperação de veículo | [02](../spec/02-escopo-e-fases.md) |
 | Licença | Não exclusiva, intransferível, enquanto durar o contrato. A operadora licencia à Versix nome e logo para exibição no app | [ADR-007](../adr/ADR-007-app-unico-flutter-marca-dinamica.md) |
 | Preço | R$ 3,90 por veículo ativo por mês; adesão única de R$ 2.500 a R$ 3.000; plano superior proposto de R$ 5,90 (DEC-09). Reajuste anual pelo IPCA [PREMISSA] | [REQ-NEG-002](../spec/01-visao-e-negocio.md) |
-| Pagamento | Split no Asaas de cada cobrança paga pelo cliente final; diferença faturada pela Versix com vencimento no dia 10; sobra vira crédito | [12 §10](../spec/12-cobranca-e-svas.md) |
+| Pagamento | Split no Asaas de cada cobrança paga pelo cliente final; diferença faturada pela Versix com vencimento no dia 10; sobra vira crédito | [12 §10](../spec/12-cobranca-e-svas.md#10-split-e-fechamento-mensal) |
 | SLA | 99,5% ao mês = até 3 h 36 min de minutos ruins em 30 dias. Minuto ruim: sonda externa falhou (TCP em `gps.<domínio>` ou HTTPS da API) ou p95 de alerta (Traccar recebe → push enviado ao FCM) > 120 s. Manutenção anunciada com 48 h fica fora. Medição na status page | [13](../spec/13-infra-e-operacao.md) |
-| Créditos | 10% da mensalidade se < 99,5%; 25% se < 99,0%; abatidos na tarifa do mês seguinte; crédito é o remédio exclusivo da indisponibilidade [VALIDAR] | [12 §10.2](../spec/12-cobranca-e-svas.md) |
+| Créditos | 10% da mensalidade se < 99,5%; 25% se < 99,0%; abatidos na tarifa do mês seguinte; crédito é o remédio exclusivo da indisponibilidade [VALIDAR] | [12 §10.2](../spec/12-cobranca-e-svas.md#102-fechamento-mensal-platform_fee) |
 | Exclusões do SLA | Cobertura celular, chip suspenso, rastreador desligado ou com defeito, instalação, entrega do FCM/APNs ao aparelho, internet do usuário, lojas de app, atos da operadora, força maior (Código Civil art. 393 [VALIDAR]) | — |
-| Suporte | SEV1 24 × 7 com fundador em ≤ 15 min; SEV2 no mesmo dia; SEV3 em horário comercial. Canal: WhatsApp e e-mail da Versix; agente de IA no F2. O atendimento ao cliente final é da operadora | [13 §14](../spec/13-infra-e-operacao.md) |
+| Suporte | SEV1 24 × 7 com fundador em ≤ 15 min; SEV2 no mesmo dia; SEV3 em horário comercial. Canal: WhatsApp e e-mail da Versix; agente de IA no F2. O atendimento ao cliente final é da operadora | [13 §14](../spec/13-infra-e-operacao.md#14-incidentes-severidade-e-comunicação) |
 | Responsabilidades | Matriz da §6.2 | — |
 | Comandos físicos | §6.3 | [06](../spec/06-comandos-e-bloqueio.md) |
 | Contingência | Status page; runbook de 1 página do plantonista; SMS pelo portal emnify/Meta Telecom. A operadora mantém acesso ao portal e as senhas SMS; ensaio no G1 (G1-6) | [Anexo C](C-operacional.md) |
@@ -128,10 +128,10 @@ Minuta simples, 1 página, para assinar até 27/10/2026, antes do SMS de migraç
 | Confidencialidade | Durante o contrato e 5 anos depois [PREMISSA] | — |
 | Propriedade intelectual | Plataforma, código, app e documentação são da Versix. Marca e dados são da operadora. Proibida engenharia reversa | Q-18 |
 | Não aliciamento | A Versix não oferece rastreamento diretamente aos clientes da operadora nem usa a base dela para levá-los a outra operadora, durante o contrato e 12 meses depois [PREMISSA]. SVA no app segue a cláusula SVA | Q-19 |
-| SVA e repartição | Parceiro nacional: Versix fecha, operadora recebe 20–30% (DEC-05). Parceiro local: operadora fecha, divisão proposta de 50% (proposta registrada em [12 §14](../spec/12-cobranca-e-svas.md)). Operadora liga e desliga cada SVA; indicação remunerada informada ao cliente; relatório mensal; repasse por PIX | [12 §13–15](../spec/12-cobranca-e-svas.md) |
+| SVA e repartição | Parceiro nacional: Versix fecha, operadora recebe 20–30% (DEC-05). Parceiro local: operadora fecha, divisão proposta de 50% (proposta registrada em [12 §14](../spec/12-cobranca-e-svas.md#14-parceiros-e-repartição)). Operadora liga e desliga cada SVA; indicação remunerada informada ao cliente; relatório mensal; repasse por PIX | [12 §13–15](../spec/12-cobranca-e-svas.md#13-sva-catálogo-por-fase) |
 | Vigência e término | 12 meses com renovação automática [PREMISSA]; rescisão sem motivo com 30 dias de aviso [PREMISSA]; com motivo, imediata após 15 dias sem correção. Inadimplência da operadora suspende o acesso ao console, nunca dispara bloqueio de veículos (INV-09) | — |
-| Portabilidade e saída | §6.5 | [04 §8](../spec/04-dominio-e-dados.md) |
-| Continuidade | §6.5 | [15 §3.1](../spec/15-decisoes-riscos-premissas.md) |
+| Portabilidade e saída | §6.5 | [04 §8](../spec/04-dominio-e-dados.md#8-retenção-e-armazenamento) |
+| Continuidade | §6.5 | [15 §3.1](../spec/15-decisoes-riscos-premissas.md#31-fator-ônibus--1-cofre-e-contingência) |
 | Foro | Comarca da sede da Versix [PREMISSA] | Q-07 |
 
 ### 6.2 Matriz de responsabilidades
@@ -152,14 +152,14 @@ Minuta simples, 1 página, para assinar até 27/10/2026, antes do SMS de migraç
 ### 6.3 Cláusula de comandos físicos
 
 1. A plataforma transmite ao rastreador pedidos de usuários autorizados e registra cada etapa. Não garante a atuação física: "confirmado" exige evidência homologada; "não confirmado" (UNKNOWN) significa efeito não comprovado.
-2. Teto da plataforma para corte de bomba em movimento: 40 km/h (DEC-07). A operadora configura valor ≤ teto. Ignição só com o veículo parado; motor de arranque a qualquer momento ([06 §3.2](../spec/06-comandos-e-bloqueio.md)).
-3. Bloqueio só com `cut_point` registrado, perfil homologado com relé, termo de ciência do titular e step-up (INV-10; [06 §2](../spec/06-comandos-e-bloqueio.md)).
+2. Teto da plataforma para corte de bomba em movimento: 40 km/h (DEC-07). A operadora configura valor ≤ teto. Ignição só com o veículo parado; motor de arranque a qualquer momento ([06 §3.2](../spec/06-comandos-e-bloqueio.md#32-regra-por-cut_point)). Motocicleta (`vehicle.kind = 'motorcycle'`): teto efetivo 0, corte só parada ou por desligamento da ignição, até decisão explícita na DEC-07.
+3. Bloqueio só com `cut_point` registrado, perfil homologado com relé, termo de ciência do titular e step-up (INV-10; [06 §2](../spec/06-comandos-e-bloqueio.md#2-disponibilidade)).
 4. A Versix mantém as salvaguardas técnicas: evidência de no máximo 60 s, ARMED com TTL de 5 min (30 min em ocorrência), nenhuma repetição automática de bloqueio, desbloqueio com retentativa a cada 60 s até 5 tentativas e SMS após 2 min.
 5. A operadora NÃO PODE usar bloqueio como meio de cobrança. A plataforma não liga inadimplência a comando (INV-09).
 6. A operadora define quem da central e da equipe de busca pode comandar, treina essas pessoas e responde pelos atos delas.
 7. O instalador define a ligação física sob responsabilidade da operadora. Registro de `cut_point` diferente da instalação real é responsabilidade da operadora.
 8. A Versix pode desligar o bloqueio de um perfil ou da plataforma por risco de segurança, avisando a operadora em até 1 h [PREMISSA]. O desbloqueio continua disponível. Agentes de IA da Versix nunca despacham comandos (INV-11).
-9. Contingência por SMS manual é executada pela central da operadora e registrada em até 72 h ([06 §10](../spec/06-comandos-e-bloqueio.md)). A Versix guarda a auditoria por 5 anos e fornece os registros para perícia.
+9. Contingência por SMS manual é executada pela central da operadora e registrada em até 72 h ([06 §10](../spec/06-comandos-e-bloqueio.md#10-contingência-por-sms-manual)). A Versix guarda a auditoria por 5 anos e fornece os registros para perícia.
 
 ### 6.4 Limitação de responsabilidade
 
@@ -174,7 +174,7 @@ Minuta simples, 1 página, para assinar até 27/10/2026, antes do SMS de migraç
 1. **Exportação completa em até 30 dias** do pedido ou do término: CSV e JSON (clientes, veículos, rastreadores, chips, vínculos com `cut_point`, alertas, comandos, auditoria, consentimentos, indicações) e Parquet (posições dos últimos 12 meses, quentes e frias), com `manifest.json` e SHA-256 por arquivo; entrega por link temporário.
 2. **Ingestão estendida:** a Versix mantém a recepção por até 60 dias após o término, com tarifa normal, para a operadora reapontar os rastreadores por SMS [PREMISSA]. A Versix fornece os modelos de SMS do perfil.
 3. **Eliminação:** em até 30 dias após a operadora confirmar o recebimento da exportação; backups cifrados expiram pela rotação em até 35 dias ([13](../spec/13-infra-e-operacao.md)). Ficam só legal hold ativo e o que a lei obrigar [VALIDAR — Q-05]. A Versix envia declaração de eliminação.
-4. **Continuidade:** encerramento do serviço pela Versix exige aviso de 90 dias [PREMISSA] e exportação. Em impedimento do fundador, o contato de emergência entrega a exportação seguindo `docs/runbooks/emergencia.md` ([15 §3.1](../spec/15-decisoes-riscos-premissas.md)). Depósito do código em custódia de terceiro: Q-18.
+4. **Continuidade:** encerramento do serviço pela Versix exige aviso de 90 dias [PREMISSA] e exportação. Em impedimento do fundador, o contato de emergência entrega a exportação seguindo `docs/runbooks/emergencia.md` ([15 §3.1](../spec/15-decisoes-riscos-premissas.md#31-fator-ônibus--1-cofre-e-contingência)). Depósito do código em custódia de terceiro: Q-18.
 
 ## 7. Rascunho 3 — DPA (acordo de tratamento de dados)
 
@@ -183,7 +183,7 @@ Minuta simples, 1 página, para assinar até 27/10/2026, antes do SMS de migraç
 1. **Instruções.** A Versix trata dados só para T1–T10 e T13 da §3, conforme o contrato e a configuração da operadora no console. Avisa a operadora se uma instrução violar a LGPD (art. 39 [VALIDAR]).
 2. **Escopo.** Titulares e dados das §2 e §3; duração = contrato + prazo de eliminação (§6.5).
 3. **Confidencialidade.** Fundador e freelancers com termo de confidencialidade. Agentes de IA de codificação não acessam dados de produção ([REQ-QLD-016](../spec/14-qualidade-e-processo-ia.md)).
-4. **Segurança.** RLS forçada e FK composta (INV-07); TLS; TOTP para administradores; segredos com SOPS e AES-256-GCM; logs sem dado pessoal; backups cifrados com restore mensal; `access_log`; `audit_log` de 5 anos; acesso de suporte só com grant de até 72 h, somente leitura e auditado ([08](../spec/08-identidade-e-seguranca.md), [04 §4.5](../spec/04-dominio-e-dados.md)).
+4. **Segurança.** RLS forçada e FK composta (INV-07); TLS; TOTP para administradores; segredos com SOPS e AES-256-GCM; logs sem dado pessoal; backups cifrados com restore mensal; `access_log`; `audit_log` de 5 anos; acesso de suporte só com grant de até 72 h, somente leitura e auditado ([08](../spec/08-identidade-e-seguranca.md), [04 §4.5](../spec/04-dominio-e-dados.md#45-acesso-de-suporte-da-plataforma-f1)).
 5. **Suboperadores.** Lista da §7.2. Mudança avisada com 30 dias; objeção fundamentada permite rescindir sem multa. A Versix responde pelos suboperadores [VALIDAR].
 6. **Transferência internacional.** Só para os fornecedores da §7.2, com o mecanismo da Res. CD/ANPD 19/2024 (cláusulas-padrão contratuais) [VALIDAR — Q-06].
 7. **Incidentes.** A Versix avisa a operadora em até 24 h da ciência (modelo da §13) e atualiza a cada 24 h. A operadora comunica a ANPD e os titulares em 3 dias úteis (Res. CD/ANPD 15/2024 [VALIDAR — Q-13]); a Versix fornece os dados técnicos.
@@ -203,7 +203,7 @@ Minuta simples, 1 página, para assinar até 27/10/2026, antes do SMS de migraç
 | Google Firebase (FCM), com entrega iOS pela Apple (APNs) | Push | Token do aparelho; título e texto (tipo, apelido ou placa, hora); sem coordenadas nem endereço ([07](../spec/07-alertas-e-tempo-real.md)) | EUA [VALIDAR] | Sim | F0 |
 | Sentry | Erros e saúde de versão (`api`, `worker`, console, app) | Identificadores técnicos; `sendDefaultPii: false` e `beforeSend` removem corpo, query string e headers de autenticação | Região escolhida na criação [VALIDAR] | Sim | F0 |
 | Grafana Cloud | Métricas e logs | Sem dado pessoal: o Alloy mascara IMEI e remove coordenadas | Região mais próxima do Brasil [VALIDAR] | Só se a redação falhar | F0 |
-| Provedor de e-mail: Resend no F0 ([13 §6](../spec/13-infra-e-operacao.md)); Brevo como alternativa | Convites, redefinição de senha, avisos | E-mail e conteúdo da mensagem | EUA (Resend) [VALIDAR]; UE se trocar para Brevo | Sim | F0 |
+| Provedor de e-mail: Resend no F0 ([13 §6](../spec/13-infra-e-operacao.md#6-configuração-e-segredos)); Brevo como alternativa | Convites, redefinição de senha, avisos | E-mail e conteúdo da mensagem | EUA (Resend) [VALIDAR]; UE se trocar para Brevo | Sim | F0 |
 | Anthropic (API Claude) | Agente SRE (F1): métricas e logs sem dado pessoal. Agente de suporte (F2): dados mínimos no escopo de quem pergunta (nomes, placas, texto de atendimento) | Ver serviço | EUA [VALIDAR]; retenção e uso para treino conforme os termos comerciais da API [VALIDAR] | Sim | F1 / F2 |
 | emnify, via Meta Telecom | SMS (desbloqueio, migração), diagnóstico de chip | ICCID, MSISDN, conteúdo do SMS de comando, status de conexão | [VALIDAR] | Provável [VALIDAR] | F1. Contratado pela operadora; Versix usa a API por delegação (DEC-01) |
 | Meta Telecom | Administração dos chips | Idem | Brasil [VALIDAR] | [VALIDAR] | Contratado pela operadora |
@@ -214,7 +214,7 @@ Minuta simples, 1 página, para assinar até 27/10/2026, antes do SMS de migraç
 
 ## 8. Rascunho 4 — Termos de uso do app
 
-Relação: cliente final ↔ operadora, que presta o serviço. A Versix aparece como fornecedora da tecnologia. Texto versionado `terms-of-use-v{N}` [ADOTADO NA v2.0: aceite registrado em `consent` com `purpose = 'terms_of_use'` no 1º login e a cada versão nova, como clickwrap com `text_version` e SHA-256 do texto].
+Relação: cliente final ↔ operadora, que presta o serviço. A Versix aparece como fornecedora da tecnologia. Texto versionado `terms-of-use-v{N}` aceite registrado em `consent` com `purpose = 'terms_of_use'` no 1º login e a cada versão nova, como clickwrap com `text_version` e SHA-256 do texto.
 
 | Tópico | Cláusula-chave |
 |---|---|
@@ -240,7 +240,7 @@ Exigida pelas lojas para o app único TrackSys. URL `https://app.<domínio>/priv
 
 ### 9.2 Modelo da operadora (campos)
 
-Exibida no app da marca (A10). [ADOTADO NA v2.0: quando `operator_brand.privacy_policy_url` (proposta de [08 §11](../spec/08-identidade-e-seguranca.md)) for NULL, o app abre a página padrão `https://app.<domínio>/privacidade/{operatorId}`, gerada deste modelo com os campos abaixo.]
+Exibida no app da marca (A10). Quando `operator_brand.privacy_policy_url` (proposta de [08 §11](../spec/08-identidade-e-seguranca.md#11-lgpd-técnica-marco-civil-auditoria-e-autoridades)) for NULL, o app abre a página padrão `https://app.<domínio>/privacidade/{operatorId}`, gerada deste modelo com os campos abaixo.
 
 | Campo | Origem | Exemplo |
 |---|---|---|
@@ -268,10 +268,10 @@ Dados cifrados em trânsito: sim. Exclusão de conta: sim (§4).
 
 ## 10. Rascunho 6 — Termo de ciência do bloqueio (uso antes da revisão)
 
-Regras de [06 §12](../spec/06-comandos-e-bloqueio.md): arquivo `packages/contracts/src/consent/texts/block-terms-v1.md`; `text_version = 'block-terms-v1/{kmh}kmh'`; aceita o `tenant_owner` na tela A12; nova versão ou teto maior exige novo aceite; revogado → bloqueio indisponível, desbloqueio continua. Variáveis preenchidas pelo app: `{operadora}`, `{kmh}` (`max_moving_cut_kmh` vigente), `{armedTtlMin}` (`armed_ttl_s` / 60), `{occurrenceTtlMin}` (`occurrence_armed_ttl_s` / 60) e a lista de veículos com o `cut_point` de cada um. O texto abaixo é o conteúdo da v1; depois da revisão (DEC-08) vira v2, com novo aceite.
+Regras de [06 §12](../spec/06-comandos-e-bloqueio.md#12-termo-de-ciência-do-bloqueio): arquivo `packages/contracts/src/consent/texts/block-terms-v1.md`; `text_version = 'block-terms-v1/{kmh}kmh'`; aceita o `tenant_owner` na tela A12; nova versão ou teto maior exige novo aceite; revogado → bloqueio indisponível, desbloqueio continua. Variáveis preenchidas pelo app: `{operadora}`, `{kmh}` (`max_moving_cut_kmh` vigente), `{armedTtlMin}` (`armed_ttl_s` / 60), `{occurrenceTtlMin}` (`occurrence_armed_ttl_s` / 60) e a lista de veículos com o `cut_point` de cada um. O texto abaixo é o conteúdo da v1; depois da revisão (DEC-08) vira v2, com novo aceite.
 
 > **Termo de ciência do bloqueio remoto — {operadora}**
-> 1. **O que o bloqueio faz em cada veículo.** {para cada veículo: "{apelido} ({placa}): {efeito}"}. Bomba de combustível: corta o combustível e o motor apaga em poucos segundos; com o veículo em movimento, o pedido só é enviado até {kmh} km/h (com {kmh} = 0: "só com o veículo parado"). Ignição: desliga a ignição; só é enviado com o veículo parado. Motor de arranque: impede a próxima partida; o motor ligado continua funcionando.
+> 1. **O que o bloqueio faz em cada veículo.** {para cada veículo: "{apelido} ({placa}): {efeito}"}. Bomba de combustível: corta o combustível e o motor apaga em poucos segundos; com o veículo em movimento, o pedido só é enviado até {kmh} km/h (com {kmh} = 0: "só com o veículo parado"). Ignição: desliga a ignição; só é enviado com o veículo parado. Motor de arranque: impede a próxima partida; o motor ligado continua funcionando. Motocicleta: o bloqueio só é enviado com a moto parada (ou pelo desligamento da ignição), porque cortar a bomba em movimento pode causar perda de tração, queda ou risco para o garupa.
 > 2. **Riscos.** Com o motor desligado em movimento, o veículo perde força e a direção e o freio podem ficar mais pesados [VALIDAR — revisão técnica e jurídica]. Quem estiver dirigindo precisa parar com segurança. Por isso o corte em movimento é limitado a {kmh} km/h e exige posição de no máximo 60 segundos.
 > 3. **Sinal e atraso.** O bloqueio depende de sinal celular e GPS. Se a condição de segurança não estiver atendida, o pedido aguarda por até {armedTtlMin} minutos ({occurrenceTtlMin} minutos em ocorrência de roubo ou furto) e pode ser cancelado. Sem confirmação do rastreador, o app mostra "não confirmado" e não repete o bloqueio sozinho.
 > 4. **Desbloqueio.** O app tenta de novo por até 5 minutos e pode usar SMS. Sem sinal (por exemplo, em garagem subterrânea), o desbloqueio só acontece quando o rastreador voltar a ter sinal. Evite bloquear o veículo onde não há sinal.
@@ -283,26 +283,26 @@ Regras de [06 §12](../spec/06-comandos-e-bloqueio.md): arquivo `packages/contra
 
 ## 11. Rascunho 7 — Consentimento por parceiro e finalidade
 
-Elementos obrigatórios de todo texto (LGPD arts. 8º e 9º [VALIDAR]): finalidade específica; quem trata (operadora, Versix, parceiro); dados enviados; frase de remuneração ([REQ-SVA-004](../spec/12-cobranca-e-svas.md)); como revogar; o que acontece sem aceite (sempre há caminho sem registro). Um aceite por parceiro e finalidade, revogável, texto imutável por versão ([REQ-SVA-003](../spec/12-cobranca-e-svas.md)). Texto canônico `sva-referral-v1`: [12 §16](../spec/12-cobranca-e-svas.md). Rascunho de `sva-partner-share-v1` (F2):
+Elementos obrigatórios de todo texto (LGPD arts. 8º e 9º [VALIDAR]): finalidade específica; quem trata (operadora, Versix, parceiro); dados enviados; frase de remuneração ([REQ-SVA-004](../spec/12-cobranca-e-svas.md)); como revogar; o que acontece sem aceite (sempre há caminho sem registro). Um aceite por parceiro e finalidade, revogável, texto imutável por versão ([REQ-SVA-003](../spec/12-cobranca-e-svas.md)). Texto canônico `sva-referral-v1`: [12 §16](../spec/12-cobranca-e-svas.md#16-consentimento-e-transparência). Rascunho de `sva-partner-share-v1` (F2):
 
 > Ao aceitar, você autoriza a {operadora} e a Versix Solutions (TrackSys) a enviar automaticamente ao parceiro {parceiro}, a cada pedido seu: placa, modelo e cor do veículo, serviço pedido, localização do veículo no momento do pedido, seu primeiro nome e telefone. O parceiro passa a responder por esses dados no atendimento. A {operadora} e a Versix podem receber remuneração deste parceiro pela indicação. Você pode revogar em Conta › Privacidade; sem este aceite, você ainda pode chamar o parceiro por WhatsApp ou telefone.
 
 ## 12. Rascunho 8 — Requisições de autoridades
 
-Regra prática: **histórico de localização só com autorização do titular (vítima) ou ordem judicial.** Dados cadastrais têm regra própria. A operadora (controladora) responde; a Versix executa a parte técnica. Passos no console: [08 §11](../spec/08-identidade-e-seguranca.md) e [Anexo C](C-operacional.md).
+Regra prática: **histórico de localização: ordem judicial ou autorização escrita do titular vítima; registros de acesso (`access_log`): só ordem judicial.** Dados cadastrais têm regra própria. A operadora (controladora) responde; a Versix executa a parte técnica. Passos no console: [08 §11](../spec/08-identidade-e-seguranca.md#11-lgpd-técnica-marco-civil-auditoria-e-autoridades) e [Anexo C](C-operacional.md).
 
 | Pedido | Exigência mínima | Quem entrega | Como |
 |---|---|---|---|
-| Localização ao vivo em ocorrência, a pedido do titular | Pedido do titular no app ou à central pelo canal cadastrado | Titular ou central | Link `police` de até 24 h ([08 §7](../spec/08-identidade-e-seguranca.md)) |
+| Localização ao vivo em ocorrência, a pedido do titular | Pedido do titular no app ou à central pelo canal cadastrado | Titular ou central | Link `police` de até 24 h ([08 §7](../spec/08-identidade-e-seguranca.md#7-links-temporários-f1)) |
 | Risco iminente à vida sem o titular conseguir pedir (ex.: sequestro com vítima no veículo) | Pedido identificado da autoridade, motivo registrado | `operator_admin` | Link de até 4 h só da posição atual [VALIDAR — Q-11] |
 | Histórico de localização | Ordem judicial **ou** autorização escrita do titular do veículo, limitada a veículo e período | `operator_admin` | Pacote de evidências |
-| Registros de acesso | Ordem judicial (Marco Civil arts. 10, §1º, e 22 [VALIDAR]) | Versix com a operadora | CSV no pacote, com SHA-256 |
+| Registros de acesso | Ordem judicial (Marco Civil arts. 10, §1º, e 22 [VALIDAR]) | Versix com a operadora | CSV gerado pela Versix (CLI `access-log:export`, [08 §11](../spec/08-identidade-e-seguranca.md#11-lgpd-técnica-marco-civil-auditoria-e-autoridades) item 4), com SHA-256 |
 | Dados cadastrais (qualificação pessoal, filiação, endereço) | Requisição de autoridade com competência legal expressa e fundamento citado (Marco Civil art. 10, §3º; Decreto 8.771/2016 art. 11 [VALIDAR — Q-11]) | `operator_admin` | Ofício só com os campos pedidos |
 | Pedido informal (telefone, WhatsApp, balcão) de histórico | Não entrega; orienta a formalizar; preserva | Central | Modelo abaixo |
-| Período anterior à migração | Fora da TrackSys | Lider, pelo tracker-net ou arquivo exportado ([11 §8](../spec/11-onboarding-e-migracao.md)) | — |
+| Período anterior à migração | Fora da TrackSys | Lider, pelo tracker-net ou arquivo exportado ([11 §8](../spec/11-onboarding-e-migracao.md#8-histórico-do-tracker-net)) | — |
 | Período com mais de 12 meses | Dado eliminado pela retenção, salvo legal hold | — | Responder "inexistente pela política de retenção" |
 
-1. **Registrar** em atendimento [ADOTADO NA v2.0: `ticket.category = 'authority'`, junto da proposta de `ticket.category` de [08 §11](../spec/08-identidade-e-seguranca.md)]: data e hora de recebimento, órgão, autoridade, número do ofício ou processo, canal, dados pedidos, veículo, período, prazo, decisão, base e SHA-256 entregue.
+1. **Registrar** em atendimento `ticket.category = 'authority'`, junto da proposta de `ticket.category` de [08 §11](../spec/08-identidade-e-seguranca.md#11-lgpd-técnica-marco-civil-auditoria-e-autoridades): data e hora de recebimento, órgão, autoridade, número do ofício ou processo, canal, dados pedidos, veículo, período, prazo, decisão, base e SHA-256 entregue.
 2. **Autenticar:** confirmar pelo telefone oficial do órgão (nunca o do próprio ofício) ou e-mail institucional; ordem judicial conferida no sistema do tribunal [VALIDAR].
 3. **Preservar:** criar `legal_hold` já no recebimento ([REQ-SEG-027](../spec/08-identidade-e-seguranca.md), [REQ-DAD-015](../spec/04-dominio-e-dados.md)). Preservar não é entregar. Hold sem ordem judicial nem autorização do titular é revisto em 60 dias, por analogia ao Marco Civil art. 15, §2º [VALIDAR — Q-12], e liberado com registro se nada chegar.
 4. **Decidir** pela tabela; em dúvida, advogado. Registrar base e decisão.
@@ -316,7 +316,7 @@ Regra prática: **histórico de localização só com autorização do titular (
 
 ## 13. Rascunho 9 — Comunicação de incidente
 
-Incidente com dado pessoal é SEV1 ([13 §14](../spec/13-infra-e-operacao.md)) e segue o [Anexo C](C-operacional.md) para contenção. Prazos: T0 = ciência pela Versix; aviso à operadora até T0 + 24 h; atualização a cada 24 h; comunicação da controladora à ANPD e aos titulares em 3 dias úteis quando houver risco ou dano relevante (Res. CD/ANPD 15/2024 [VALIDAR — Q-13]). Todo incidente, comunicado ou não, entra no registro interno de incidentes, guardado por 5 anos [VALIDAR].
+Incidente com dado pessoal é SEV1 ([13 §14](../spec/13-infra-e-operacao.md#14-incidentes-severidade-e-comunicação)) e segue o [Anexo C](C-operacional.md) para contenção. Prazos: T0 = ciência pela Versix; aviso à operadora até T0 + 24 h; atualização a cada 24 h; comunicação da controladora à ANPD e aos titulares em 3 dias úteis quando houver risco ou dano relevante (Res. CD/ANPD 15/2024 [VALIDAR — Q-13]). Todo incidente, comunicado ou não, entra no registro interno de incidentes, guardado por 5 anos [VALIDAR].
 
 **Versix → operadora (e-mail ao `operator_admin` + WhatsApp):**
 1. Identificação: número do incidente, data e hora do fato e da ciência (UTC e BRT).
@@ -348,14 +348,14 @@ Incidente com dado pessoal é SEV1 ([13 §14](../spec/13-infra-e-operacao.md)) e
 | Q-11 | Matriz da §12 está correta? Quais autoridades obtêm dados cadastrais sem ordem e com qual fundamento (Lei 12.850/2013 art. 15; CPP art. 13-A [VALIDAR])? Avisar o titular? Risco iminente à vida sem ordem (LGPD art. 7º, VII [VALIDAR])? | §12 |
 | Q-12 | Prazo de 60 dias para hold de preservação sem ordem judicial, por analogia ao Marco Civil art. 15, §2º [VALIDAR]? | §12 passo 3 |
 | Q-13 | Comunicação de incidente em 3 dias úteis (Res. CD/ANPD 15/2024 [VALIDAR]); prazo em dobro para agente de pequeno porte [VALIDAR]? Vazamento de localização é "risco ou dano relevante"? Aviso da Versix em 24 h é adequado? | §13 |
-| Q-14 | DEC-15: posições por 12 meses e anonimização 12 meses após o encerramento, com tombstone que mantém registros financeiros e de auditoria por 5 anos | [04 §9.2](../spec/04-dominio-e-dados.md) |
+| Q-14 | DEC-15: posições por 12 meses e anonimização 12 meses após o encerramento, com tombstone que mantém registros financeiros e de auditoria por 5 anos | [04 §9.2](../spec/04-dominio-e-dados.md#92-encerramento-tombstone-e-anonimização-dec-15) |
 | Q-15 | Lider como MEI: receita estimada de ~R$ 143.640 a R$ 215.640/ano (300 veículos × R$ 39,90 a R$ 59,90 × 12, se o ticket for por veículo [PREMISSA]) passa do teto do MEI (R$ 81.000/ano [VALIDAR])? Efeito no contrato e na nota fiscal (MEI dispensado para pessoa física [VALIDAR]) | Lider consulta contador antes do contrato |
 | Q-16 | Versix: CNAE 6203-1/00 cobre o SaaS; receita de indicação exige CNAE de intermediação (ex.: 7490-1/04 [VALIDAR])? NFS-e sobre o valor recebido por split? | DEC-14 |
 | Q-17 | Assinatura eletrônica simples do termo do piloto e aceite por clique no app têm prova suficiente (Lei 14.063/2020 [VALIDAR]) com `audit_log`, `text_version` e SHA-256 do texto? | §5.1; §10 |
 | Q-18 | Titularidade do código escrito por agentes de IA (Lei 9.609/1998; Lei 9.610/1998 [VALIDAR]); cessão de direitos de freelancers; depósito do código em custódia para continuidade | §6.1 |
 | Q-19 | Não aliciamento de clientes da operadora por 12 meses após o término é válido? Conflito com SVA nacional no app da operadora? | §6.1 |
 | Q-20 | Envio de SMS pela API emnify e uso de chips M2M pela plataforma caracterizam serviço de telecomunicações ou serviço de valor adicionado (Lei 9.472/1997 art. 61 [VALIDAR])? | ADR-011 |
-| Q-21 | Contrato Lider × SmartGPS (DEC-10): aviso prévio, fidelidade, exportação do histórico e quem é controlador do histórico no tracker-net | [11 §8](../spec/11-onboarding-e-migracao.md) |
+| Q-21 | Contrato Lider × SmartGPS (DEC-10): aviso prévio, fidelidade, exportação do histórico e quem é controlador do histórico no tracker-net | [11 §8](../spec/11-onboarding-e-migracao.md#8-histórico-do-tracker-net) |
 | Q-22 | Conta Apple individual (DEC-03) com o fundador como vendedor de um app que exibe marcas de operadoras: requisitos de política de privacidade, exclusão de conta e marca de terceiros nas lojas [VALIDAR] | §9.3 |
 
 ## 15. Referências normativas citadas (todas [VALIDAR])

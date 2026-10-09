@@ -19,7 +19,7 @@ Dar à central e à equipe de busca o fluxo de furto/roubo: abrir ocorrência, r
 
 ## Contexto obrigatório
 
-[06](../docs/spec/06-comandos-e-bloqueio.md) (ARMED em ocorrência); [08 §6](../docs/spec/08-identidade-e-seguranca.md) (links); [10](../docs/spec/10-apps-e-ux.md) (telas de ocorrência e busca)
+[06](../docs/spec/06-comandos-e-bloqueio.md) (ARMED em ocorrência); [08 §7](../docs/spec/08-identidade-e-seguranca.md#7-links-temporários-f1) (links temporários); [10](../docs/spec/10-apps-e-ux.md) (telas de ocorrência e busca)
 
 ## Escopo — fazer
 
@@ -35,7 +35,7 @@ Dar à central e à equipe de busca o fluxo de furto/roubo: abrir ocorrência, r
 
 ## Para completar o DoR
 
-1. Especificação detalhada (tabelas com SQL, rotas, jobs e textos) a partir dos capítulos citados.
+1. Lacunas a fechar: DDL de `share_link` (hash do token, TTL, revogação) e a função `app.resolve_share_token` (SECURITY DEFINER, entrada na allowlist, CAT-07, revisão N0); rotas de ocorrência, link e sessão pública com seus erros; máquina de estados de `occurrence` e a linha do tempo; formato da exportação assíncrona de histórico (REQ-API-013); regra de quando o intervalo de transmissão é reduzido.
 2. Testes de aceite com Dado/Quando/Então e arquivos em `tests/acceptance/T-025/`, congelados antes da implementação (risco N0: revisão adversarial por agente de outro fornecedor e leitura humana linha a linha).
-3. Comandos de verificação e seção "Decisões já tomadas" com pelo menos 5 respostas (DoR de [14 §5](../docs/spec/14-qualidade-e-processo-ia.md)).
+3. Comandos de verificação e seção "Decisões já tomadas" com pelo menos 5 respostas (DoR de [14 §5](../docs/spec/14-qualidade-e-processo-ia.md#5-dor-e-dod)).
 4. Conferir se os requisitos listados ainda batem com os capítulos ([16 — Rastreabilidade](../docs/spec/16-rastreabilidade.md)).

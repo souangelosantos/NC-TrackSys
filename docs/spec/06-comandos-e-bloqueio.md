@@ -8,25 +8,28 @@
 > - Assimetria explícita: desbloqueio com retentativa GPRS e SMS (DEC-01); bloqueio nunca repete.
 > - Step-up pela chave do aparelho (ADR-006); homologação de bancada com 20 ciclos e gate G-CMD.
 > - Contingência por SMS manual registrada depois; inadimplência e IA sem caminho para comando.
+> - IGN_OFF exige evidência positiva de parada; `fuel_pump` em movimento exige 2 fixes; moto só corta parada; chave de aparelho nova tem carência de 24 h para bloquear.
+> - Desbloqueio nunca fica sem caminho (`RELAY_NOT_UNBLOCKED`); comando fora da plataforma vira alerta crítico.
+> - Absorve as decisões dos cartões T-016, T-017 e T-018 (`ARMED>FAILED`, `command_event` tipo A, rota, 202, códigos).
 
 **Nesta página**
-- [§1 Princípios](06-comandos-e-bloqueio.md)
-- [§2 Disponibilidade](06-comandos-e-bloqueio.md)
-- [§3 Política de bloqueio](06-comandos-e-bloqueio.md)
-- [§4 Quem pode pedir](06-comandos-e-bloqueio.md)
-- [§5 Máquina de estados](06-comandos-e-bloqueio.md)
-- [§6 Modelo de dados](06-comandos-e-bloqueio.md)
-- [§7 Despacho via Traccar](06-comandos-e-bloqueio.md)
-- [§8 Confirmação, UNKNOWN e reconciliação](06-comandos-e-bloqueio.md)
-- [§9 Desbloqueio assimétrico](06-comandos-e-bloqueio.md)
-- [§10 Contingência por SMS manual](06-comandos-e-bloqueio.md)
-- [§11 Ocorrência (efeitos em comandos)](06-comandos-e-bloqueio.md)
-- [§12 Termo de ciência do bloqueio](06-comandos-e-bloqueio.md)
-- [§13 Homologação do perfil e G-CMD](06-comandos-e-bloqueio.md)
-- [§14 Contratos](06-comandos-e-bloqueio.md)
-- [§15 Auditoria e UX mínima](06-comandos-e-bloqueio.md)
-- [§16 Requisitos](06-comandos-e-bloqueio.md)
-- [§17 Suíte CT-CMD](06-comandos-e-bloqueio.md)
+- [§1 Princípios](06-comandos-e-bloqueio.md#1-princípios)
+- [§2 Disponibilidade](06-comandos-e-bloqueio.md#2-disponibilidade)
+- [§3 Política de bloqueio](06-comandos-e-bloqueio.md#3-política-de-bloqueio)
+- [§4 Quem pode pedir](06-comandos-e-bloqueio.md#4-quem-pode-pedir)
+- [§5 Máquina de estados](06-comandos-e-bloqueio.md#5-máquina-de-estados)
+- [§6 Modelo de dados](06-comandos-e-bloqueio.md#6-modelo-de-dados)
+- [§7 Despacho via Traccar](06-comandos-e-bloqueio.md#7-despacho-via-traccar)
+- [§8 Confirmação, UNKNOWN e reconciliação](06-comandos-e-bloqueio.md#8-confirmação-unknown-e-reconciliação)
+- [§9 Desbloqueio assimétrico](06-comandos-e-bloqueio.md#9-desbloqueio-assimétrico)
+- [§10 Contingência por SMS manual](06-comandos-e-bloqueio.md#10-contingência-por-sms-manual)
+- [§11 Ocorrência (efeitos em comandos)](06-comandos-e-bloqueio.md#11-ocorrência-efeitos-em-comandos)
+- [§12 Termo de ciência do bloqueio](06-comandos-e-bloqueio.md#12-termo-de-ciência-do-bloqueio)
+- [§13 Homologação do perfil e G-CMD](06-comandos-e-bloqueio.md#13-homologação-do-perfil-e-g-cmd)
+- [§14 Contratos](06-comandos-e-bloqueio.md#14-contratos)
+- [§15 Auditoria e UX mínima](06-comandos-e-bloqueio.md#15-auditoria-e-ux-mínima)
+- [§16 Requisitos](06-comandos-e-bloqueio.md#16-requisitos)
+- [§17 Suíte CT-CMD](06-comandos-e-bloqueio.md#17-suíte-ct-cmd)
 
 ## 1. Princípios
 
@@ -46,14 +49,18 @@
 ## 2. Disponibilidade
 
 **Bloqueio** do veículo V está disponível se, e somente se, todas valem (no pedido e de novo antes do despacho):
-1. `COMMAND_DISPATCH_ENABLED=true` ([03](03-arquitetura.md), REQ-ARQ-016) e V dentro de `COMMAND_BLOCK_SCOPE` [ADOTADO NA v2.0: variável `COMMAND_BLOCK_SCOPE` = `none` (padrão) | `pilot:<vehicle_id>[,…]` | `all`, alterada só por deploy com revisão N0: `none` até a bancada, `pilot:` no teste supervisionado do G-CMD, `all` após o G-CMD].
+1. `COMMAND_DISPATCH_ENABLED=true` ([03](03-arquitetura.md), REQ-ARQ-016) e V dentro de `COMMAND_BLOCK_SCOPE` variável `COMMAND_BLOCK_SCOPE` = `none` (padrão) | `pilot:<vehicle_id>[,…]` | `all`, alterada só por deploy com revisão N0: `none` até a bancada, `pilot:` no teste supervisionado do G-CMD, `all` após o G-CMD.
 2. Vínculo primário aberto de V (senão `NO_PRIMARY_DEVICE`) com `cut_point` NOT NULL (senão `CUT_POINT_MISSING`).
-3. Rastreador com `capability_profile.status = 'homologated'`, `capabilities.relay = "yes"` e seção `commands` completa (§13.4). Exceção única: a bancada [ADOTADO NA v2.0: `COMMAND_BENCH_OPERATOR_ID` aceita perfil `draft` com `relay = "yes"` e seção `commands` completa, exceto `homologation_ref`, só para rastreadores dessa operadora, que não tem cliente real].
+3. Rastreador com `capability_profile.status = 'homologated'`, `capabilities.relay = "yes"` e seção `commands` completa (§13.4). Exceção única: a bancada `COMMAND_BENCH_OPERATOR_ID` aceita perfil `draft` com `relay = "yes"` e seção `commands` completa, exceto `homologation_ref`, só para rastreadores dessa operadora, que não tem cliente real.
 4. Termo de ciência aceito pelo titular na versão exigida (§12).
 5. `tenant.status ≠ 'closed'`. `suspended_commercial` não muda nada (INV-09).
 6. Concorrência permitida pela §4.3.
 
 **Desbloqueio** exige só permissão, step-up, rastreador no vínculo aberto, perfil com `relay = "yes"` (`homologated` **ou** `suspended`) e itens 5 e 6. Suspender perfil, remover `cut_point`, mudar o escopo ou revogar o termo nunca impede desbloqueio.
+
+Desbloqueio nunca fica sem caminho:
+1. Encerrar o cliente ou fechar o vínculo com `relay_state ≠ 'unblocked'`, ou com o último `block` em CONFIRMED, UNKNOWN ou ativo, responde 409 `RELAY_NOT_UNBLOCKED` e nada muda. O console oferece "Desbloquear antes".
+2. A equipe da operadora pode desbloquear, com step-up de console, vínculo fechado há ≤ 30 dias de cliente encerrado. É a única exceção aos itens "vínculo aberto" e 5.
 
 ## 3. Política de bloqueio
 
@@ -61,31 +68,46 @@
 
 E = `evidence_max_age_s` da política vigente (≤ 60 s); t = `now()` do banco na avaliação. Um fix é evidência se:
 1. chegou com `processingMode = 'live'` (replay, backfill e reprocessamento nunca contam — INV-05);
-2. `valid = true`, coordenadas presentes, sem flag `JUMP_SUSPECT` ([05](05-ingestao-e-telemetria.md) §4.1);
+2. `valid = true`, coordenadas presentes, sem flag `JUMP_SUSPECT` nem `ORIGIN_UNTRUSTED` ([05 §4.1](05-ingestao-e-telemetria.md#41-flags-de-positionflags));
 3. pertence ao vínculo do comando (`assignment_id`);
 4. `fix_time ∈ [t − E, t + 120 s]`; para o fix mais recente, também `received_at ≥ t − E`;
-5. `speed_kmh_x10` NOT NULL. Velocidade NULL não é zero (INV-03).
+5. `speed_kmh_x10` NOT NULL. Velocidade NULL não é zero (INV-03);
+6. sem flag `ORIGIN_UNTRUSTED` ([05 §4.1](05-ingestao-e-telemetria.md#41-flags-de-positionflags)): fix de sessão com IP fora da allowlist da APN, quando ela existir ([08 §10](08-identidade-e-seguranca.md#10-ameaças), ameaça 1), não é evidência.
 
-**IGN_OFF** vale se o perfil tem `ignition = "yes"`, `device_state.ignition = false` observado (`aux.statusAt`) em `[t − E, t]`, `device_state.motion ≠ 'moving'` e nenhum fix válido em E tem velocidade > 0. A checagem de movimento protege contra fio de ignição adulterado (ligação direta).
+**IGN_OFF** exige evidência positiva de que o veículo está parado. Vale se todas as condições valem:
+- o perfil tem `ignition = "yes"` e `device_state.ignition = false` observado (`aux.statusAt`) em `[t − E, t]`;
+- há ≥ 1 fix válido (itens 1–6) em E com `speed_kmh_x10 ≤ commands.stopped_speed_max_kmh_x10` e `fix_time ≥ observedAt da ignição − 30 s`;
+- todos os fixes válidos em E têm velocidade ≤ esse limite;
+- `device_state.motion = 'stopped'` derivado de fix ([05 §4.2](05-ingestao-e-telemetria.md#42-movimento-device_statemotion), regra 2).
 
-**Fontes.** No pedido, o `api` usa `device_state` (último fix; `aux.fixReceivedAt` [alinhar com 05]) e as linhas de `position` do vínculo em E. Com o comando ARMED, o worker acumula em `evidence_snapshot.fixes` (até 5, os mais recentes) cada `location` e `previousLocation` dos `device.state.updated.v1` ao vivo do rastreador, porque a compactação de parado ([04](04-dominio-e-dados.md) §7.2) não grava todo fix parado.
+`motion = 'unknown'` ou `stopped` só pela regra de ignição (`aux.motionSource = 'ignition'`, 05 §4.2 regra 3) não vale, e ausência de fix em E também não (INV-03). Na ligação direta o fio de ACC fica desligado com o veículo andando: o J16 manda heartbeat com ACC falso e só um fix parado prova a parada.
+
+**Fontes.**
+- No pedido, os fixes vêm só de linhas de `position` do vínculo em E (têm `received_at` e flags de modo). `device_state` fornece ignição e `motion`, nunca o fix.
+- Com o comando ARMED, o worker acumula em `evidence_snapshot.fixes` (até 5, os mais recentes) cada `location` e `previousLocation` dos `device.state.updated.v1` ao vivo do rastreador, porque a compactação de parado ([04 §7.2](04-dominio-e-dados.md#72-compactação-de-parado)) não grava todo fix parado.
 
 ### 3.2 Regra por `cut_point`
 
 | `cut_point` | Efeito físico | READY quando | Senão |
 |---|---|---|---|
-| `starter` | Impede a próxima partida; motor ligado segue funcionando | Presença `online` ([07](07-alertas-e-tempo-real.md) §11): contato ≤ `stopped_interval_s` + 60 s (J16: 360 s). Velocidade não importa | ARMED `awaiting_contact` |
+| `starter` | Impede a próxima partida; motor ligado segue funcionando | Presença `online` ([07 §11](07-alertas-e-tempo-real.md#11-tempo-real-get-apiv1stream-sse)): contato ≤ `stopped_interval_s` + 60 s (J16: 360 s). Velocidade não importa | ARMED `awaiting_contact` |
 | `ignition` | Desliga a ignição | (a) 2 fixes em E com velocidade 0 e `fix_time` distintos; ou (b) IGN_OFF | ARMED `awaiting_stop` |
-| `fuel_pump` | Corta o combustível; o motor apaga em segundos | (a) fix mais recente em E e **todos** os fixes em E com velocidade ≤ `max_moving_cut_kmh`; ou (b) IGN_OFF. Com `max_moving_cut_kmh = 0`, (a) vira a regra (a) de `ignition` | ARMED `awaiting_speed` (fix acima do teto) ou `awaiting_evidence` (sem fix) |
+| `fuel_pump` | Corta o combustível; o motor apaga em segundos | (a) fix mais recente em E e **todos** os fixes em E com velocidade ≤ `max_moving_cut_kmh`, e a regra de corte em movimento abaixo quando o fix mais recente indica movimento; ou (b) IGN_OFF. Com `max_moving_cut_kmh = 0`, (a) vira a regra (a) de `ignition` | ARMED `awaiting_speed` (fix acima do teto) ou `awaiting_evidence` (sem fix) |
 | NULL | — | Indisponível (INV-10) | 422 `CUT_POINT_MISSING` |
 
 "Velocidade 0" = `speed_kmh_x10 ≤ commands.stopped_speed_max_kmh_x10` do perfil, padrão 0 [VALIDAR — DEC-02: ruído do J16 parado, cenário S01 de [05](05-ingestao-e-telemetria.md)]. Desbloqueio, `position_request` e `set_interval` vão direto a READY.
+
+Regras de `fuel_pump` além da tabela:
+1. **Corte em movimento** (fix mais recente com velocidade > `stopped_speed_max_kmh_x10`): exige 2 fixes em E, o mais recente com `received_at ≥ t − (moving_interval_s + 10 s)` (J16: 40 s), velocidades ≤ `max_moving_cut_kmh − 10` e a do mais recente ≤ a do anterior. Com 1 fix de até 60 s, a velocidade no instante do corte seria desconhecida.
+2. Com `commands.position_request_type` no perfil, o corte em movimento sempre usa a posição sob demanda (§3.4).
+3. O tempo pedido → atuação é medido no GC-2 e no GC-6 e registrado no `manifest.json`; a DEC-07 ([15](15-decisoes-riscos-premissas.md)) traz a opção "teto de 40 km/h só com posição sob demanda ou trava no dispositivo; senão 20 km/h".
+4. **Moto:** `vehicle.kind = 'motorcycle'` tem teto efetivo 0 (corte só parado ou por IGN_OFF), qualquer que seja `max_moving_cut_kmh`, até decisão explícita do fundador na DEC-07. O termo (§12) e `texts.ts` têm texto próprio para moto.
 
 ### 3.3 Política da operadora (`command_policy`)
 
 1. Versionada: cada mudança é INSERT de nova `version` pelo `operator_admin`, com step-up de console. A aplicação não tem UPDATE nem DELETE. Vigente = maior `version`.
 2. Limites da plataforma (CHECK no banco): `max_moving_cut_kmh` 0–40 (DEC-07); `evidence_max_age_s` 15–60; `armed_ttl_s` 60–300; `occurrence_armed_ttl_s` 300–1.800. A operadora só pode ficar mais estrita.
-3. A versão 1 nasce com a operadora: `max_moving_cut_kmh = 0`, `allow_app_block = false`, demais no máximo. Lider: versão com 40 km/h e `allow_app_block = true` após DEC-07 (GC-1 de [02](02-escopo-e-fases.md)).
+3. Sem linha em `command_policy` vale `PLATFORM_DEFAULT_POLICY` (`version` 0): `max_moving_cut_kmh = 0`, `allow_app_block = false`, demais no máximo. A migration não cria a v1; a primeira versão gravada pelo `operator_admin` é a v1. Lider: versão com 40 km/h e `allow_app_block = true` após DEC-07 (GC-1 de [02](02-escopo-e-fases.md)).
 4. O comando grava a versão usada em `policy_snapshot`; reavaliações (ARMED e despacho) usam a versão vigente e a gravam no `command_event`. `expires_at` não muda.
 
 ### 3.4 Trava no dispositivo e posição sob demanda
@@ -106,10 +128,10 @@ E = `evidence_max_age_s` da política vigente (≤ 60 s); t = `now()` do banco n
 | Papel | Bloquear / desbloquear | Cancelar (só ARMED/READY sem tentativa) | Registrar contingência | Step-up |
 |---|---|---|---|---|
 | `operator_admin`, `operator_agent` | Sim | Qualquer comando da operadora | Sim | Console: TOTP ≤ 5 min + `reason` ≥ 10 caracteres |
-| `search_team` | Só com ocorrência `open` no veículo | Os próprios | Não | App: chave do aparelho |
-| `installer` | Só `reason_code = 'installation_test'`, em vínculo aberto por ele (`installed_by`) há ≤ 2 h [ADOTADO NA v2.0: janela de 2 h substitui a ordem de instalação até existir OS formal] | Os próprios | Não | App |
+| `search_team` | Só com ocorrência `open` no veículo | Os próprios | Não | Console: TOTP ≤ 5 min + `reason` ≥ 10 caracteres (a equipe de busca usa o console responsivo; exige 2FA ativo) |
+| `installer` | Só `reason_code = 'installation_test'`, em vínculo aberto por ele (`installed_by`) há ≤ 2 h janela de 2 h substitui a ordem de instalação até existir OS formal | Os próprios | Não | App |
 | `tenant_owner` | Se `allow_app_block` | Os pedidos de usuários do próprio cliente | Não | App |
-| `tenant_member` | Se `allow_app_block` e o titular permitiu [ADOTADO NA v2.0: `membership.can_command boolean NOT NULL DEFAULT false`, alterável só pelo `tenant_owner`] | Os próprios | Não | App |
+| `tenant_member` | Se `allow_app_block` e o titular permitiu `membership.can_command boolean NOT NULL DEFAULT false`, alterável só pelo `tenant_owner` | Os próprios | Não | App |
 | `platform_admin`, suporte com grant, agente de IA, visitante de link | Nunca | Nunca | Nunca | — |
 
 1. A autorização é recalculada no pedido e na transação que leva à 1ª tentativa (membership ativa, papel, ocorrência, janela do instalador). Falha → REJECTED `authorization_revoked`. Retentativas de desbloqueio não reavaliam autorização.
@@ -124,9 +146,11 @@ E = `evidence_max_age_s` da política vigente (≤ 60 s); t = `now()` do banco n
 
 Step-up vale para bloquear, desbloquear, registrar contingência e criar versão de `command_policy`. Cancelar exige sessão e permissão. Falha → 403, nenhuma linha em `command`, `audit_log` com `result = 'denied'`.
 
+**Carência da chave nova.** Chave de aparelho cadastrada há menos de 24 h autoriza só `unblock`: `block` responde 422 `COMMAND_NOT_ALLOWED` com `reason = device_key_cooldown`, e o bloqueio nesse período é pela central. O cadastro avisa o aparelho anterior e o e-mail do titular ([08 §6.1](08-identidade-e-seguranca.md#61-chave-do-aparelho-cadastro-f1)).
+
 ### 4.3 Idempotência e concorrência
 
-1. `Idempotency-Key` (UUID) obrigatório, único por `(operator_id, tenant_id)`. Mesma chave + mesmo `request_sha256` (SHA-256 do JSON canônico do corpo sem `stepUp`) → 200 com o comando existente, sem consumir desafio. Mesma chave + corpo diferente → 422 `IDEMPOTENCY_KEY_REUSED`. A idempotência é checada antes do desafio. Regra geral em [09](09-api-e-contratos.md).
+1. `Idempotency-Key` (UUID) obrigatório, único por `(operator_id, tenant_id)`. Mesma chave + mesmo `request_sha256` (SHA-256 do JSON canônico de `{vehicleId, type, reasonCode, reason}`, sem `stepUp`) → 202 com o comando existente e `Idempotent-Replayed: true`, sem consumir desafio. Mesma chave + corpo diferente → 409 `IDEMPOTENCY_CONFLICT`. A idempotência é checada antes do desafio. Regra geral em [09](09-api-e-contratos.md).
 2. No máximo 1 `block`/`unblock` ativo (REQUESTED, ARMED, READY, DISPATCHING, AWAITING_CONFIRMATION) por rastreador, garantido por índice único parcial (§6):
 
 | Ativo | Novo `block` | Novo `unblock` |
@@ -150,6 +174,7 @@ stateDiagram-v2
   ARMED --> EXPIRED: TTL
   ARMED --> CANCELLED: cancelado / substituído
   ARMED --> REJECTED: revalidação falhou
+  ARMED --> FAILED: block com tentativa offline e TTL vencido
   READY --> ARMED: evidência venceu (block)
   READY --> DISPATCHING: revalidado, tentativa gravada
   READY --> CANCELLED
@@ -175,6 +200,7 @@ stateDiagram-v2
 | REQUESTED → READY / ARMED | Avaliador da §3 | Job `commands.dispatch` ou `commands.armed.tick` (+ filho `position_request`) | api |
 | ARMED → READY | Condição satisfeita | Job `commands.dispatch` | worker |
 | ARMED/READY → EXPIRED | `now() ≥ expires_at`, sem tentativa | Push ao solicitante | worker |
+| ARMED → FAILED | `block` com ≥ 1 tentativa (`device_offline`/`not_sent`) e `now() ≥ expires_at`; EXPIRED é proibido depois de tentativa | Push; `state_reason = 'device_offline'` | worker |
 | ARMED/READY → CANCELLED | Cancelamento autorizado, sem tentativa; `superseded_by_unblock`; `occurrence_closed` | — | api / worker |
 | ARMED/READY → REJECTED | Revalidação falhou: autorização, perfil, `cut_point`, termo, escopo | Push com motivo | worker |
 | READY → ARMED | `block`: evidência deixou de valer (ex.: job atrasado) | Volta ao laço | worker |
@@ -193,7 +219,11 @@ UNKNOWN nunca volta a DISPATCHING. Novo bloqueio depois de UNKNOWN só por novo 
 
 ## 6. Modelo de dados
 
-Tipos RLS ([04](04-dominio-e-dados.md) §4.2): `command` e `occurrence` A; `command_attempt` B; `command_event` B append-only; `command_policy` C + `command_policy_tenant_read`; políticas criadas pelo padrão do bloco `DO` de [04](04-dominio-e-dados.md) §4.2. `command_policy` entra em `appendOnly` na allowlist do catálogo (CAT-06).
+Tipos RLS ([04 §4.2](04-dominio-e-dados.md#42-tipos-de-tabela-e-políticas)), com políticas criadas pelo padrão do bloco `DO` de [04 §4.2](04-dominio-e-dados.md#42-tipos-de-tabela-e-políticas):
+- `command` e `occurrence`: A.
+- `command_attempt`: B.
+- `command_event`: A, append-only. O `api` grava o evento de criação no escopo `tenant`, que o tipo B recusaria.
+- `command_policy`: C + `command_policy_tenant_read`; entra em `appendOnly` na allowlist do catálogo (CAT-06).
 
 ```sql
 -- F1 · comandos
@@ -268,12 +298,14 @@ BEGIN
   pair := OLD.state || '>' || NEW.state;
   IF NEW.state = OLD.state OR NEW.state_version <> OLD.state_version + 1
      OR NOT pair = ANY (ARRAY['REQUESTED>READY', 'REQUESTED>ARMED', 'ARMED>READY', 'ARMED>EXPIRED', 'ARMED>CANCELLED',
-       'ARMED>REJECTED', 'READY>ARMED', 'READY>DISPATCHING', 'READY>EXPIRED', 'READY>CANCELLED', 'READY>REJECTED',
+       'ARMED>REJECTED', 'ARMED>FAILED', 'READY>ARMED', 'READY>DISPATCHING', 'READY>EXPIRED', 'READY>CANCELLED', 'READY>REJECTED',
        'DISPATCHING>AWAITING_CONFIRMATION', 'DISPATCHING>ARMED', 'DISPATCHING>READY', 'DISPATCHING>FAILED', 'DISPATCHING>UNKNOWN',
        'AWAITING_CONFIRMATION>CONFIRMED', 'AWAITING_CONFIRMATION>FAILED', 'AWAITING_CONFIRMATION>UNKNOWN',
        'AWAITING_CONFIRMATION>READY', 'UNKNOWN>CONFIRMED', 'UNKNOWN>FAILED'])
      OR (pair IN ('READY>ARMED', 'DISPATCHING>ARMED') AND NEW.type <> 'block')
      OR (pair IN ('DISPATCHING>READY', 'AWAITING_CONFIRMATION>READY') AND NEW.type <> 'unblock')
+     OR (pair = 'ARMED>FAILED' AND (NEW.type <> 'block'
+         OR NOT EXISTS (SELECT 1 FROM app.command_attempt a WHERE a.command_id = NEW.id)))
      OR (NEW.state IN ('CANCELLED', 'EXPIRED') AND EXISTS (SELECT 1 FROM app.command_attempt a WHERE a.command_id = NEW.id)) THEN
     RAISE EXCEPTION 'transição de comando inválida: % (%, v% → v%)', pair, NEW.type, OLD.state_version, NEW.state_version
       USING ERRCODE = 'check_violation';
@@ -283,12 +315,12 @@ END $$;
 CREATE TRIGGER command_state BEFORE INSERT OR UPDATE ON app.command FOR EACH ROW EXECUTE FUNCTION app.tg_command_state();
 CREATE TRIGGER command_immutable BEFORE UPDATE ON app.command FOR EACH ROW EXECUTE FUNCTION app.tg_immutable_columns(
   'operator_id', 'tenant_id', 'vehicle_id', 'device_id', 'assignment_id', 'type', 'requested_by', 'requested_via',
-  'reason_code', 'idempotency_key', 'request_sha256', 'parent_command_id', 'occurrence_id', 'expires_at', 'created_at');
+  'reason_code', 'idempotency_key', 'request_sha256', 'parent_command_id', 'occurrence_id', 'policy_snapshot', 'expires_at', 'created_at');
 GRANT SELECT, INSERT ON app.command_policy, app.command_event TO tracksys_app;
 GRANT SELECT, INSERT, UPDATE ON app.command, app.command_attempt, app.occurrence TO tracksys_app;
 ```
 
-`command_attempt` com `finished_at` preenchido não muda mais (gatilho `command_attempt_finished`, padrão de [04](04-dominio-e-dados.md) §3.3). `evidence_snapshot` guarda `evaluatedAt`, `rule` (ex.: `fuel_pump.moving_under_ceiling`), `decision`, `cutPoint`, `ceilingKmh`, `evidenceMaxAgeS`, `profile` (`j16-gt06/2`), `ignOff`, `onDemandFix` e `fixes[]` com `sourceEventId`, `fixTime`, `receivedAt` e `speedKmh`.
+`command_attempt` com `finished_at` preenchido não muda mais (gatilho `command_attempt_finished`, padrão de [04 §3.3](04-dominio-e-dados.md#33-frota)). `evidence_snapshot` guarda `evaluatedAt`, `rule` (ex.: `fuel_pump.moving_under_ceiling`), `decision`, `cutPoint`, `ceilingKmh`, `evidenceMaxAgeS`, `profile` (`j16-gt06/2`), `ignOff`, `onDemandFix` e `fixes[]` com `sourceEventId`, `fixTime`, `receivedAt` e `speedKmh`.
 
 ## 7. Despacho via Traccar
 
@@ -337,14 +369,16 @@ Content-Type: application/json
 ### 8.2 UNKNOWN
 
 1. Encerra a tentativa de bloqueio: nenhum job cria nova tentativa para o comando (INV-08). A UI avisa que o pedido anterior pode ter sido executado.
-2. Abre alerta `command_unknown` (`critical`, `episode_key = command_unknown:{commandId}`): push ao solicitante e ao titular; fila da central ([07](07-alertas-e-tempo-real.md) §9) [alinhar com 07: incluir no catálogo].
-3. Estado do relé observado e sua idade aparecem separados do estado do comando.
+2. Abre alerta `command_unknown` (`critical`, não desativável, só com `processingMode = live`, `episode_key = command_unknown:{commandId}`): push ao solicitante e ao titular; fila da central ([07 §9](07-alertas-e-tempo-real.md#9-fila-de-alertas-no-console-da-central)). FAILED abre `command_failed` (`warning`). Catálogo e textos em [07 §2](07-alertas-e-tempo-real.md#2-catálogo).
+3. Os tipos `command_%` usam `episode_key` único e ficam fora do índice `(device_id, type)` de alerta aberto ([04 §3.6](04-dominio-e-dados.md#36-alertas)): um `block` UNKNOWN aberto e um `unblock` UNKNOWN depois, no mesmo rastreador, geram 2 alertas abertos e 2 pushes.
+4. Estado do relé observado e sua idade aparecem separados do estado do comando.
 
 ### 8.3 Evidência tardia
 
 1. `commandResult` ou relé observados depois do prazo vão para a última tentativa do mesmo tipo com `started_at ≤` instante do fato, desde que nenhuma tentativa do tipo oposto tenha começado depois; senão `command_event` com `detail.unattributed = true`, sem transição.
 2. Comando UNKNOWN cuja evidência tardia satisfaz a §8.1 (sem o prazo) → CONFIRMED; padrão de falha → FAILED. Ator `system:reconcile`.
 3. Evidência com `processingMode ≠ 'live'` só anota `command_event` (INV-05).
+4. `commandResult` ao vivo que o item 1 não consegue atribuir (nenhum comando de relé ativo ou UNKNOWN no rastreador) indica comando enviado ao Traccar por fora da plataforma: abre alerta `command_outside_platform` (`critical`, `episode_key = command_outside_platform:{deviceId}:{sourceEventId}`) para a central e page ao fundador. Só `TRACCAR_API_USER` envia comando ([ADR-003](../adr/ADR-003-traccar-borda-de-protocolos.md)).
 
 ### 8.4 Reconciliação após reinício
 
@@ -372,25 +406,40 @@ Desbloquear é a direção segura: duplicata é inofensiva, então há retentati
 | 300 | UNKNOWN `unblock_unconfirmed` se alguma tentativa pode ter chegado (`sent`, `timeout`, `error`, `unknown`, `sms_accepted`); FAILED `not_delivered` se todas foram `device_offline`/`not_sent` e o SMS faltou ou foi `sms_rejected`. Ambos abrem alerta |
 
 1. Confirmação de qualquer tentativa (§8.1) confirma o comando; tentativas futuras não começam.
-2. SMS exige DEC-01 (`EMNIFY_SMS_ENABLED=true`), `sim_card` ativo do rastreador, `commands.sms.unblock_template_ref` no perfil e senha SMS do dispositivo no cofre ([08](08-identidade-e-seguranca.md)); nunca em log. Endpoint e validade de 10 min do SMS [VALIDAR — DEC-01]. DLR positivo = `sms_accepted`, não confirmação.
-3. Sem DEC-01: aos 120 s a central recebe na fila "Enviar SMS de desbloqueio pelo portal", com o texto pronto ([Anexo C](../anexos/C-operacional.md)); depois registra a contingência (§10).
-4. Bloqueio nunca usa SMS automático nem retentativa.
-5. Pedido de bloqueio até 24 h depois de um desbloqueio por SMS não confirmado mostra o aviso "um SMS de desbloqueio enviado às {hora} ainda pode chegar e desfazer este bloqueio" [PREMISSA: 24 h].
+2. SMS exige DEC-01 (`EMNIFY_SMS_ENABLED=true`), `sim_card` ativo do rastreador, `commands.sms.unblock_template_ref` no perfil e a senha SMS da operadora no cofre ([08 §8](08-identidade-e-seguranca.md#8-segredos)); nunca em log. Endpoint e validade de 10 min do SMS [VALIDAR — DEC-01]. DLR positivo = `sms_accepted`, não confirmação.
+3. A senha SMS é por operadora, diferente da de fábrica e da usada na SmartGPS, e já foi trocada no rastreador (`set_password`, [11 §5](11-onboarding-e-migracao.md#5-modelos-de-sms-e-senha-do-dispositivo)) antes do `set_server_domain`. Com a senha antiga ainda valendo, qualquer um com o MSISDN comanda o J16 fora de política (GC-7).
+4. O chip bloqueia SMS MT de pessoa para pessoa (P2P): SMS só pela API ou pelo portal emnify (DEC-01).
+5. Sem DEC-01: aos 120 s a central recebe na fila "Enviar SMS de desbloqueio pelo portal", com o texto pronto ([Anexo C](../anexos/C-operacional.md)); depois registra a contingência (§10).
+6. Bloqueio nunca usa SMS automático nem retentativa.
+7. Pedido de bloqueio até 24 h depois de um desbloqueio por SMS não confirmado mostra o aviso "um SMS de desbloqueio enviado às {hora} ainda pode chegar e desfazer este bloqueio" [PREMISSA: 24 h].
 
 ## 10. Contingência por SMS manual
 
-Com a plataforma fora ou o GPRS falhando, a central envia o SMS pelo portal emnify/Meta Telecom seguindo o runbook ([Anexo C](../anexos/C-operacional.md)), com a mesma regra de `cut_point` da §3.2. Até 72 h depois, `operator_agent` ou `operator_admin` registra em `POST /api/v1/vehicles/{vehicleId}/commands/contingency` (`type`, `reasonCode`, `sentAt`, `reason`; nunca o texto do SMS, que contém a senha). Efeito: `command` nasce UNKNOWN com `requested_via = 'contingency'`, `state_reason = 'contingency'`, `expires_at = created_at` e a política vigente no snapshot; `command_attempt` `sms`/`outside_platform` com `started_at = sentAt`; `audit_log` `command.contingency`. A §8.3 pode levar a CONFIRMED. Nenhuma chamada ao Traccar.
+Com a plataforma fora ou o GPRS falhando, a central envia o SMS pelo portal emnify/Meta Telecom seguindo o runbook ([Anexo C](../anexos/C-operacional.md)). A regra é a de `cut_point` da §3.2 e a janela de 60 s do app (§3.1): `fuel_pump` só com resposta do `WHERE#` cuja hora do fix esteja a ≤ 60 s do SMS de bloqueio.
+
+Até 72 h depois, `operator_agent` ou `operator_admin` registra em `POST /api/v1/vehicles/{vehicleId}/commands/contingency` (`type`, `reasonCode`, `sentAt`, `reason`; nunca o texto do SMS, que contém a senha). Efeito:
+- `command` nasce UNKNOWN com `requested_via = 'contingency'`, `state_reason = 'contingency'`, `expires_at = created_at` e a política vigente no snapshot;
+- `command_attempt` `sms`/`outside_platform` com `started_at = sentAt`;
+- `audit_log` `command.contingency`; nenhuma chamada ao Traccar.
+
+A §8.3 pode levar a CONFIRMED.
 
 ## 11. Ocorrência (efeitos em comandos)
 
-`occurrence` é aberta pelo `tenant_owner` ("Fui roubado") ou pela central; no máximo 1 `open` por veículo. Enquanto `open`: TTL de ARMED de 1.800 s para pedidos novos; `search_team` pode pedir; perfil com `commands.set_interval_type` recebe `set_interval` (intervalo do perfil para ocorrência) na abertura e volta ao normal no fechamento, com `idempotency_key` = UUID v5 (namespace URL do RFC 9562) de `{occurrence_id}:{open|close}` e `requested_by` = quem abriu ou fechou [VALIDAR — DEC-02]. No fechamento (`recovered` ou `closed`), comandos ARMED/READY pedidos pelo `search_team` vão a CANCELLED `occurrence_closed`. BO, linha do tempo, compartilhamento e pacote de evidências: [10](10-apps-e-ux.md) e [08](08-identidade-e-seguranca.md).
+`occurrence` é aberta pelo `tenant_owner` ("Fui roubado") ou pela central (`operator_admin`, `operator_agent`); `tenant_member`, `installer` e `search_team` não abrem ([08 §3](08-identidade-e-seguranca.md#3-papéis-e-permissões)). No máximo 1 `open` por veículo. Enquanto `open`:
+- TTL de ARMED de 1.800 s para pedidos novos;
+- `search_team` pode pedir;
+- perfil com `commands.set_interval_type` recebe `set_interval` (intervalo do perfil para ocorrência) na abertura e volta ao normal no fechamento, com `idempotency_key` = UUID v5 (namespace URL do RFC 9562) de `{occurrence_id}:{open|close}` e `requested_by` = quem abriu ou fechou [VALIDAR — DEC-02].
+
+No fechamento (`recovered` ou `closed`), comandos ARMED/READY pedidos pelo `search_team` vão a CANCELLED `occurrence_closed`. BO, linha do tempo, compartilhamento e pacote de evidências: [10](10-apps-e-ux.md) e [08](08-identidade-e-seguranca.md).
 
 ## 12. Termo de ciência do bloqueio
 
 1. O bloqueio (app e central) exige `consent` ativo do cliente com `purpose = 'block_terms'` e `text_version = 'block-terms-v{N}/{kmh}kmh'` (ex.: `block-terms-v1/40kmh`), gravado pelo serviço público de `sva` ([12](12-cobranca-e-svas.md)). Aceite válido: `v{N}` igual à versão vigente do texto e `{kmh}` ≥ `max_moving_cut_kmh` vigente.
 2. Quem aceita: `tenant_owner`, no app, vendo o texto do [Anexo B](../anexos/B-juridico.md) com operadora, `cut_point` de cada veículo, teto e TTL. Nova versão do texto ou teto maior exige novo aceite; teto menor não.
-3. Revogado ou ausente: bloqueio indisponível (422 `COMMAND_TERMS_NOT_ACCEPTED`); desbloqueio continua.
+3. Revogado ou ausente: bloqueio indisponível (422 `COMMAND_NOT_ALLOWED` com `reason = block_terms_missing`); desbloqueio continua.
 4. [DECISÃO DO FUNDADOR PENDENTE: titular sem app pode ter o aceite registrado pela central com anexo (termo assinado ou print do WhatsApp) e `audit_log` `command.block_terms.recorded`, até o portal web do cliente.]
+5. Veículo `motorcycle`: o termo e `texts.ts` têm texto próprio (corte só parado até decisão explícita na DEC-07, §3.2; [Anexo B](../anexos/B-juridico.md) §10).
 
 ## 13. Homologação do perfil e G-CMD
 
@@ -398,7 +447,7 @@ Com a plataforma fora ou o GPRS falhando, a central envia o SMS pelo portal emni
 
 1. **Alimentação:** fonte 12 V DC ≥ 3 A (ou bateria automotiva 12 V) com fusível de 5 A no positivo. **Rastreador:** J16 do lote da Lider (IMEI e firmware anotados), chip emnify ativo, antena GPS com céu aberto.
 2. **Relé:** automotivo 12 V, 5 pinos, 30/40 A, bobina pela saída de bloqueio do J16 (fio e polaridade do manual) [VALIDAR — DEC-02]. **Carga:** lâmpada 12 V 5 W (ou LED 12 V com resistor) no contato NF (87a): acesa = desbloqueado, apagada = bloqueado. **Ignição:** chave entre +12 V e o fio de ignição do J16.
-3. **Sem cobertura:** caixa blindada do S08 ([05](05-ingestao-e-telemetria.md) §15). **Registro:** vídeo contínuo da lâmpada com relógio UTC com segundos na imagem; TrackSys, Traccar e celular com NTP.
+3. **Sem cobertura:** caixa blindada do S08 ([05 §15](05-ingestao-e-telemetria.md#15-spike-do-j16-t-002-o-que-capturar)). **Registro:** vídeo contínuo da lâmpada com relógio UTC com segundos na imagem; TrackSys, Traccar e celular com NTP.
 4. Antes dos ciclos, o S07 do spike preenche a seção `commands` (padrões de `commandResult`, erro de offline, `noQueue`) com chamadas diretas à API do Traccar. Os ciclos rodam na produção, na operadora de bancada (`COMMAND_BENCH_OPERATOR_ID`), com veículo `kind = 'other'` e vínculo `cut_point = 'fuel_pump'`.
 
 ### 13.2 Procedimento: 20 ciclos (1 ciclo = bloqueio + desbloqueio)
@@ -436,15 +485,28 @@ Obrigatórios: tipos de bloqueio e desbloqueio, `no_queue`, `confirmation`, `off
 
 ### 13.5 G-CMD
 
-Checklist GC-1 a GC-6 em [02](02-escopo-e-fases.md) §4.3. Sequência: bancada aprovada → perfil `homologated` → `COMMAND_BLOCK_SCOPE=pilot:<veículo do teste>` → teste supervisionado (GC-6) → `docs/runbooks/gates/G-CMD.md` aprovado → `COMMAND_BLOCK_SCOPE=all`. Kit `homologation:check` e runbook `docs/runbooks/gates/G-CMD.md`: T-022 [ADOTADO NA v2.0].
+Checklist GC-1 a GC-8 em [02 §4.3](02-escopo-e-fases.md#43-gate-g-cmd-meta-1630112026). Sequência:
+1. GC-2 (bancada) aprovado.
+2. Migration N0 do fundador cria o perfil J16 `homologated` com `evidence_ref` = `manifest.json` + SHA-256 (§13.4).
+3. Deploy N0 com `COMMAND_BLOCK_SCOPE=pilot:<veículo do GC-6>`.
+4. Teste supervisionado (GC-6).
+5. `docs/runbooks/gates/G-CMD.md` com GC-1 a GC-8 `ok`.
+6. Deploy N0 com `COMMAND_BLOCK_SCOPE=all`.
+
+O perfil `homologated` é pré-requisito; a trava do veículo real é `COMMAND_BLOCK_SCOPE`. Itens novos:
+- **GC-7:** a senha SMS antiga (de fábrica ou da SmartGPS) não comanda mais o rastreador de teste: SMS com ela é ignorado e SMS com a senha da operadora é aceito (§9 item 3).
+- **GC-8:** allowlist da APN ativa na porta 5023, ou risco aceito por escrito pelo fundador em [15 §5](15-decisoes-riscos-premissas.md#5-propostas-de-decisão-registradas-nos-capítulos).
+- GC-2 e GC-6 medem e registram o tempo pedido → atuação (§3.2 regra 3).
+
+Kit `homologation:check` e runbook `docs/runbooks/gates/G-CMD.md`: T-022.
 
 ## 14. Contratos
 
 | Rota | Quem | Corpo → resposta |
 |---|---|---|
 | `GET /api/v1/vehicles/{vehicleId}/command-availability` | §4.1 | → `{ block: { available, code?, cutPoint, ceilingKmh, effectText }, unblock: { available, code? }, activeCommandId, relay: { state, observedAt } }` |
-| `POST /api/v1/vehicles/{vehicleId}/command-challenges` | App | `{ type, reasonCode }` → 201 `{ challengeId, nonce, expiresAt }` |
-| `POST /api/v1/vehicles/{vehicleId}/commands` | §4.1 | `Idempotency-Key`; `{ type, reasonCode, reason?, stepUp }` → 201/200 `Command` + `ETag: "<stateVersion>"` |
+| `POST /api/v1/vehicles/{vehicleId}/commands/challenges` | App | `{ type, reasonCode }` → 201 `{ challengeId, nonce, expiresAt, deviceKeyId, vehicleId, type, reasonCode }` |
+| `POST /api/v1/vehicles/{vehicleId}/commands` | §4.1 | `Idempotency-Key`; `{ type, reasonCode, reason?, stepUp }` → 202 `Command` + `Location` + `ETag: "<stateVersion>"`; repetição: 202 com `Idempotent-Replayed: true` |
 | `GET /api/v1/commands/{commandId}` | Escopo RLS | → `Command` + `events[]` + `attempts[]` (`rawResponse` só para a equipe da operadora) |
 | `GET /api/v1/vehicles/{vehicleId}/commands?cursor=&limit=` | Escopo RLS | Lista paginada |
 | `POST /api/v1/commands/{commandId}/cancel` | §4.1 | `If-Match` → 200; 409 `COMMAND_NOT_CANCELLABLE`; 412 |
@@ -456,14 +518,26 @@ Checklist GC-1 a GC-6 em [02](02-escopo-e-fases.md) §4.3. Sequência: bancada a
 // pedido
 { "type": "block", "reasonCode": "theft_suspected", "reason": null,
   "stepUp": { "kind": "device_key", "challengeId": "0192a1b2-0021-7c3d-8e4f-5a6b7c8d9e21", "deviceKeyId": "0192a1b2-0022-7c3d-8e4f-5a6b7c8d9e22", "signature": "MEUCIQ…" } }
-// 201
+// 202
 { "id": "0192a1b2-0023-7c3d-8e4f-5a6b7c8d9e23", "vehicleId": "0192a1b2-0000-7000-8000-0000000000f1", "type": "block",
   "state": "ARMED", "stateVersion": 2, "stateReason": "awaiting_speed", "cutPoint": "fuel_pump", "ceilingKmh": 40,
   "expiresAt": "2026-11-20T14:05:00Z", "requestedVia": "app", "createdAt": "2026-11-20T14:00:00Z",
   "evidence": { "evaluatedAt": "2026-11-20T14:00:00Z", "lastFixAt": "2026-11-20T13:59:51Z", "speedKmh": 52.0 } }
 ```
 
-Console envia `stepUp: { "kind": "console_totp" }`. Outros códigos: 503 `COMMAND_DISPATCH_DISABLED` (só `block`; `unblock` aceito espera em READY), `NO_PRIMARY_DEVICE` (sem vínculo primário aberto; HTTP 422 `COMMAND_NOT_ALLOWED` com `reason = no_primary_device`), `CUT_POINT_MISSING`, `PROFILE_NOT_HOMOLOGATED`, `COMMAND_RELAY_UNSUPPORTED`, `COMMAND_BLOCK_SCOPE_DISABLED`, `COMMAND_APP_BLOCK_DISABLED`, `COMMAND_FORBIDDEN`, `STEP_UP_REQUIRED`, `STEP_UP_CHALLENGE_EXPIRED`, `STEP_UP_CHALLENGE_USED`, `STEP_UP_SIGNATURE_INVALID`, `COMMAND_REASON_REQUIRED`. Os `code` HTTP são os de [09 §3](09-api-e-contratos.md); os demais nomes `COMMAND_*` e `STEP_UP_*` desta seção e dos CTs são motivos do domínio (T-016), que a T-018 mapeia para eles (ex.: `COMMAND_RELAY_UNSUPPORTED` → 422 `COMMAND_NOT_ALLOWED` com `reason = relay_unsupported`; `STEP_UP_CHALLENGE_EXPIRED` → 403 `STEP_UP_INVALID` com `reason = challenge_expired`). Evento `command.state.changed.v1`: `{ commandId, vehicleId, deviceId, type, fromState, toState, stateVersion, stateReason, at, requestedVia, processingMode }`; consumidores em [03](03-arquitetura.md) §6. SSE `command.state` ao solicitante: [09](09-api-e-contratos.md).
+Console envia `stepUp: { "kind": "console_totp" }`. Os `code` HTTP são os de [09 §3](09-api-e-contratos.md#3-erros-problem-details); o domínio (T-016) devolve motivos neutros e a T-018 os mapeia:
+
+| Motivo do domínio | HTTP | `code` e `reason` |
+|---|---|---|
+| `CUT_POINT_MISSING`, `PROFILE_NOT_HOMOLOGATED` | 422 | o mesmo nome |
+| `NO_PRIMARY_DEVICE`, `RELAY_UNSUPPORTED`, `BLOCK_SCOPE_DISABLED`, `BLOCK_TERMS_MISSING`, `TENANT_CLOSED`, `DEVICE_KEY_COOLDOWN` | 422 | `COMMAND_NOT_ALLOWED`; `reason` = `no_primary_device`, `relay_unsupported`, `block_scope_disabled`, `block_terms_missing`, `tenant_closed`, `device_key_cooldown` |
+| `COMMAND_DISPATCH_DISABLED` | 503 | o mesmo nome (só `block`; `unblock` aceito espera em READY) |
+| Papel, `can_command`, `allow_app_block` | 403 | `FORBIDDEN` com `reason` |
+| Desafio ausente, vencido, usado ou assinatura inválida | 403 | `STEP_UP_REQUIRED`; `STEP_UP_INVALID` com `reason` = `challenge_expired`, `challenge_used`, `signature_invalid` |
+| Cliente encerrado ou vínculo fechado com relé não desbloqueado | 409 | `RELAY_NOT_UNBLOCKED` |
+| Motivo em texto ausente no console | 422 | `VALIDATION_FAILED` |
+
+Evento `command.state.changed.v1`: `{ commandId, vehicleId, deviceId, type, fromState, toState, stateVersion, stateReason, at, requestedVia, processingMode }`; consumidores em [03 §6](03-arquitetura.md#6-eventos-de-domínio-e-barramento). SSE `command.state` ao solicitante: [09](09-api-e-contratos.md).
 
 ## 15. Auditoria e UX mínima
 
@@ -475,6 +549,7 @@ Console envia `stepUp: { "kind": "console_totp" }`. Outros códigos: 503 `COMMAN
 | `starter` | "Bloqueio de partida: o veículo não dará nova partida. Se estiver ligado, continua funcionando até ser desligado." |
 | `ignition` | "Corte de ignição: desliga o motor. Só é enviado com o veículo parado; em movimento, o pedido aguarda até {ttl} min." |
 | `fuel_pump` | "Corte de combustível: o motor apaga em alguns segundos, inclusive em movimento até {teto} km/h. Acima disso, o pedido aguarda até {ttl} min." (teto 0: "Só é enviado com o veículo parado.") |
+| `fuel_pump`, moto | "Corte de combustível na moto: só é enviado com a moto parada, porque cortar em movimento pode causar queda. Se estiver andando, o pedido aguarda até {ttl} min." |
 
 3. Rótulos distintos: ARMED "Aguardando condição segura — {motivo}. Expira às {hora}" + Cancelar; READY/DISPATCHING "Enviando ao rastreador"; AWAITING_CONFIRMATION "Aguardando confirmação do rastreador"; CONFIRMED "Bloqueio confirmado às {hora}"; UNKNOWN "Não foi possível confirmar. O veículo pode ou não estar bloqueado" + "Falar com a central"; FAILED "O rastreador não executou"; REJECTED "Recusado: {motivo}"; EXPIRED "Expirou sem condição segura. Nada foi enviado". UNKNOWN nunca aparece como bloqueado. O relé observado mostra a idade ("há 3 h"). Telas: [10](10-apps-e-ux.md).
 
@@ -483,17 +558,17 @@ Console envia `stepUp: { "kind": "console_totp" }`. Outros códigos: 503 `COMMAN
 ### REQ-CMD-001 — Disponibilidade do bloqueio
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-10, INV-03
 **Regra.** `api` e `worker` DEVEM aplicar a §2 no pedido e antes do despacho. Bloqueio indisponível NÃO DEVE gerar linha em `command` nem chamada ao Traccar. Desbloqueio DEVE depender só das condições próprias da §2.
-**Aceite.** CT-CMD-001 — Dado V1 com vínculo de `cut_point` NULL, Quando o `tenant_owner` pede `block` com step-up válido, Então 422 `CUT_POINT_MISSING`, 0 linhas em `command`, 1 `audit_log` `denied` e 0 requisições no fake de Traccar; Dado perfil `draft` fora da operadora de bancada, Então 422 `PROFILE_NOT_HOMOLOGATED`; Dado perfil `homologated` com `relay = "unknown"`, Então 422 `COMMAND_RELAY_UNSUPPORTED`; Dado `COMMAND_BLOCK_SCOPE=none`, Então 422 `COMMAND_BLOCK_SCOPE_DISABLED`; Dado perfil `suspended` com `relay = "yes"`, Quando pede `unblock`, Então 201.
+**Aceite.** CT-CMD-001 — Dado V1 com vínculo de `cut_point` NULL, Quando o `tenant_owner` pede `block` com step-up válido, Então 422 `CUT_POINT_MISSING`, 0 linhas em `command`, 1 `audit_log` `denied` e 0 requisições no fake de Traccar; Dado perfil `draft` fora da operadora de bancada, Então 422 `PROFILE_NOT_HOMOLOGATED`; Dado perfil `homologated` com `relay = "unknown"`, Então 422 `COMMAND_RELAY_UNSUPPORTED`; Dado `COMMAND_BLOCK_SCOPE=none`, Então 422 `COMMAND_BLOCK_SCOPE_DISABLED`; Dado perfil `suspended` com `relay = "yes"`, Quando pede `unblock`, Então 202.
 
 ### REQ-CMD-002 — Avaliação por `cut_point`
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-08, INV-03
-**Regra.** `evaluateBlock` de `packages/domain` DEVE implementar a §3.1–3.2 e ser o único avaliador usado por `api` e `worker`, devolvendo READY ou ARMED com `state_reason` e a evidência usada.
-**Aceite.** CT-CMD-002 — Dado E = 60 s, teto 40 km/h e t = 14:00:00Z: `starter` com contato às 13:55:30Z e último fix a 80 km/h → READY; `fuel_pump` com fixes às 13:59:20Z (38 km/h) e 13:59:50Z (35 km/h) → READY; com 45 km/h às 13:59:20Z e 35 km/h às 13:59:50Z → ARMED `awaiting_speed`; `ignition` com 1 fix a 0 km/h às 13:59:50Z e ignição desconhecida → ARMED `awaiting_stop`; com 2 fixes a 0 km/h às 13:59:20Z e 13:59:50Z → READY; com ignição `false` às 13:59:40Z e `motion = 'moving'` → ARMED.
+**Regra.** `evaluateBlock` de `packages/domain` DEVE implementar a §3.1–3.2 (inclusive IGN_OFF com evidência positiva, corte em movimento com 2 fixes e teto 0 para moto) e ser o único avaliador usado por `api` e `worker`, devolvendo READY ou ARMED com `state_reason` e a evidência usada.
+**Aceite.** CT-CMD-002 — Dado E = 60 s, teto 40 km/h e t = 14:00:00Z: `starter` com contato às 13:55:30Z e último fix a 80 km/h → READY; `fuel_pump` com fixes às 13:59:25Z (28 km/h) e 13:59:50Z (25 km/h, `received_at` 13:59:51Z) → READY; com 38 km/h e 35 km/h → ARMED `awaiting_speed`; com 25 km/h às 13:59:25Z e 28 km/h às 13:59:50Z (acelerando) → ARMED `awaiting_speed`; com 1 só fix a 25 km/h → ARMED `awaiting_speed`; com o fix mais recente recebido às 13:59:10Z (antes de t − 40 s) → ARMED; com 1 fix a 0 km/h às 13:59:50Z → READY; moto (`vehicle.kind = 'motorcycle'`) com `fuel_pump` e fixes a 20 km/h → ARMED `awaiting_stop`; `ignition` com 1 fix a 0 km/h às 13:59:50Z e ignição desconhecida → ARMED `awaiting_stop`; com 2 fixes a 0 km/h às 13:59:20Z e 13:59:50Z → READY; com ignição `false` às 13:59:40Z e `motion = 'moving'` → ARMED; com ignição `false` às 13:59:40Z, 1 fix a 0 km/h às 13:59:45Z e `motion = 'stopped'` derivado de fix → READY por IGN_OFF.
 
 ### REQ-CMD-003 — Evidência inválida nunca autoriza
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-08, INV-03, INV-05
 **Regra.** Fix fora da §3.1 NÃO DEVE contar como evidência; velocidade NULL NÃO DEVE valer 0.
-**Aceite.** CT-CMD-003 — Dado `fuel_pump`, teto 40 km/h, t = 14:00:00Z e sem IGN_OFF: fix único às 13:58:59Z a 10 km/h → ARMED `awaiting_evidence`; fix às 13:59:50Z com `valid = false` → ARMED; com `speed_kmh_x10` NULL → ARMED; com `processingMode = 'backfill'` → ignorado; com flag `JUMP_SUSPECT` → ignorado; com `fix_time` 13:59:50Z e `received_at` 13:58:30Z → ARMED; rastreador sem nenhum fix → ARMED e EXPIRED às 14:05:00Z. Propriedade P-CMD-1 (fast-check, 1.000 execuções): conjunto de fixes em que cada um viola um item da §3.1, sem IGN_OFF, nunca produz READY para `ignition` e `fuel_pump`.
+**Aceite.** CT-CMD-003 — Dado `fuel_pump`, teto 40 km/h, t = 14:00:00Z e sem IGN_OFF: fix único às 13:58:59Z a 10 km/h → ARMED `awaiting_evidence`; fix às 13:59:50Z com `valid = false` → ARMED; com `speed_kmh_x10` NULL → ARMED; com `processingMode = 'backfill'` → ignorado; com flag `JUMP_SUSPECT` → ignorado; com `fix_time` 13:59:50Z e `received_at` 13:58:30Z → ARMED; rastreador sem nenhum fix → ARMED e EXPIRED às 14:05:00Z; Dado ignição `false` às 13:59:40Z por heartbeat, nenhum fix em E e `motion = 'stopped'` só pela regra 3 de 05 §4.2 (`aux.motionSource = 'ignition'`), Quando `fuel_pump` é pedido, Então ARMED `awaiting_evidence`; fix de sessão fora da allowlist da APN (quando existir) → ignorado. Propriedade P-CMD-1 (fast-check, 1.000 execuções): conjunto de fixes em que cada um viola um item da §3.1, e ignição `false` sem fix parado válido em E, nunca produz READY para `ignition` e `fuel_pump`.
 
 ### REQ-CMD-004 — `command_policy` versionada
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-08
@@ -513,12 +588,12 @@ Console envia `stepUp: { "kind": "console_totp" }`. Outros códigos: 503 `COMMAN
 ### REQ-CMD-007 — Autorização por papel
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-07, INV-11
 **Regra.** Pedido e cancelamento DEVEM seguir a §4.1; a autorização DEVE ser revalidada antes da 1ª tentativa.
-**Aceite.** CT-CMD-007 — Dado `tenant_member` sem `can_command`, Então 403 `COMMAND_FORBIDDEN`; com `can_command` e `allow_app_block = false`, Então 403 `COMMAND_APP_BLOCK_DISABLED`; `installer` em vínculo aberto por ele há 2 h 01 min → 403; `search_team` sem ocorrência `open` → 403, com ocorrência → 201; `platform_admin` com grant de suporte → 403; `tenant_owner` cancelando comando da central → 403; Dado READY de `operator_agent` revogado antes do despacho, Então REJECTED `authorization_revoked` e 0 requisições ao Traccar.
+**Aceite.** CT-CMD-007 — Dado `tenant_member` sem `can_command`, Então 403 `COMMAND_FORBIDDEN`; com `can_command` e `allow_app_block = false`, Então 403 `COMMAND_APP_BLOCK_DISABLED`; `installer` em vínculo aberto por ele há 2 h 01 min → 403; `search_team` sem ocorrência `open` → 403, com ocorrência e step-up de console → 202; `platform_admin` com grant de suporte → 403; `tenant_owner` cancelando comando da central → 403; Dado READY de `operator_agent` revogado antes do despacho, Então REJECTED `authorization_revoked` e 0 requisições ao Traccar.
 
 ### REQ-CMD-008 — Step-up e idempotência
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-01
-**Regra.** O pedido DEVE seguir a §4.2 e a §4.3 item 1.
-**Aceite.** CT-CMD-008 — Dado desafio emitido às 14:00:00Z, Quando usado às 14:01:01Z, Então 403 `STEP_UP_CHALLENGE_EXPIRED`; usado 2 vezes com chaves de idempotência diferentes → a 2ª recebe 403 `STEP_UP_CHALLENGE_USED`; assinatura feita para V2 enviada para V1 → 403 `STEP_UP_SIGNATURE_INVALID`; console com TOTP verificado há 5 min 01 s → 403 `STEP_UP_REQUIRED`; nos 403, 0 linhas em `command`. Dado o mesmo pedido 3 vezes com a mesma `Idempotency-Key`, Então respostas 201, 200 e 200 com o mesmo `id` e 1 desafio consumido; mesma chave com `type` diferente → 422 `IDEMPOTENCY_KEY_REUSED`.
+**Regra.** O pedido DEVE seguir a §4.2 (inclusive a carência de 24 h da chave nova, CT-SEG-012 de [08](08-identidade-e-seguranca.md)) e a §4.3 item 1.
+**Aceite.** CT-CMD-008 — Dado desafio emitido às 14:00:00Z, Quando usado às 14:01:01Z, Então 403 `STEP_UP_INVALID` (`reason = challenge_expired`); usado 2 vezes com chaves de idempotência diferentes → a 2ª recebe 403 `STEP_UP_INVALID` (`reason = challenge_used`); assinatura feita para V2 enviada para V1 → 403 `STEP_UP_INVALID` (`reason = signature_invalid`); console com TOTP verificado há 5 min 01 s → 403 `STEP_UP_REQUIRED`; nos 403, 0 linhas em `command`. Dado o mesmo pedido 3 vezes com a mesma `Idempotency-Key`, Então respostas 202, 202 e 202 (as duas últimas com `Idempotent-Replayed: true`) com o mesmo `id` e 1 desafio consumido; mesma chave com `type` diferente → 409 `IDEMPOTENCY_CONFLICT`.
 
 ### REQ-CMD-009 — Máquina de estados garantida no banco
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-08
@@ -528,7 +603,7 @@ Console envia `stepUp: { "kind": "console_totp" }`. Outros códigos: 503 `COMMAN
 ### REQ-CMD-010 — Um comando de relé ativo por rastreador
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-08
 **Regra.** Pedidos concorrentes DEVEM seguir a tabela da §4.3.
-**Aceite.** CT-CMD-010 — Dado 2 pedidos `block` simultâneos com chaves diferentes para V1, Então exatamente 1 é 201, o outro 409 `COMMAND_ALREADY_ACTIVE` com `activeCommandId` do primeiro, e o fake recebe ≤ 1 requisição; Dado `block` ARMED, Quando chega `unblock`, Então o block fica CANCELLED `superseded_by_unblock` e o unblock READY na mesma transação; Dado `block` AWAITING_CONFIRMATION com prazo em 40 s, Quando chega `unblock`, Então 409 `COMMAND_IN_FLIGHT` com `Retry-After: 40`.
+**Aceite.** CT-CMD-010 — Dado 2 pedidos `block` simultâneos com chaves diferentes para V1, Então exatamente 1 é 202, o outro 409 `COMMAND_ALREADY_ACTIVE` com `activeCommandId` do primeiro, e o fake recebe ≤ 1 requisição; Dado `block` ARMED, Quando chega `unblock`, Então o block fica CANCELLED `superseded_by_unblock` e o unblock READY na mesma transação; Dado `block` AWAITING_CONFIRMATION com prazo em 40 s, Quando chega `unblock`, Então 409 `COMMAND_IN_FLIGHT` com `Retry-After: 40`.
 
 ### REQ-CMD-011 — Tentativa gravada antes do I/O, despacho sem fila
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-08, INV-05
@@ -543,7 +618,7 @@ Console envia `stepUp: { "kind": "console_totp" }`. Outros códigos: 503 `COMMAN
 ### REQ-CMD-013 — UNKNOWN sem repetição; evidência tardia anexada
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-08, INV-05
 **Regra.** UNKNOWN DEVE seguir a §8.2; evidência tardia DEVE seguir a §8.3.
-**Aceite.** CT-CMD-013 — Dado `block` UNKNOWN às 14:01:00Z, Então em 10 min o fake recebe 0 requisições para ele, há alerta `command_unknown` aberto e push ao solicitante; Quando chegam ao vivo às 14:03:00Z o `commandResult` de sucesso atrasado e, após reinício do rastreador, `relay_state = 'blocked'`, Então CONFIRMED com ator `system:reconcile` e alerta fechado; com `processingMode = 'backfill'`, Então só `command_event`; Dado `commandResult` de bloqueio às 14:04:00Z com um `unblock` iniciado às 14:03:30Z, Então `detail.unattributed = true` e nenhum estado muda.
+**Aceite.** CT-CMD-013 — Dado `block` UNKNOWN às 14:01:00Z, Então em 10 min o fake recebe 0 requisições para ele, há alerta `command_unknown` aberto e push ao solicitante; Quando chegam ao vivo às 14:03:00Z o `commandResult` de sucesso atrasado e, após reinício do rastreador, `relay_state = 'blocked'`, Então CONFIRMED com ator `system:reconcile` e alerta fechado; com `processingMode = 'backfill'`, Então só `command_event`; Dado `commandResult` de bloqueio às 14:04:00Z com um `unblock` iniciado às 14:03:30Z, Então `detail.unattributed = true` e nenhum estado muda; Dado `block` UNKNOWN aberto em V1, Quando um `unblock` em V1 vai a UNKNOWN, Então 2 alertas `command_unknown` abertos e 2 pushes.
 
 ### REQ-CMD-014 — Reconciliação após reinício do worker
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-08
@@ -563,7 +638,7 @@ Console envia `stepUp: { "kind": "console_totp" }`. Outros códigos: 503 `COMMAN
 ### REQ-CMD-017 — Comercial e IA sem poder físico
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-09, INV-11
 **Regra.** Nenhum caminho de cobrança ou de agente de IA DEVE criar, cancelar ou despachar comando.
-**Aceite.** CT-CMD-017 — Dado A1 com fatura vencida há 30 dias e `tenant.status = 'suspended_commercial'`, Quando todos os jobs do worker rodam por 24 h simuladas, Então 0 linhas novas em `command`; Quando o `tenant_owner` de A1 pede `unblock`, Então 201; Dado ator `ai_agent` ou sessão de suporte, Quando chama qualquer rota da §14, Então 403 e 0 linhas; `pnpm check:boundaries` falha se `apps/*/src/billing/**` importar `commands` ou o inverso.
+**Aceite.** CT-CMD-017 — Dado A1 com fatura vencida há 30 dias e `tenant.status = 'suspended_commercial'`, Quando todos os jobs do worker rodam por 24 h simuladas, Então 0 linhas novas em `command`; Quando o `tenant_owner` de A1 pede `unblock`, Então 202; Dado ator `ai_agent` ou sessão de suporte, Quando chama qualquer rota da §14, Então 403 e 0 linhas; `pnpm check:boundaries` falha se `apps/*/src/billing/**` importar `commands` ou o inverso.
 
 ### REQ-CMD-018 — Homologação de perfil em bancada
 **Fase:** F0 (bancada), F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-10
@@ -573,7 +648,7 @@ Console envia `stepUp: { "kind": "console_totp" }`. Outros códigos: 503 `COMMAN
 ### REQ-CMD-019 — Termo de ciência
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-10
 **Regra.** O bloqueio DEVE exigir o aceite da §12.
-**Aceite.** CT-CMD-019 — Dado A1 sem `consent` `block_terms`, Quando a central pede `block`, Então 422 `COMMAND_TERMS_NOT_ACCEPTED`; Dado aceite `block-terms-v1/20kmh` e política nova com 40 km/h → 422 até novo aceite; política nova com 10 km/h → disponível; aceite revogado → `block` 422 e `unblock` 201.
+**Aceite.** CT-CMD-019 — Dado A1 sem `consent` `block_terms`, Quando a central pede `block`, Então 422 `COMMAND_NOT_ALLOWED` com `reason = block_terms_missing`; Dado aceite `block-terms-v1/20kmh` e política nova com 40 km/h → 422 até novo aceite; política nova com 10 km/h → disponível; aceite revogado → `block` 422 e `unblock` 202.
 
 ### REQ-CMD-020 — Auditoria
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-06
@@ -590,6 +665,16 @@ Console envia `stepUp: { "kind": "console_totp" }`. Outros códigos: 503 `COMMAN
 **Regra.** Ocorrência DEVE produzir os efeitos da §11.
 **Aceite.** CT-CMD-022 — Dado ocorrência `open` em V1, Então novo `block` tem `expires_at = created_at + 1.800 s` e o `search_team` pode pedir; Quando fecha como `recovered`, Então ARMED do `search_team` vão a CANCELLED `occurrence_closed`; 2ª ocorrência `open` em V1 → SQLSTATE 23505.
 
+### REQ-CMD-023 — Comando fora da plataforma vira alerta
+**Fase:** F1 · **Prioridade:** P1 · **Risco:** N0 · **Invariantes:** INV-08, INV-05
+**Regra.** `commandResult` ao vivo sem comando de relé ativo ou UNKNOWN no rastreador DEVE abrir o alerta `command_outside_platform` (`critical`) e uma page ao fundador (§8.3 item 4); só `TRACCAR_API_USER` DEVE ter permissão de comando no Traccar ([ADR-003](../adr/ADR-003-traccar-borda-de-protocolos.md)).
+**Aceite.** CT-CMD-023 — Dado V1 sem comando de relé ativo, Quando chega ao vivo às 03:12:00Z um `commandResult` de `engineStop`, Então existe 1 alerta `command_outside_platform` aberto, a fila da central o mostra e há 1 page ao fundador; com `processingMode = 'backfill'`, Então 0 alertas; Dado `block` UNKNOWN em V1, Quando o mesmo resultado chega, Então anexa-se ao comando (§8.3 item 2) e 0 alertas novos; Dado o Traccar de teste, Quando o usuário humano do painel (`readonly`, `limitCommands`) [VALIDAR nomes] faz `POST /api/commands/send`, Então 403.
+
+### REQ-CMD-024 — Desbloqueio nunca fica sem caminho
+**Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-09, INV-08
+**Regra.** Encerrar cliente ou fechar vínculo com relé não desbloqueado, ou com o último `block` CONFIRMED, UNKNOWN ou ativo, DEVE responder 409 `RELAY_NOT_UNBLOCKED` sem mudar nada; a equipe da operadora DEVE poder desbloquear, com step-up, vínculo fechado há ≤ 30 dias de cliente encerrado (§2).
+**Aceite.** CT-CMD-024 — Dado V1 com `block` CONFIRMED, Quando o `operator_admin` encerra A1, Então 409 `RELAY_NOT_UNBLOCKED`, `tenant.status` e vínculo inalterados; Quando fecha o vínculo de V1 para trocar o rastreador, Então 409; Dado A1 encerrado há 20 dias com relé `blocked`, Quando o `operator_agent` pede `unblock` com TOTP e motivo, Então 202; há 31 dias, Então 422 `COMMAND_NOT_ALLOWED` com `reason = tenant_closed`; `tenant_owner` ou `search_team` → 403.
+
 ## 17. Suíte CT-CMD
 
 Testes N0 congelados em `tests/acceptance/T-NNN/` antes da implementação; Postgres real, fakes de Traccar e emnify com injeção de falha. P-CMD-1 e P-CMD-2 em `packages/domain/test/commands.property.test.ts`; P-CMD-3 (1.000 execuções com timeouts, 202, offline e perdas aleatórias no fake): CONFIRMED só quando o relé do fake está no estado esperado. A suíte inteira roda no CI e na bancada antes do G-CMD (GC-2).
@@ -604,5 +689,6 @@ Testes N0 congelados em `tests/acceptance/T-NNN/` antes da implementação; Post
 | `cut_point` ausente; perfil não homologado | CT-CMD-001; CT-CMD-001 e 018 |
 | Permissão revogada; desafio reutilizado ou expirado | CT-CMD-007; CT-CMD-008 |
 | Cliente inadimplente; chip sem cobertura no desbloqueio | CT-CMD-017; CT-CMD-015 |
+| Comando por fora da plataforma; encerramento com relé bloqueado | CT-CMD-023; CT-CMD-024 |
 
-Fatias propostas para os cartões do F1: (A) migration da §6 + RLS + gatilhos (009, 020); (B) avaliador, máquina de estados e textos (002, 003, 021, P-CMD-1/2); (C) rotas do `api` (001, 004, 007, 008, 010, 019); (D) despacho, confirmação e reconciliação (005, 006, 011–014, P-CMD-3); (E) desbloqueio, SMS e contingência (015, 016); (F) kit de bancada (018); ocorrência (022) com o modo ocorrência de [10](10-apps-e-ux.md).
+Fatias propostas para os cartões do F1: (A) migration da §6 + RLS + gatilhos (009, 020); (B) avaliador, máquina de estados e textos (002, 003, 021, P-CMD-1/2); (C) rotas do `api` (001, 004, 007, 008, 010, 019, 024); (D) despacho, confirmação e reconciliação (005, 006, 011–014, 023, P-CMD-3); (E) desbloqueio, SMS e contingência (015, 016); (F) kit de bancada (018); ocorrência (022) com o modo ocorrência de [10](10-apps-e-ux.md).

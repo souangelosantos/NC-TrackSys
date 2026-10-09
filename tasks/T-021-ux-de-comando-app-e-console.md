@@ -19,12 +19,12 @@ Entregar a experiência de bloqueio e desbloqueio: disponibilidade explicada, de
 
 ## Contexto obrigatório
 
-[10 — Apps e UX](../docs/spec/10-apps-e-ux.md) (UX de comando); [08 §5](../docs/spec/08-identidade-e-seguranca.md) (chave do aparelho); textos de `packages/domain/src/commands/texts.ts` ([T-016](T-016-dominio-de-comandos.md))
+[10 — Apps e UX](../docs/spec/10-apps-e-ux.md) (UX de comando); [08 §5](../docs/spec/08-identidade-e-seguranca.md#5-acesso-de-suporte-da-versix) (chave do aparelho); textos de `packages/domain/src/commands/texts.ts` ([T-016](T-016-dominio-de-comandos.md))
 
 ## Escopo — fazer
 
 1. Cadastro e revogação da chave do aparelho no Flutter (T-018 expõe as rotas).
-2. Tela de comando no app e no console com textos vindos do domínio, nunca escritos na UI.
+2. Tela de comando no app e no console com textos vindos do domínio, nunca escritos na UI. Inclui `device_key_cooldown` (bloqueio pela central nas primeiras 24 h), o botão "Desbloquear antes" ao receber 409 `RELAY_NOT_UNBLOCKED` e o texto da moto (corte só parada) vindo de `effectText` com `vehicleKind`.
 3. Acompanhamento do estado por SSE e por consulta, com idade da confirmação.
 4. Testes de widget/E2E para cada estado e para o bloqueio com o celular offline (botão desabilitado, nada enfileirado).
 
@@ -35,7 +35,7 @@ Entregar a experiência de bloqueio e desbloqueio: disponibilidade explicada, de
 
 ## Para completar o DoR
 
-1. Especificação detalhada (tabelas com SQL, rotas, jobs e textos) a partir dos capítulos citados.
+1. Lacunas a fechar: tabela estado → texto e botão (REQUESTED a FAILED, mais "celular offline") vinda de `packages/domain/src/commands/texts.ts`; fluxo de cadastro da chave do aparelho e da carência de 24 h para block com chave nova (`device_key_cooldown`, push ao aparelho anterior e e-mail "Não fui eu"); wireframes de A04 e C04 com o 2º fator recente e o motivo; contrato SSE do estado do comando; lista dos `reason` de `COMMAND_NOT_ALLOWED` e o texto de cada um.
 2. Testes de aceite com Dado/Quando/Então e arquivos em `tests/acceptance/T-021/`, congelados antes da implementação (risco N0: revisão adversarial por agente de outro fornecedor e leitura humana linha a linha).
-3. Comandos de verificação e seção "Decisões já tomadas" com pelo menos 5 respostas (DoR de [14 §5](../docs/spec/14-qualidade-e-processo-ia.md)).
+3. Comandos de verificação e seção "Decisões já tomadas" com pelo menos 5 respostas (DoR de [14 §5](../docs/spec/14-qualidade-e-processo-ia.md#5-dor-e-dod)).
 4. Conferir se os requisitos listados ainda batem com os capítulos ([16 — Rastreabilidade](../docs/spec/16-rastreabilidade.md)).

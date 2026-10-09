@@ -1,6 +1,6 @@
 # 13 — Infra e operação
 
-> **Resumo:** Como a TrackSys roda, é medida e se recupera com um fundador solo: duas VMs Oracle Always Free no Brasil, provisionadas por script; Docker Compose com o orçamento de memória de [03 §11](03-arquitetura.md); deploy por tag com rollback automático; WAL contínuo com restore ensaiado; standby com failover cercado (fencing) em ≤ 30 min; SLO de 99,5% medido por "minuto ruim"; alertas com limiar; remediação em camadas com agente SRE de cardápio fechado; custos e capacidade até 20.000 veículos. Procedimentos passo a passo: [Anexo C](../anexos/C-operacional.md).
+> **Resumo:** Como a TrackSys roda, é medida e se recupera com um fundador solo: duas VMs Oracle Always Free no Brasil, provisionadas por script; Docker Compose com o orçamento de memória de [03 §11](03-arquitetura.md#11-orçamento-de-recursos-vm-de-12-gb-2-ocpu-ampere); deploy por tag com rollback automático; WAL contínuo com restore ensaiado; standby com failover cercado (fencing) em ≤ 30 min; SLO de 99,5% medido por "minuto ruim"; alertas com limiar; remediação em camadas com agente SRE de cardápio fechado; custos e capacidade até 20.000 veículos. Procedimentos passo a passo: [Anexo C](../anexos/C-operacional.md).
 > **Fases:** F0, F1, F2  ·  **Status:** Aprovado para execução
 > **Muda em relação à v1.1:**
 > - Ambientes genéricos viram 2 VMs concretas, com scripts, portas, limites e custos.
@@ -8,6 +8,27 @@
 > - Uptime como métrica única vira "minuto ruim": sonda externa falhou OU latência p95 de alerta > 120 s.
 > - Quatro runbooks mínimos viram 11 runbooks com comandos exatos e um runbook de 1 página para o plantonista da operadora.
 > - Entra o agente SRE de IA com ferramentas fechadas, auditoria e proibições ([ADR-010](../adr/ADR-010-operacao-assistida-por-ia.md)).
+
+**Nesta página**
+
+- [1. Topologia](#1-topologia)
+- [2. Provisionamento reproduzível](#2-provisionamento-reproduzível)
+- [3. Docker Compose](#3-docker-compose)
+- [4. Banco](#4-banco)
+- [5. Traccar operacional](#5-traccar-operacional)
+- [6. Configuração e segredos](#6-configuração-e-segredos)
+- [7. Deploy](#7-deploy)
+- [8. Backups e restore](#8-backups-e-restore)
+- [9. Standby e failover](#9-standby-e-failover)
+- [10. SLO e medição](#10-slo-e-medição)
+- [11. Observabilidade](#11-observabilidade)
+- [12. Regras de alerta](#12-regras-de-alerta)
+- [13. Remediação em camadas e agente SRE](#13-remediação-em-camadas-e-agente-sre)
+- [14. Incidentes: severidade e comunicação](#14-incidentes-severidade-e-comunicação)
+- [15. Dados no Brasil e transferências internacionais](#15-dados-no-brasil-e-transferências-internacionais)
+- [16. Custos de infra (câmbio US$ 1 = R$ 5,50)](#16-custos-de-infra-câmbio-us-1--r-550)
+- [17. Capacidade](#17-capacidade)
+- [18. Requisitos](#18-requisitos)
 
 ## 1. Topologia
 
@@ -44,8 +65,8 @@
 2. Relógio: chrony com `server 169.254.169.254 iburst`; fuso do host UTC. Swap de 2 GB com `vm.swappiness=1`; journald `SystemMaxUse=500M`.
 3. `/etc/docker/daemon.json`: `{"log-driver":"json-file","log-opts":{"max-size":"10m","max-file":"5"},"live-restore":true}`.
 4. Drop-in do `docker.service`: `After=` e `Wants=` `tailscaled.service network-online.target` (a 5432 é publicada no IP Tailscale) e `ExecStartPre=/opt/tracksys/infra/scripts/role-guard.sh` (§9.3).
-5. Usuários sem shell: `deploy` (CI) e `opsagent` (agente SRE), com `authorized_keys` `restrict,command="sudo -n /opt/tracksys/infra/scripts/deploy.sh"` e `...ops-action.sh`, e sudoers só para esses scripts. O `sudo` limpa o ambiente, então o forced-command só recebe a tag porque `/etc/sudoers.d/tracksys-deploy` contém exatamente `Defaults:deploy env_keep += "SSH_ORIGINAL_COMMAND"` e `deploy ALL=(root) NOPASSWD: /opt/tracksys/infra/scripts/deploy.sh`, validado com `visudo -cf` (`opsagent` segue o mesmo padrão no F1) [ADOTADO NA v2.0: T-013]. `sshd`: `PasswordAuthentication no`, `PermitRootLogin no`. Break-glass: console serial da OCI com o usuário local `breakglass`, senha guardada offline.
-6. Repositório em `/opt/tracksys` (deploy key somente leitura gerada em `/root/.ssh/github_deploy`, chave pública impressa para cadastro); chave age em `/etc/tracksys/age.key` (`0400`, chave pública impressa para o `.sops.yaml`, [08 §8](08-identidade-e-seguranca.md)); `/etc/tracksys/role` com o papel.
+5. Usuários sem shell: `deploy` (CI) e `opsagent` (agente SRE), com `authorized_keys` `restrict,command="sudo -n /opt/tracksys/infra/scripts/deploy.sh"` e `...ops-action.sh`, e sudoers só para esses scripts. O `sudo` limpa o ambiente, então o forced-command só recebe a tag porque `/etc/sudoers.d/tracksys-deploy` contém exatamente `Defaults:deploy env_keep += "SSH_ORIGINAL_COMMAND"` e `deploy ALL=(root) NOPASSWD: /opt/tracksys/infra/scripts/deploy.sh`, validado com `visudo -cf` (`opsagent` segue o mesmo padrão no F1) T-013. `sshd`: `PasswordAuthentication no`, `PermitRootLogin no`. Break-glass: console serial da OCI com o usuário local `breakglass`, senha guardada offline.
+6. Repositório em `/opt/tracksys` (deploy key somente leitura gerada em `/root/.ssh/github_deploy`, chave pública impressa para cadastro); chave age em `/etc/tracksys/age.key` (`0400`, chave pública impressa para o `.sops.yaml`, [08 §8](08-identidade-e-seguranca.md#8-segredos)); `/etc/tracksys/role` com o papel.
 7. `/etc/profile.d/tracksys.sh` com os atalhos usados no Anexo C: `dc` (`docker compose -f /opt/tracksys/infra/docker-compose.yml [-f infra/docker-compose.standby.yml] --env-file /run/tracksys/<papel>.env`) e `opsql "<SQL>"` (psql como `tracksys_ops_ro`).
 8. Units e timers systemd (§3, §8, §11): `tracksys-secrets` (no boot, `sops -d` dos `.sops` para `/run/tracksys/`, que é tmpfs), `tracksys-firewall`, `tracksys-autoheal` (30 s), `tracksys-metrics` (15 s), `tracksys-disk-cleanup` (05:00 UTC), `tracksys-backup` (06:00 UTC), `tracksys-backup-retain` (07:00 UTC), `tracksys-backup-copy` (de hora em hora, :15), `tracksys-restore-drill` (mensal, standby).
 
@@ -55,13 +76,13 @@
 |---|---|
 | Security list da OCI (as duas VMs) | Entrada: TCP 80 e 443 de `0.0.0.0/0`; TCP 5023 de `0.0.0.0/0` (gt06 [VALIDAR — DEC-02]; cada protocolo homologado acrescenta só a sua porta); UDP 41641 só de `10.0.0.0/24` (Tailscale direto pela VCN); ICMP tipo 3 código 4. Sem TCP 22. Saída: tudo |
 | iptables do host (backend nft do Ubuntu 24.04) | `firewall.sh` substitui o `/etc/iptables/rules.v4` da imagem Oracle (que rejeita tudo menos a 22 e tem `REJECT` na `FORWARD`): `INPUT` com política `DROP`, aceitando `lo`, `ESTABLISHED,RELATED`, ICMP, `tailscale0`, UDP 41641 de `10.0.0.0/24` e TCP 80/443/5023 |
-| Cadeia `DOCKER-USER` (portas publicadas pelo Docker não passam pela `INPUT`) | Na interface pública: 5023 com `connlimit` > 50 por IP → `DROP` e `hashlimit` > 60 conexões novas/min por IP → `DROP` (F0, [08 §9](08-identidade-e-seguranca.md)); F1: faixas da emnify/Meta Telecom em allowlist [VALIDAR — DEC-01]; 5432 vinda da interface pública → `DROP`. Reaplicada por `tracksys-firewall.service` após cada start do Docker |
+| Cadeia `DOCKER-USER` (portas publicadas pelo Docker não passam pela `INPUT`) | Na interface pública: 5023 com `connlimit` > 50 por IP → `DROP` e `hashlimit` > 60 conexões novas/min por IP → `DROP` (F0, [08 §9](08-identidade-e-seguranca.md#9-limites-cors-e-headers)); F1: faixas da emnify/Meta Telecom em allowlist [VALIDAR — DEC-01]; 5432 vinda da interface pública → `DROP`. Reaplicada por `tracksys-firewall.service` após cada start do Docker |
 
 Nunca rodar `netfilter-persistent reload` com o Docker no ar: apaga as cadeias do Docker. ACL da Tailscale: `autogroup:admin` → `tag:prod:22`, `tag:standby:22`; `tag:ci` → `tag:prod:22`, `tag:standby:22`; `tag:prod` ↔ `tag:standby` nas portas 22 e 5432. Nada mais.
 
 ## 3. Docker Compose
 
-`infra/docker-compose.yml` (primária e, após o failover, standby). O `docker-compose.yml` da raiz é só de desenvolvimento (T-001; `api` e `worker` sob o perfil `app`, T-004). Rede `tracksys` (bridge `172.30.0.0/24`, IPs fixos usados pelo Alloy e pelo `pg_hba`). Limites de [03 §11](03-arquitetura.md). [ADOTADO NA v2.0: imagem única `tracksys-app` de `infra/app/Dockerfile` (T-004) para `api` e `worker`, alvo `migrate` no mesmo Dockerfile (T-013); a T-003 deve seguir esta tabela.]
+`infra/docker-compose.yml` (primária e, após o failover, standby). O `docker-compose.yml` da raiz é só de desenvolvimento (T-001; `api` e `worker` sob o perfil `app`, T-004). Rede `tracksys` (bridge `172.30.0.0/24`, IPs fixos usados pelo Alloy e pelo `pg_hba`). Limites de [03 §11](03-arquitetura.md#11-orçamento-de-recursos-vm-de-12-gb-2-ocpu-ampere). Imagem única `tracksys-app` de `infra/app/Dockerfile` (T-004) para `api` e `worker`, alvo `migrate` no mesmo Dockerfile (T-013); a T-003 deve seguir esta tabela.
 
 | Serviço | Imagem | `mem_limit` / `cpus` | Portas no host | Healthcheck (10 s, timeout 3 s, 3 falhas) |
 |---|---|---|---|---|
@@ -72,9 +93,9 @@ Nunca rodar `netfilter-persistent reload` com o Docker no ar: apaga as cadeias d
 | `caddy` (`.2`) | `tracksys-caddy:${TRACKSYS_VERSION}` (`infra/caddy/Dockerfile`, com o build de `apps/console`) | 128 MB / 0,5 | `80`, `443` | `GET http://127.0.0.1:2019/config/` |
 | `migrate` (perfil `ops`) | `tracksys-migrate:${TRACKSYS_VERSION}` (`infra/app/Dockerfile`, alvo `migrate`: `dbmate` + verificador de catálogo; `migrate up` e `migrate check`) | 512 MB | — | Roda só no deploy |
 
-1. `restart: unless-stopped` em todos; `env_file: /run/tracksys/<papel>.env` ([08 §8](08-identidade-e-seguranca.md)); imagens externas por digest do índice multi-arquitetura.
+1. `restart: unless-stopped` em todos; `env_file: /run/tracksys/<papel>.env` ([08 §8](08-identidade-e-seguranca.md#8-segredos)); imagens externas por digest do índice multi-arquitetura.
 2. **Autoheal** (`infra/scripts/autoheal.sh`, timer de 30 s): reinicia contêiner `unhealthy` (≤ 90 s do 1º healthcheck falho, REQ-ARQ-005); no máximo 3 reinícios por contêiner em 15 min, depois para e abre a regra AL-12. Nenhum contêiner monta o socket do Docker.
-3. **Caddy** (`infra/caddy/Caddyfile`): `servers { protocols h1 h2 }` (sem HTTP/3, só TCP); sem log de acesso (o `api` grava `access_log`); em `api.`, `/internal/*` e `/metrics` respondem 404 e o proxy envia `header_up X-Client-Port {http.request.remote.port}`; em `app.`, `file_server` de `/srv/console` com `try_files {path} /index.html`, `version.json` e os headers de [08 §9](08-identidade-e-seguranca.md). `CADDY_ROLE=standby` serve só `status.` (proxy para `uptime-kuma:3001`).
+3. **Caddy** (`infra/caddy/Caddyfile`): `servers { protocols h1 h2 }` (sem HTTP/3, só TCP); sem log de acesso (o `api` grava `access_log`); em `api.`, `/internal/*` e `/metrics` respondem 404 e o proxy envia `header_up X-Client-Port {http.request.remote.port}`; em `app.`, `file_server` de `/srv/console` com `try_files {path} /index.html`, `version.json` e os headers de [08 §9](08-identidade-e-seguranca.md#9-limites-cors-e-headers). `CADDY_ROLE=standby` serve só `status.` (proxy para `uptime-kuma:3001`).
 4. `infra/docker-compose.standby.yml` acrescenta `uptime-kuma` (`louislam/uptime-kuma:2@sha256:…` [VALIDAR versão estável], 512 MB) e `sre-agent` (imagem do `worker`, entrypoint `node dist/sre-agent/main.js`, 384 MB) e põe o `db` em modo réplica. Após o failover a standby soma 9,6 GB de limites; sobram ~2,4 GB para SO e page cache.
 5. `migrate` é o único serviço com a URL do `tracksys_owner` (REQ-ARQ-006): `MIGRATE_DATABASE_URL` do `prod.env`, injetada como `DATABASE_URL` só nesse contêiner (§6).
 
@@ -90,8 +111,8 @@ Um parâmetro por linha no arquivo, com estes valores:
 
 | Grupo | Parâmetros |
 |---|---|
-| Conexão | `listen_addresses = '*'` (exposição controlada pelas portas do Compose e pelo `pg_hba`), `max_connections = 100` (pool total de 75, [03 §11](03-arquitetura.md)), `password_encryption = scram-sha-256`, `idle_in_transaction_session_timeout = 60s`, `timezone = 'UTC'`, `log_timezone = 'UTC'` |
-| Memória ([03 §11](03-arquitetura.md): contêiner de 5 GB, que inclui o page cache do banco) | `shared_buffers = 1280MB`, `effective_cache_size = 3GB`, `work_mem = 16MB`, `maintenance_work_mem = 256MB`, `autovacuum_work_mem = 128MB` |
+| Conexão | `listen_addresses = '*'` (exposição controlada pelas portas do Compose e pelo `pg_hba`), `max_connections = 100` (pool total de 75, [03 §11](03-arquitetura.md#11-orçamento-de-recursos-vm-de-12-gb-2-ocpu-ampere)), `password_encryption = scram-sha-256`, `idle_in_transaction_session_timeout = 60s`, `timezone = 'UTC'`, `log_timezone = 'UTC'` |
+| Memória ([03 §11](03-arquitetura.md#11-orçamento-de-recursos-vm-de-12-gb-2-ocpu-ampere): contêiner de 5 GB, que inclui o page cache do banco) | `shared_buffers = 1280MB`, `effective_cache_size = 3GB`, `work_mem = 16MB`, `maintenance_work_mem = 256MB`, `autovacuum_work_mem = 128MB` |
 | Disco | `random_page_cost = 1.1`, `effective_io_concurrency = 100` |
 | WAL e checkpoint | `wal_level = replica`, `wal_compression = zstd`, `wal_recycle = off` (o segmento fechado pelo `archive_timeout` termina em zeros e comprime), `max_wal_size = 4GB`, `min_wal_size = 512MB`, `checkpoint_timeout = 15min`, `checkpoint_completion_target = 0.9` |
 | Arquivamento | `archive_mode = on`, `archive_command = 'wal-g wal-push %p'`, `archive_timeout = 60`, `restore_command = 'wal-g wal-fetch %f %p'` (só em recuperação e na réplica atrasada) |
@@ -115,11 +136,11 @@ host   tracksys     tracksys_ops_audit                             ${PEER_TAILSC
 host   all          all                                            0.0.0.0/0              reject
 ```
 
-A linha de `tracksys_ops_audit` serve aos scripts que rodam na **outra** VM (failover, F1). Na própria VM, `deploy.sh` (e `ops-action.sh`) grava `ops.audit_log` como `postgres` pelo socket local (`peer`), seguido de `SET ROLE tracksys_ops_audit`, sem senha nem rede [ADOTADO NA v2.0: T-013].
+A linha de `tracksys_ops_audit` serve aos scripts que rodam na **outra** VM (failover, F1). Na própria VM, `deploy.sh` (e `ops-action.sh`) grava `ops.audit_log` como `postgres` pelo socket local (`peer`), seguido de `SET ROLE tracksys_ops_audit`, sem senha nem rede T-013.
 
 ### 4.4 Papéis e schema `ops`
 
-Papéis criados por `infra/db/initdb/10-ops-roles.sh` (volume novo) e por `infra/db/roles.sql` (idempotente, padrão `SELECT format(...) WHERE NOT EXISTS ... \gexec`, aplicado pelo deploy como `postgres` pelo socket local antes das migrations), conforme a regra de [04 §4.3](04-dominio-e-dados.md):
+Papéis criados por `infra/db/initdb/10-ops-roles.sh` (volume novo) e por `infra/db/roles.sql` (idempotente, padrão `SELECT format(...) WHERE NOT EXISTS ... \gexec`, aplicado pelo deploy como `postgres` pelo socket local antes das migrations), conforme a regra de [04 §4.3](04-dominio-e-dados.md#43-papéis-de-banco-e-privilégios):
 
 | Papel | Atributos | Uso |
 |---|---|---|
@@ -129,14 +150,14 @@ Papéis criados por `infra/db/initdb/10-ops-roles.sh` (volume novo) e por `infra
 | `tracksys_ops_audit` | LOGIN; só `INSERT` e `SELECT (id)` em `ops.audit_log` | `ops-action.sh`, `deploy.sh`, `failover` |
 
 Schema `ops` (migration em `packages/db/migrations`, dono `tracksys_owner`, fora do verificador de catálogo porque não guarda dado de operadora ou cliente):
-- `ops.audit_log` (append-only, 5 anos): `id uuid PK` (gerado pelo script, reenvio idempotente com `ON CONFLICT DO NOTHING`), `actor_type` (`user`, `system`, `ai_agent`), `actor_id`, `action` (`^ops\.[a-z_]+$`), `target`, `reason` (≤ 500), `result` (`success`, `denied`, `error`), `incident_id`, `host`, `at`, `detail jsonb`. [ADOTADO NA v2.0: ações de operação de plataforma (agente SRE, deploy, failover) são auditadas em `ops.audit_log`, porque `app.audit_log.operator_id` é NOT NULL e essas ações não pertencem a uma operadora; CAT-06 passa a cobrir `ops.audit_log`.]
+- `ops.audit_log` (append-only, 5 anos): `id uuid PK` (gerado pelo script, reenvio idempotente com `ON CONFLICT DO NOTHING`), `actor_type` (`user`, `system`, `ai_agent`), `actor_id`, `action` (`^ops\.[a-z_]+$`), `target`, `reason` (≤ 500), `result` (`success`, `denied`, `error`), `incident_id`, `host`, `at`, `detail jsonb`. Ações de operação de plataforma (agente SRE, deploy, failover) são auditadas em `ops.audit_log`, porque `app.audit_log.operator_id` é NOT NULL e essas ações não pertencem a uma operadora; CAT-06 passa a cobrir `ops.audit_log`.
 - `ops.maintenance_window`, `ops.slo_minute`, `ops.slo_day` (§10); `tracksys_app` tem `INSERT, UPDATE` nas duas últimas e `SELECT` na primeira.
-- Funções `SECURITY DEFINER` só de agregados, `EXECUTE` só para `tracksys_ops_ro`, cabeçalho de [04 §4.4](04-dominio-e-dados.md), revisão N0: `ops.health_snapshot()` (jsonb com os números do `collect_diagnostics`), `ops.inbox_stats()` (status, contagem, idade da mais antiga, código de erro antes do `:`), `ops.queue_stats()` (fila pg-boss, criados, ativos, idade do mais antigo), `ops.outbox_lag()`, `ops.alert_latency(p_from, p_to)` (contagem, p50, p95, máximo), `ops.slo_latency_bad_minutes(p_from, p_to)` ([07 §10](07-alertas-e-tempo-real.md) itens a e b), `ops.device_contact_stats()` (dispositivos ativos, com contato em 5 e 30 min), `ops.replication_status()`, `ops.storage_stats()` (tamanho do banco e 10 maiores relações), `ops.command_stats(p_minutes)` (contagem por estado, sem ids). Essas funções são do F1 (T-013 entrega só `ops.audit_log`).
-- **Exceção do F0** [ADOTADO NA v2.0: T-013, T-015]: sem as funções `ops.*` e com `tracksys_ops_ro` sem USAGE em `app`, as consultas do G0 (T-015) e as contagens de produção do restore de ensaio (§8) rodam como `postgres` pelo socket local, em transação `READ ONLY`, só com agregados (`count`, `max`, percentis), sem linha individual na saída — o mesmo caminho do `pg_create_restore_point` do deploy. No F1 passam para as funções `ops.*` com revisão N0.
+- Funções `SECURITY DEFINER` só de agregados, `EXECUTE` só para `tracksys_ops_ro`, cabeçalho de [04 §4.4](04-dominio-e-dados.md#44-funções-security-definer-lista-fechada), revisão N0: `ops.health_snapshot()` (jsonb com os números do `collect_diagnostics`), `ops.inbox_stats()` (status, contagem, idade da mais antiga, código de erro antes do `:`), `ops.queue_stats()` (fila pg-boss, criados, ativos, idade do mais antigo), `ops.outbox_lag()`, `ops.alert_latency(p_from, p_to)` (contagem, p50, p95, máximo), `ops.slo_latency_bad_minutes(p_from, p_to)` ([07 §10](07-alertas-e-tempo-real.md#10-medição-de-latência) itens a e b), `ops.device_contact_stats()` (dispositivos ativos, com contato em 5 e 30 min), `ops.replication_status()`, `ops.storage_stats()` (tamanho do banco e 10 maiores relações), `ops.command_stats(p_minutes)` (contagem por estado, sem ids). Essas funções são do F1 (T-013 entrega só `ops.audit_log`).
+- **Exceção do F0** T-013, T-015: sem as funções `ops.*` e com `tracksys_ops_ro` sem USAGE em `app`, as consultas do G0 (T-015) e as contagens de produção do restore de ensaio (§8) rodam como `postgres` pelo socket local, em transação `READ ONLY`, só com agregados (`count`, `max`, percentis), sem linha individual na saída — o mesmo caminho do `pg_create_restore_point` do deploy. No F1 passam para as funções `ops.*` com revisão N0.
 
 ## 5. Traccar operacional
 
-Forward, porta e registro de desconhecidos: [05 §2](05-ingestao-e-telemetria.md). Chaves operacionais em `infra/traccar/traccar.xml.tpl`, todas [VALIDAR — DEC-02] na versão fixada:
+Forward, porta e registro de desconhecidos: [05 §2](05-ingestao-e-telemetria.md#2-contrato-com-o-traccar). Chaves operacionais em `infra/traccar/traccar.xml.tpl`, todas [VALIDAR — DEC-02] na versão fixada:
 
 | Chave | Valor | Motivo |
 |---|---|---|
@@ -146,19 +167,23 @@ Forward, porta e registro de desconhecidos: [05 §2](05-ingestao-e-telemetria.md
 | `logger.console` | `true` | Log no stdout do contêiner |
 | `geocoder.enable` | `false` | Sem chamada externa |
 | JVM | `-Xms256m -Xmx1g` | Cabe em 1,5 GB |
+| `server.registration` | `false` | Ninguém cria usuário pelo painel ou pela API |
+| Usuários | `TRACCAR_API_USER` é o único com permissão de comando (senha no SOPS); o usuário humano do painel é `readonly = true` e `limitCommands = true` [VALIDAR nomes]; a senha de admin fica só no cofre ([15 §3.1](15-decisoes-riscos-premissas.md#31-fator-ônibus--1-cofre-e-contingência)) | O Traccar envia `engineStop` a qualquer rastreador para quem tem permissão; comando por fora da plataforma não tem política, step-up, `cut_point` nem auditoria |
+
+`commandResult` ao vivo sem comando de relé ativo ou recente no rastreador gera o alerta `command_outside_platform` (critical, para a central) e page ao fundador ([06 §8.3](06-comandos-e-bloqueio.md#83-evidência-tardia)). Teste: usuário humano do Traccar faz `POST /api/commands/send` e recebe 403 (CT-OPS-025).
 
 ## 6. Configuração e segredos
 
-Segredos em `infra/secrets/prod.env.sops` e `standby.env.sops`, decifrados pelo deploy para `/run/tracksys/` ([08 §8](08-identidade-e-seguranca.md)). Variáveis que este capítulo acrescenta a [03 §13](03-arquitetura.md), ou cujo uso em produção ele fixa:
+Segredos em `infra/secrets/prod.env.sops` e `standby.env.sops`, decifrados pelo deploy para `/run/tracksys/` ([08 §8](08-identidade-e-seguranca.md#8-segredos)). Variáveis que este capítulo acrescenta a [03 §13](03-arquitetura.md#13-configuração), ou cujo uso em produção ele fixa:
 
 | Variável | Onde | Regra |
 |---|---|---|
 | `COMMAND_DISPATCH_ENABLED`, `EMNIFY_SMS_ENABLED` | worker | `false` em restore e failover até a reconciliação (REQ-ARQ-016; [11](11-onboarding-e-migracao.md)) |
-| `EXTERNAL_EFFECTS` | worker | `on` \| `off`, obrigatória e sem padrão (ausente ou outro valor → saída 78). [ADOTADO NA v2.0: `off` troca os adaptadores de FCM, emnify, Asaas, e-mail e todo o cliente do Traccar (comandos e também leituras, como `GET /api/server`, que passa a `unknown`) por adaptadores nulos que só registram (`external_effects_suppressed_total{adapter}`); entrega de push fica `suppressed` com `error = 'external_effects_off'`; obrigatório no restore de ensaio (INV-05, T-013).] |
-| `EMAIL_DRIVER`, `EMAIL_FROM`, `RESEND_API_KEY`, `EMAIL_FILE_DIR` | worker | E-mails de convite, redefinição de senha e aviso de bloqueio de login ([08 §2](08-identidade-e-seguranca.md)). `EMAIL_DRIVER` = `resend` \| `file`; `file` grava em `EMAIL_FILE_DIR` (padrão `.tmp/emails`) e é proibido com `NODE_ENV=production` (saída 78); `RESEND_API_KEY` obrigatória com `resend`, no SOPS. [ADOTADO NA v2.0: Resend como provedor de e-mail (T-006; [15 §5](15-decisoes-riscos-premissas.md)).] |
-| `TRUSTED_PROXY_CIDRS` | api | CIDRs separados por vírgula de onde `X-Forwarded-For` e `X-Client-Port` são aceitos ([08 §4](08-identidade-e-seguranca.md) item 6); padrão vazio (nenhum proxy confiável). Produção: `172.30.0.2/32` (IP fixo do `caddy`, §3) [ADOTADO NA v2.0: T-006] |
-| `VITE_SENTRY_DSN` / `SENTRY_CSP_HOST` | build do console / Caddy (`app.`) | DSN de produção do console (SDK da T-007; vazio = desligado) / origem de ingestão do Sentry no `connect-src` da CSP de `app.`, vazia → CSP inalterada [ADOTADO NA v2.0: T-013] |
-| `MIGRATE_DATABASE_URL` | Compose (`migrate`) | URL do `tracksys_owner`, injetada como `DATABASE_URL` só no contêiner `migrate` (T-003, T-013); nunca em `api` nem `worker`, que usam `DATABASE_URL_APP` e `DATABASE_URL_INGEST` ([03 §13](03-arquitetura.md)) |
+| `EXTERNAL_EFFECTS` | worker | `on` \| `off`, obrigatória e sem padrão (ausente ou outro valor → saída 78). `off` troca os adaptadores de FCM, emnify, Asaas, e-mail e todo o cliente do Traccar (comandos e também leituras, como `GET /api/server`, que passa a `unknown`) por adaptadores nulos que só registram (`external_effects_suppressed_total{adapter}`); entrega de push fica `suppressed` com `error = 'external_effects_off'`; obrigatório no restore de ensaio (INV-05, T-013). |
+| `EMAIL_DRIVER`, `EMAIL_FROM`, `RESEND_API_KEY`, `EMAIL_FILE_DIR` | worker | E-mails de convite, redefinição de senha e aviso de bloqueio de login ([08 §2](08-identidade-e-seguranca.md#2-autenticação-better-auth)). `EMAIL_DRIVER` = `resend` \| `file`; `file` grava em `EMAIL_FILE_DIR` (padrão `.tmp/emails`) e é proibido com `NODE_ENV=production` (saída 78); `RESEND_API_KEY` obrigatória com `resend`, no SOPS. Resend como provedor de e-mail (T-006; [15 §5](15-decisoes-riscos-premissas.md#5-propostas-de-decisão-registradas-nos-capítulos)). |
+| `TRUSTED_PROXY_CIDRS` | api | CIDRs separados por vírgula de onde `X-Forwarded-For` e `X-Client-Port` são aceitos ([08 §4](08-identidade-e-seguranca.md#4-do-request-ao-banco) item 6); padrão vazio (nenhum proxy confiável). Produção: `172.30.0.2/32` (IP fixo do `caddy`, §3) T-006 |
+| `VITE_SENTRY_DSN` / `SENTRY_CSP_HOST` | build do console / Caddy (`app.`) | DSN de produção do console (SDK da T-007; vazio = desligado) / origem de ingestão do Sentry no `connect-src` da CSP de `app.`, vazia → CSP inalterada T-013 |
+| `MIGRATE_DATABASE_URL` | Compose (`migrate`) | URL do `tracksys_owner`, injetada como `DATABASE_URL` só no contêiner `migrate` (T-003, T-013); nunca em `api` nem `worker`, que usam `DATABASE_URL_APP` e `DATABASE_URL_INGEST` ([03 §13](03-arquitetura.md#13-configuração)) |
 | `TAILSCALE_IPV4`, `PEER_TAILSCALE_IP`, `CADDY_ROLE` | Compose | IPs `100.x.y.z`; `primary` \| `standby` |
 | `WALG_S3_PREFIX`, `AWS_ENDPOINT`, `AWS_REGION`, `AWS_S3_FORCE_PATH_STYLE`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `WALG_LIBSODIUM_KEY`, `WALG_LIBSODIUM_KEY_TRANSFORM`, `WALG_COMPRESSION_METHOD` | db | §8 |
 | `TRACCAR_DB_PASSWORD`, `REPLICA_PASSWORD`, `OPS_RO_PASSWORD`, `OPS_AUDIT_PASSWORD` | db, traccar, scripts | ≥ 32 caracteres |
@@ -170,7 +195,7 @@ Segredos em `infra/secrets/prod.env.sops` e `standby.env.sops`, decifrados pelo 
 `.github/workflows/deploy.yml`: dispara em tag `v*.*.*` (e `workflow_dispatch` com `tag`); `concurrency: deploy-production`; ambiente `production` restrito a tags.
 1. Job `verify`: repete os passos do `ci.yml` da T-001 sobre a tag.
 2. Job `deploy`: entra na Tailscale com OAuth client e `tag:ci` (`tailscale/github-action`), chave SSH em `DEPLOY_SSH_KEY`, host key fixada em `DEPLOY_KNOWN_HOSTS`; roda `ssh deploy@tracksys-p v1.2.3` e, no F1, `ssh deploy@tracksys-s build-only v1.2.3`. O forced-command só aceita `^(build-only )?v[0-9]+\.[0-9]+\.[0-9]+$` ou `rollback`. Timeout de 30 min.
-3. [ADOTADO NA v2.0: deploy automático só de segunda a sexta, 08:00–20:00 BRT; fora disso, `workflow_dispatch` com `force: true`.]
+3. Deploy automático só em dia útil sem feriado nacional (`packages/domain/src/calendar/holidays-br.ts`), 08:00–20:00 BRT; fora disso, `workflow_dispatch` com `force: true`.
 
 `infra/scripts/deploy.sh <tag>` na VM (`flock /run/tracksys/deploy.lock`; `PREV` = `/etc/tracksys/current-version`):
 1. `git fetch --tags --force` e `git checkout --detach <tag>`; recusa tag fora de `origin/main` (`git merge-base --is-ancestor`).
@@ -182,9 +207,9 @@ Segredos em `infra/secrets/prod.env.sops` e `standby.env.sops`, decifrados pelo 
 7. Falha em 5 ou 6 → rollback automático: `TRACKSYS_VERSION=$PREV dc up -d --no-deps --wait api worker caddy`, smoke de novo, page prioridade 1, saída 1 (job vermelho). Falha no smoke do rollback → SEV1.
 8. Sucesso: move o valor antigo para `/etc/tracksys/previous-version` e grava `current-version` (`deploy.sh rollback` sobe `previous-version` sem build nem migration), `ops.audit_log` (`ops.deploy`, `actor_type = 'system'`, `actor_id = 'ci:<run_id>'`), remove imagens além das 3 últimas tags.
 
-**Falha simulada para ensaio** [ADOTADO NA v2.0: T-013]: `DEPLOY_FAULT=smoke|catalog` faz `deploy.sh` falhar de propósito na etapa 6 (smoke) ou na verificação de catálogo da etapa 4, e grava `detail.fault` no `ops.audit_log`. Só vale quando o processo é root sem `SUDO_USER` (execução manual do fundador na VM); pelo usuário `deploy`, o `sudo` limpa o ambiente e a variável é ignorada. Assim CT-OPS-006 e CT-OPS-007 rodam na VM sem publicar release quebrada em `main` (proibido pelo [AGENTS.md](../../AGENTS.md)); os caminhos de falha também são testados no CI com fakes de `docker`, `curl` e `psql`.
+**Falha simulada para ensaio** T-013: `DEPLOY_FAULT=smoke|catalog` faz `deploy.sh` falhar de propósito na etapa 6 (smoke) ou na verificação de catálogo da etapa 4, e grava `detail.fault` no `ops.audit_log`. Só vale quando o processo é root sem `SUDO_USER` (execução manual do fundador na VM); pelo usuário `deploy`, o `sudo` limpa o ambiente e a variável é ignorada. Assim CT-OPS-006 e CT-OPS-007 rodam na VM sem publicar release quebrada em `main` (proibido pelo [AGENTS.md](../../AGENTS.md)); os caminhos de falha também são testados no CI com fakes de `docker`, `curl` e `psql`.
 
-**Migrations:** regras SQL e tabela expand/contract de [04 §10](04-dominio-e-dados.md). O deploy roda migrations antes de trocar o código, então toda migration DEVE ser compatível com a versão anterior (expand). Remoção ou mudança destrutiva (`DROP COLUMN`, `DROP TABLE`, `RENAME`, `ALTER COLUMN ... TYPE`, `SET NOT NULL`) só em arquivo `*_contract.sql`, numa release posterior à que parou de usar o objeto; o job de CI `migration-safety` barra PR que traz migration destrutiva sem o sufixo ou junto com mudança em `apps/**` ([14](14-qualidade-e-processo-ia.md)). Produção nunca roda `migrate down`: rollback de código mantém o schema novo.
+**Migrations:** regras SQL e tabela expand/contract de [04 §10](04-dominio-e-dados.md#10-migrations-expandcontract). O deploy roda migrations antes de trocar o código, então toda migration DEVE ser compatível com a versão anterior (expand). Remoção ou mudança destrutiva (`DROP COLUMN`, `DROP TABLE`, `RENAME`, `ALTER COLUMN ... TYPE`, `SET NOT NULL`) só em arquivo `*_contract.sql`, numa release posterior à que parou de usar o objeto; o job de CI `migration-safety` barra PR que traz migration destrutiva sem o sufixo ou junto com mudança em `apps/**` ([14](14-qualidade-e-processo-ia.md)). Produção nunca roda `migrate down`: rollback de código mantém o schema novo.
 
 ## 8. Backups e restore
 
@@ -196,9 +221,9 @@ Segredos em `infra/secrets/prod.env.sops` e `standby.env.sops`, decifrados pelo 
 | Base | `tracksys-backup.timer` às 06:00 UTC (03:00 BRT): `dc exec -T -u postgres db wal-g backup-push /var/lib/postgresql/data` (usuário `postgres`: autenticação `peer` pelo socket), compressão zstd; no sucesso grava `tracksys_backup_last_success_timestamp_seconds` e faz push no monitor `backup-base` do Kuma (F1) |
 | Retenção | 7 bases diárias + 4 semanais: aos domingos `wal-g backup-mark <base>` (permanente); `tracksys-backup-retain` às 07:00 UTC roda `wal-g delete retain FULL 7 --confirm` e desmarca permanentes com mais de 28 dias [VALIDAR flags na versão fixada]. PITR cobre os últimos 7 dias; as semanais restauram só o próprio ponto |
 | Cópia fora da Oracle | `tracksys-backup-copy` (de hora em hora, :15; na primária no F0, na standby no F1): `rclone copy` (nunca `sync`) do bucket para a Cloudflare R2 `tracksys-backup-r2`; regra de ciclo de vida da R2 apaga objetos com mais de 35 dias; bucket lock de 14 dias [VALIDAR]. Os objetos já saem cifrados pelo WAL-G. Dados do Uptime Kuma: `tar` semanal cifrado com age, mesma R2 |
-| Restore de ensaio | `infra/scripts/backup/restore-drill.sh`: antes do G0 (G0-7) e mensal (1ª terça, 13:00 UTC, na standby enquanto o banco tiver ≤ 40 GB; acima disso numa VM temporária). [ADOTADO NA v2.0: no F0 a standby não roda contêiner (T-003), então o ensaio do G0 roda **na primária**, manual, no projeto Compose isolado `tracksys-drill` (`infra/docker-compose.drill.yml`, ~2 GB de limites somados); o ensaio mensal volta para a standby no F1 (T-013; [15 §5](15-decisoes-riscos-premissas.md)).] |
+| Restore de ensaio | Ensaio de restore sem efeito externo, antes do G0 (G0-7) e mensal (REQ-OPS-009). Passos, onde roda e saídas: [T-013](../../tasks/T-013-deploy-backup-restore-sondas.md) e `docs/runbooks/restore/` |
 
-Restore de ensaio, em ordem: (1) projeto Compose `tracksys-drill` em rede `internal: true` (sem saída para a internet, salvo o object storage pelo host; só o `db` do ensaio alcança o bucket), com o `db` restaurado em `archive_mode=off` para não empurrar uma nova timeline ao bucket de produção; antes de começar, as contagens de produção do item 5 são lidas como `postgres` pelo socket em `READ ONLY` (§4.4); (2) `wal-g backup-fetch ... LATEST` num volume vazio; (3) `recovery.signal` com `recovery_target_time` = início − 10 min (T) e `recovery_target_action = 'promote'`; (4) mede do início até o banco aceitar conexões; (5) confere: `max(received_at)` de `app.ingest_inbox` ≥ T − 5 min; contagens de `app.position` (por `received_at`) e `app.audit_log` (por `at`) em [T − 24 h, T − 5 min] iguais às da produção; verificador de catálogo verde; (6) sobe o `worker` com `EXTERNAL_EFFECTS=off`, `COMMAND_DISPATCH_ENABLED=false`, `EMNIFY_SMS_ENABLED=false`, `SENTRY_DSN` vazio e as URLs de FCM e Traccar apontando para um coletor local (`sink`) por 10 min: 0 chamadas externas, inclusive leituras do Traccar (§6); (7) grava `docs/runbooks/restore/AAAA-MM-DD.md` (base usada, T, duração, perda, checagens) e `tracksys_restore_drill_last_success_timestamp_seconds`. Restore real e reaplicação de revogações perdidas: [Anexo C R8](../anexos/C-operacional.md).
+Restore real e reaplicação de revogações perdidas: [Anexo C R8](../anexos/C-operacional.md).
 
 ## 9. Standby e failover
 
@@ -215,7 +240,7 @@ Autenticação na OCI por *instance principal* da standby (sem chave em disco). 
 3. Grava o marcador de papel `ops/role.json` (`{"primary":"<OCID da standby>","epoch":N+1,"at":"…"}`) no bucket.
 4. Promove: `dc exec -T -u postgres db pg_ctl promote -w -t 60`; confere `SELECT pg_is_in_recovery()` = `false`. `/etc/tracksys/role` = `primary`.
 5. Sobe `traccar api worker caddy` com `COMMAND_DISPATCH_ENABLED=false`, `EMNIFY_SMS_ENABLED=false`, `CADDY_ROLE=primary` e o mesmo `INGEST_SOURCE_INSTANCE` (banco `traccar` replicado, REQ-ARQ-013). Os certificados de `api.` e `app.` vêm do volume `caddy-data` copiado diariamente da primária por rsync via Tailscale (failover sem depender de ACME).
-6. Rede: `oci network public-ip update --public-ip-id $IP_SVC_OCID --private-ip-id $STANDBY_SECONDARY_OCID`; sem `ASSIGNED` em 60 s → troca os A de `gps.`, `api.` e `app.` para `ip-sby` pela API da Cloudflare (token só de DNS da zona).
+6. Rede: `oci network public-ip update --public-ip-id $IP_SVC_OCID --private-ip-id $STANDBY_SECONDARY_OCID`; sem `ASSIGNED` em 60 s → troca os A de `gps.`, `api.` e `app.` para `ip-sby` pela API da Cloudflare (token da Cloudflare restrito aos registros `gps`, `api` e `app` da zona).
 7. Reconciliação de REQ-ARQ-016 (`dc exec -T worker node dist/cli.js commands:reconcile-failover`), depois recria o `worker` com `COMMAND_DISPATCH_ENABLED=true` e `EMNIFY_SMS_ENABLED=true`.
 8. Smoke do §7; page "failover concluído" com os tempos; `ops.audit_log` `ops.failover_end`.
 
@@ -245,11 +270,12 @@ Sem standby, o RTO volta a ≤ 2 h. Em ≤ 24 h o fundador reconstrói a ex-prim
 | Uptime Kuma (standby), `slo-gps-tcp` | Handshake TCP em `gps.<domínio>:5023`, timeout 10 s, 1 retry | 60 s |
 | Uptime Kuma, `slo-api-https` | `https://api.<domínio>/health/ready`: status 200 e corpo com `"status":"ok"`, timeout 10 s, 1 retry | 60 s |
 | UptimeRobot (free) | Os mesmos 2 alvos e `https://status.<domínio>` | 5 min |
-| Latência | [07 §10](07-alertas-e-tempo-real.md) item 3: (a) e (b) por `ops.slo_latency_bad_minutes`; (c) por `alerts_queue_oldest_age_seconds` no Grafana Cloud | Por minuto |
+| Uptime Kuma, `dns-gps` | Resolve `gps.<domínio>` por DNS; page (prioridade 2) se o A não estiver em {`ip-svc`, `ip-sby`}. Não entra no minuto ruim | 60 s |
+| Latência | [07 §10](07-alertas-e-tempo-real.md#10-medição-de-latência) item 3: (a) e (b) por `ops.slo_latency_bad_minutes`; (c) por `alerts_queue_oldest_age_seconds` no Grafana Cloud | Por minuto |
 
 Job `ops.slo.rollup` (worker, diário às 00:20 UTC; CLI `slo:rollup --day AAAA-MM-DD` reprocessa até 13 dias atrás, dentro da retenção de 14 dias do Grafana Cloud free [VALIDAR]), para cada minuto m do dia UTC:
 1. `probe_bad`: alguma amostra de `monitor_status` [VALIDAR nome e valores na versão fixada] (Alloy raspa o `/metrics` do Kuma a cada 15 s) em DOWN ou PENDING para `slo-gps-tcp` ou `slo-api-https`. Minuto sem amostra do Kuma → decide o log do UptimeRobot (intervalos `down` [VALIDAR API]); sem as duas fontes → `no_data`.
-2. `latency_bad`: (a) ou (b) ou (c) de [07 §10](07-alertas-e-tempo-real.md); (c) sem amostra com a sonda HTTPS verde → `no_data`.
+2. `latency_bad`: (a) ou (b) ou (c) de [07 §10](07-alertas-e-tempo-real.md#10-medição-de-latência); (c) sem amostra com a sonda HTTPS verde → `no_data`.
 3. `maintenance`: m dentro de `ops.maintenance_window` com `announced_at ≤ starts_at − 48 h`, até 4 h por mês [PREMISSA]; o que passar de 4 h conta normalmente.
 4. Ruim = (`probe_bad` ou `latency_bad` ou `no_data`) e não `maintenance`. Grava só minutos não bons em `ops.slo_minute` (`minute` PK, flags, `reasons text[]`) e o resumo em `ops.slo_day`, com upsert idempotente. Publica `tracksys_slo_bad_minutes{period="month"}`.
 5. Mês civil em UTC: `disponibilidade = 1 − ruins / (minutos do mês − manutenção)`. Crédito da operadora: 10% da mensalidade se < 99,5%; 25% se < 99,0%.
@@ -268,18 +294,18 @@ Manutenção: CLI `ops:maintenance --start <RFC 3339> --end <RFC 3339> --reason 
 | Contêiner | Memória vs `mem_limit`, reinícios, `container_oom_events_total` | Alloy `prometheus.exporter.cadvisor` |
 | Banco | Conexões por papel, idade do último WAL arquivado e falhas (`pg_stat_archiver`), lag de réplica, tamanho, transação mais longa, tuplas mortas | Alloy `prometheus.exporter.postgres` como `tracksys_ops_ro` em `172.30.0.5` |
 | Borda | `tracksys_tcp_established{port="5023"}` (`ss` no namespace de rede do contêiner `traccar` via `nsenter`, porque o DNAT do Docker tira as sessões do namespace do host; textfile a cada 15 s); requisições e erros do Caddy | `/var/lib/tracksys/metrics/*.prom`; `:2019/metrics` |
-| Aplicação | `http_requests_total{route,status}`, `http_request_duration_seconds{route}`; as de [05 §17](05-ingestao-e-telemetria.md), [07 §10](07-alertas-e-tempo-real.md), [06](06-comandos-e-bloqueio.md), [11 §4.5](11-onboarding-e-migracao.md) | `/metrics` do `api` (3001) e do `worker` (3002), `prom-client` |
+| Aplicação | `http_requests_total{route,status}`, `http_request_duration_seconds{route}`; as de [05 §17](05-ingestao-e-telemetria.md#17-métricas-de-ingestão), [07 §10](07-alertas-e-tempo-real.md#10-medição-de-latência), [06](06-comandos-e-bloqueio.md), [11 §4.5](11-onboarding-e-migracao.md#45-métricas) | `/metrics` do `api` (3001) e do `worker` (3002), `prom-client` |
 | Backup | Último sucesso da base, da cópia R2 e do restore de ensaio; tamanho da base | Textfile escrito pelos scripts |
 | Sondas | `monitor_status`, tempo de resposta, `probe_ssl_earliest_cert_expiry` | Kuma `/metrics`; Alloy `prometheus.exporter.blackbox` na standby |
 
 1. Rótulos proibidos: `vehicle_id`, `device_id`, `user_id`, `imei`, `ip`. `operator_id` só em métricas de ingestão e migração. Orçamento: ≤ 5.000 séries ativas (limite free de 10.000 [VALIDAR]).
 2. **Logs:** JSON no stdout (REQ-ARQ-014), rotação local do Docker (50 MB por contêiner); Alloy `loki.source.docker` envia ao Grafana Cloud Loki com um estágio `loki.process` de redação (sequências de 15 dígitos viram `***` + 4 últimos; pares decimais de latitude/longitude e `Bearer …` são removidos) como segunda linha de defesa. Traccar só em `info` sem dump; Caddy sem log de acesso; Postgres sem parâmetros (§4.2).
-3. **Sentry** (`api`, `worker`, console; no F0 a T-013 liga `api` e `worker`; o SDK do console é da T-007 [ADOTADO NA v2.0]: inicialização mínima com `VITE_SENTRY_DSN` opcional, e sem DSN o console não envia erros; o host de ingestão do Sentry entra no CSP de [08 §9](08-identidade-e-seguranca.md) com a T-013): `sendDefaultPii: false`; `beforeSend` remove corpo, query string e headers `authorization`, `cookie`, `x-ingest-token`, `asaas-access-token`; `release = TRACKSYS_VERSION`; amostragem de traces 5%.
+3. **Sentry** (`api`, `worker`, console; no F0 a T-013 liga `api` e `worker`; o SDK do console é da T-007 : inicialização mínima com `VITE_SENTRY_DSN` opcional, e sem DSN o console não envia erros; o host de ingestão do Sentry entra no CSP de [08 §9](08-identidade-e-seguranca.md#9-limites-cors-e-headers) com a T-013): `sendDefaultPii: false`; `beforeSend` remove corpo, query string e headers `authorization`, `cookie`, `x-ingest-token`, `asaas-access-token`; `release = TRACKSYS_VERSION`; amostragem de traces 5%.
 4. **Painéis** versionados em `infra/grafana/dashboards/`: "SLO" (minutos ruins do mês, orçamento restante, p95 de alerta, sondas), "Ingestão", "Banco" (conexões, lag, WAL, disco, autovacuum) e "Host e contêineres".
 
 ## 12. Regras de alerta
 
-SEV e notificação: §13 e §14. Regras de ingestão de [05 §17](05-ingestao-e-telemetria.md) entram como estão.
+SEV e notificação: §13 e §14. Regras de ingestão de [05 §17](05-ingestao-e-telemetria.md#17-métricas-de-ingestão) entram como estão. No F0, o subconjunto das regras AL-03, AL-04, AL-05 e AL-07 é entregue pela sonda local `host-watch.sh` (e `ingest-lag.sh`) com Pushover; o Grafana entra na T-033.
 
 | ID | Regra | Limiar e janela | SEV | L1 automático |
 |---|---|---|---|---|
@@ -289,10 +315,10 @@ SEV e notificação: §13 e §14. Regras de ingestão de [05 §17](05-ingestao-e
 | AL-04 | Backup base | Último sucesso > 26 h (ADR-010 §5 com 2 h de folga para a duração da base) | SEV2, emergência imediata | — |
 | AL-05 | Arquivamento de WAL | `last_archived_time` > 5 min com escrita, ou `failed_count` subiu | SEV2 | — |
 | AL-06 | Lag de réplica (F1) | > 60 s por 5 min | SEV2 | — |
-| AL-07 | Inbox acumulando | `ingest_pending_count` > 500 por 2 min, ou `ingest_pending_oldest_age_seconds` > 300 s ([05 §17](05-ingestao-e-telemetria.md); um caso isolado fica até ~200 s `pending` pelo backoff). No F0, o Grafana avalia só `ingest_pending_count > 500`; a idade > 300 s e o último recebimento > 300 s com sessões TCP ≥ 1 são paginados pela sonda `tracksys-ingest-lag` da primária (T-013), sem page dupla | SEV2 | Autoheal do `worker` |
+| AL-07 | Inbox acumulando | `ingest_pending_count` > 500 por 2 min, ou `ingest_pending_oldest_age_seconds` > 300 s ([05 §17](05-ingestao-e-telemetria.md#17-métricas-de-ingestão); um caso isolado fica até ~200 s `pending` pelo backoff). No F0, o Grafana avalia só `ingest_pending_count > 500`; a idade > 300 s e o último recebimento > 300 s com sessões TCP ≥ 1 são paginados pela sonda `tracksys-ingest-lag` da primária (T-013), sem page dupla | SEV2 | Autoheal do `worker` |
 | AL-08 | Latência p95 de alerta | > 60 s por 5 min (SEV1 se > 120 s por 5 min) | SEV2 | — |
 | AL-09 | Certificado TLS | Validade < 14 dias (SEV2 se < 7) | SEV3 | `dc restart caddy` força a renovação |
-| AL-10 | Sessões TCP do Traccar | Queda > 30% em 5 min vs média dos 30 min anteriores, com ≥ 10 sessões (supressão por > 50%: [07 §4](07-alertas-e-tempo-real.md)) | SEV1 | — |
+| AL-10 | Sessões TCP do Traccar | Queda > 30% em 5 min vs média dos 30 min anteriores, com ≥ 10 sessões (supressão por > 50%: [07 §4](07-alertas-e-tempo-real.md#4-sem-comunicação-e-comunicação-perdida-em-movimento)) | SEV1 | — |
 | AL-11 | Erro da API | 5xx > 2% das requisições em 5 min, com ≥ 100 requisições | SEV2 | — |
 | AL-12 | Reinício em laço ou OOM | > 3 reinícios em 15 min ou 1 OOM | SEV2 | Autoheal para de reiniciar |
 | AL-13 | Memória do host | > 90% por 10 min | SEV2 | — |
@@ -323,7 +349,7 @@ F0: AL-01 a AL-05, AL-07, AL-08, AL-11 e AL-12 pelo Grafana Cloud e pelo UptimeR
 
 ### 13.2 Gateway de incidentes
 
-[ADOTADO NA v2.0: `tracksys-sre-gateway`, Cloudflare Worker com D1 no plano gratuito [VALIDAR limites], código em `infra/sre-gateway/`, é o ponto de entrada fora das duas VMs; o `sre-agent` busca incidentes por long-poll, sem porta de entrada na standby.]
+`tracksys-sre-gateway`, Cloudflare Worker com D1 no plano gratuito [VALIDAR limites], código em `infra/sre-gateway/`, é o ponto de entrada fora das duas VMs; o `sre-agent` busca incidentes por long-poll, sem porta de entrada na standby.
 1. `POST /v1/hooks/{source}/{token}` (`kuma`, `uptimerobot` [VALIDAR webhook no plano free], `grafana`; token de 32 bytes por fonte, comparação em tempo constante) normaliza em `{ruleId, target, status, severity, at}`; chave de incidente `ruleId:target`; evento `resolved` seguido de `firing` em ≤ 10 min reabre o mesmo incidente.
 2. Envia os pages da §13.1 e consulta o recibo do Pushover para saber do ACK.
 3. `GET /v1/incidents/next` (bearer `SRE_GATEWAY_TOKEN`, long-poll de 25 s), `POST /v1/incidents/{id}/notes`, `POST /v1/heartbeat` (60 s).
@@ -366,17 +392,17 @@ F0: AL-01 a AL-05, AL-07, AL-08, AL-11 e AL-12 pelo Grafana Cloud e pelo UptimeR
 
 | SEV | Definição | Resposta | Comunicação com as operadoras | Postmortem |
 |---|---|---|---|---|
-| SEV1 | Caminho crítico fora ou risco de segurança: sonda do SLO falhando, latência > 120 s por 5 min, primária perdida, suspeita de vazamento, comando físico indevido ou falsa confirmação | Fundador em ≤ 15 min; failover se aplicável | Status page em ≤ 15 min; WhatsApp ao `operator_admin` de cada operadora em ≤ 30 min com a instrução de contingência ([Anexo C §1](../anexos/C-operacional.md)); atualização a cada 30 min; aviso de encerramento | Obrigatório, em ≤ 5 dias úteis, enviado às operadoras |
+| SEV1 | Caminho crítico fora ou risco de segurança: sonda do SLO falhando, latência > 120 s por 5 min, primária perdida, suspeita de vazamento, comando físico indevido ou falsa confirmação | Fundador em ≤ 15 min; failover se aplicável | Status page em ≤ 15 min; WhatsApp ao `operator_admin` de cada operadora em ≤ 30 min com a instrução de contingência ([Anexo C §1](../anexos/C-operacional.md#1-runbook-do-plantonista-1-página)); atualização a cada 30 min; aviso de encerramento | Obrigatório, em ≤ 5 dias úteis, enviado às operadoras |
 | SEV2 | Degradação parcial ou perda de redundância: latência p95 > 60 s, standby fora, backup falhando, uma operadora afetada | Mesmo dia | Status page se o cliente percebe; aviso às afetadas em ≤ 2 h | Se houve > 30 min de impacto visível, em ≤ 10 dias úteis |
 | SEV3 | Sem impacto ao cliente: disco 80%, certificado < 14 dias, ensaio atrasado | Horário comercial | Nenhuma | Registro na rotina semanal |
 
-Incidente com dado pessoal segue também o [Anexo C R11](../anexos/C-operacional.md) e o [Anexo B](../anexos/B-juridico.md). Postmortem: modelo no [Anexo C §6](../anexos/C-operacional.md), arquivo `docs/runbooks/postmortems/AAAA-MM-DD-<slug>.md`.
+Incidente com dado pessoal segue também o [Anexo C R11](../anexos/C-operacional.md) e o [Anexo B](../anexos/B-juridico.md). Postmortem: modelo no [Anexo C §6](../anexos/C-operacional.md#6-modelo-de-postmortem), arquivo `docs/runbooks/postmortems/AAAA-MM-DD-<slug>.md`.
 
 ## 15. Dados no Brasil e transferências internacionais
 
 | Dado | Onde | Transferência internacional | Proteção |
 |---|---|---|---|
-| Banco, réplica, Traccar, Parquet frio, backups primários | OCI `sa-saopaulo-1` ou `sa-vinhedo-1` (DEC-12) | Não | Cifra de volume da OCI [VALIDAR]; backup cifrado no cliente |
+| Banco, réplica, Traccar, Parquet frio, backups primários | OCI `sa-saopaulo-1` ou `sa-vinhedo-1` (DEC-12) | Não | Cifra de volume da OCI [VALIDAR]; backup cifrado no cliente (WAL-G); Parquet frio cifrado no cliente com age, no bucket `tracksys-cold`, separado do de backup e sem permissão da standby ([04 §8.2](04-dominio-e-dados.md#82-quente--frio-adr-009)) |
 | Cópia de backup | Cloudflare R2 (sem localização no Brasil [VALIDAR]) | Sim | Cifrado pelo WAL-G; chave só com a Versix |
 | Push | FCM e APNs (Google, Apple) | Sim | Token do aparelho + título e texto do alerta ([07](07-alertas-e-tempo-real.md)); payload sem coordenadas |
 | Erros | Sentry (região escolhida na criação [VALIDAR]) | Sim | `beforeSend` (§11) |
@@ -391,7 +417,7 @@ Cada fornecedor com "Sim" entra na lista de suboperadores do DPA com o mecanismo
 
 | Item | Gratuito até | F0–F1 (~300 veículos) | Mês 12 (3.000) | Cresce quando |
 |---|---|---|---|---|
-| Oracle: 2 VMs A1, 200 GB de bloco, saída | 4 OCPU, 24 GB, 200 GB, 10 TB/mês [VALIDAR — DEC-12] | R$ 0 | R$ 0 | Disco > 70% ([03 §14](03-arquitetura.md)): volume extra ~R$ 15 por 100 GB [VALIDAR] |
+| Oracle: 2 VMs A1, 200 GB de bloco, saída | 4 OCPU, 24 GB, 200 GB, 10 TB/mês [VALIDAR — DEC-12] | R$ 0 | R$ 0 | Disco > 70% ([03 §14](03-arquitetura.md#14-gatilhos-objetivos-de-evolução)): volume extra ~R$ 15 por 100 GB [VALIDAR] |
 | Oracle Object Storage (WAL, bases, Parquet) | 20 GB e 50 mil requisições/mês [VALIDAR] | R$ 0–5 | ~R$ 35 (~245 GB a ~US$ 0,0255/GB [VALIDAR]) | Cada base completa retida |
 | Cloudflare R2 | 10 GB [VALIDAR] | R$ 0–5 | ~R$ 20 (~US$ 0,015/GB [VALIDAR]) | Igual ao anterior |
 | Cloudflare DNS, Worker e D1; Tailscale; Grafana Cloud; Sentry; UptimeRobot | Planos gratuitos [VALIDAR limites] | R$ 0 | R$ 0 | > 10 mil séries; > 5 mil erros/mês; > 3 usuários na Tailscale |
@@ -407,11 +433,11 @@ Registro mensal e alerta acima de 10%: REQ-NEG-003 ([01](01-visao-e-negocio.md))
 | Dimensão | F1 (~300 veículos) | Mês 12 (3.000) | 20.000 veículos |
 |---|---|---|---|
 | Mensagens/s (média / pico / pior caso) | ~1,7 / ~3,7 / ≤ 10 | ~17 / ~37 / ≤ 100 | ~113 / ~247 / ≤ 667 |
-| Volume no disco ([04 §8.6](04-dominio-e-dados.md)) | ~7 GB | ~68 GB; ~44 GB com dedupe de 14 dias (proposta de 04) | ~450 GB; ~290 GB com dedupe de 14 dias |
+| Volume no disco ([04 §8.6](04-dominio-e-dados.md#86-conta-de-armazenamento-mês-12-3000-veículos)) | ~7 GB | ~68 GB; ~44 GB com dedupe de 14 dias (proposta de 04) | ~450 GB; ~290 GB com dedupe de 14 dias |
 | Posições quentes | ~1,7 GB | ~17 GB | ~113 GB (gatilho de 150 GB próximo) |
 | Infra | 2 VMs Always Free | 2 VMs Always Free; volume pago se o disco passar de 70% (~2.550 veículos sem a proposta de 04) | Banco em VM dedicada (com 12 GB: `shared_buffers` 3 GB, `effective_cache_size` 8 GB, `maintenance_work_mem` 512 MB; com 24 GB, o dobro) + réplica; VM de aplicação; Traccar particionado (gatilho de ~20.000 dispositivos, ADR-002) |
 | Custo de infra estimado | ~R$ 5–70 | ~R$ 170–200 | ~R$ 1.300–2.000 [VALIDAR preços de A1 e de bloco pagos] vs receita de R$ 78.000 |
-| Ações | — | Ensaio de 100 msg/s (CT-ARQ-012); decidir o dedupe de 14 dias antes de 1.500 veículos | ADRs por gatilho de [03 §14](03-arquitetura.md): fila dedicada se > 300 msg/s sustentado, PgBouncer, réplica de leitura para histórico |
+| Ações | — | Ensaio de 100 msg/s (CT-ARQ-012); decidir o dedupe de 14 dias antes de 1.500 veículos | ADRs por gatilho de [03 §14](03-arquitetura.md#14-gatilhos-objetivos-de-evolução): fila dedicada se > 300 msg/s sustentado, PgBouncer, réplica de leitura para histórico |
 
 ## 18. Requisitos
 
@@ -424,7 +450,7 @@ Fatias propostas: T-003 → OPS-001 a 005 e 023 (já sobe arquivando WAL); T-013
 
 ### REQ-OPS-002 — Firewall em duas camadas e SSH só pela Tailscale
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** —
-**Regra.** Security list, iptables e `DOCKER-USER` DEVEM seguir a §2.1, com limites da 5023 de [08 §9](08-identidade-e-seguranca.md); as regras DEVEM voltar sozinhas após reinício do Docker ou do host.
+**Regra.** Security list, iptables e `DOCKER-USER` DEVEM seguir a §2.1, com limites da 5023 de [08 §9](08-identidade-e-seguranca.md#9-limites-cors-e-headers); as regras DEVEM voltar sozinhas após reinício do Docker ou do host.
 **Aceite.** CT-OPS-002 — Dado a primária provisionada, Quando `nmap -Pn -sT -p 1-65535` e `nmap -Pn -sU -p 443,41641` rodam de fora, Então só 80, 443 e 5023/TCP aparecem abertas; Quando um IP externo abre 51 conexões simultâneas na 5023, Então a 51ª não completa o handshake e o contador de `DROP` da `DOCKER-USER` é > 0; Quando `systemctl restart docker` roda, Então em ≤ 60 s as regras da `DOCKER-USER` estão de volta.
 
 ### REQ-OPS-003 — Compose de produção com limites e autoheal
@@ -459,8 +485,8 @@ Fatias propostas: T-003 → OPS-001 a 005 e 023 (já sobe arquivando WAL); T-013
 
 ### REQ-OPS-009 — Restore ensaiado sem efeito externo
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** INV-05
-**Regra.** `restore-drill.sh` DEVE rodar antes do G0 e todo mês, com as checagens da §8.
-**Aceite.** CT-OPS-009 — Dado produção com escrita contínua, Quando `restore-drill.sh` roda às 13:00 UTC, Então o banco restaurado aceita conexões em ≤ 2 h, `max(received_at)` da inbox ≥ T − 5 min, as contagens de `position` e `audit_log` em [T − 24 h, T − 5 min] são iguais às da produção, o fake de FCM e o de Traccar recebem 0 chamadas em 10 min de worker e o arquivo `docs/runbooks/restore/AAAA-MM-DD.md` registra duração e perda.
+**Regra.** `restore-drill.sh` DEVE rodar antes do G0 e todo mês, em rede sem saída para a internet, com `archive_mode=off` no banco restaurado e o `worker` com efeitos externos desligados. Passos e checagens: T-013.
+**Aceite.** CT-OPS-009 — Dado produção com escrita contínua, Quando `restore-drill.sh` roda às 13:00 UTC, Então o banco restaurado aceita conexões em ≤ 2 h, `max(received_at)` da inbox ≥ T − 5 min, as contagens de `position` e `audit_log` em [T − 24 h, T − 5 min] são iguais às da produção, o fake de FCM e o de Traccar recebem 0 chamadas em 10 min de worker e o relatório do ensaio (T-013) registra duração e perda.
 
 ### REQ-OPS-010 — Standby por streaming com WAL limitado
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** —
@@ -534,5 +560,10 @@ Fatias propostas: T-003 → OPS-001 a 005 e 023 (já sobe arquivando WAL); T-013
 
 ### REQ-OPS-024 — Runbook do plantonista e ensaio de contingência
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N2 · **Invariantes:** INV-08, INV-09
-**Regra.** Cada operadora DEVE receber o runbook do [Anexo C §1](../anexos/C-operacional.md) e a lista de contingência. Ensaio no G1 e a cada 6 meses [PREMISSA].
+**Regra.** Cada operadora DEVE receber o runbook do [Anexo C §1](../anexos/C-operacional.md#1-runbook-do-plantonista-1-página) e a lista de contingência. Ensaio no G1 e a cada 6 meses [PREMISSA].
 **Aceite.** CT-OPS-024 — Dado indisponibilidade simulada às 23:00 BRT, Quando o plantonista da Lider segue o runbook, Então consulta a status page, localiza 1 veículo por SMS e desbloqueia 1 veículo por SMS pelo portal em ≤ 15 min do início, registrando os campos do passo 7; a ata entra em `docs/runbooks/gates/G1.md` (G1-6).
+
+### REQ-OPS-025 — Sequestro de DNS detectado e Traccar sem comando externo
+**Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-10
+**Regra.** O monitor `dns-gps` do Kuma DEVE resolver `gps.<domínio>` a cada 60 s e abrir page de prioridade 2 se o A não estiver em {`ip-svc`, `ip-sby`}. O Traccar DEVE rodar com `server.registration = false` e só o `TRACCAR_API_USER` com permissão de comando (§5). Controles de conta (FIDO2, bloqueio de transferência, DNSSEC): [08 §10](08-identidade-e-seguranca.md#10-ameaças).
+**Aceite.** CT-OPS-025 — Dado `gps.<domínio>` com o A trocado para 203.0.113.9, Quando o monitor roda, Então em ≤ 2 min sai 1 page prioridade 2 "dns-gps"; Dado A = `ip-sby`, Então 0 pages; Dado o usuário humano do Traccar, Quando faz `POST /api/commands/send`, Então 403; Dado `commandResult` ao vivo sem comando de relé da plataforma, Então o alerta `command_outside_platform` abre e o fundador recebe page.

@@ -6,7 +6,7 @@
 
 - Usuários: equipe da operadora (console), cliente final e familiares (app), instalador, equipe de busca e a própria Versix. No mês 12: ~3.000 veículos, poucos milhares de usuários.
 - A v1.1 (p. 8 e 18, REQ-008 e REQ-009) recomendava provedor OIDC externo com Authorization Code + PKCE e step-up pelo provedor ou WebAuthn.
-- Restrições: o orçamento de RAM ([03 §11](../spec/03-arquitetura.md)) não tem espaço para um serviço de 0,5–1 GB; cada serviço a mais é um runbook para o fundador; 24 dias até o Piloto Zero; telas de login com a marca da operadora.
+- Restrições: o orçamento de RAM ([03 §11](../spec/03-arquitetura.md#11-orçamento-de-recursos-vm-de-12-gb-2-ocpu-ampere)) não tem espaço para um serviço de 0,5–1 GB; cada serviço a mais é um runbook para o fundador; 24 dias até o Piloto Zero; telas de login com a marca da operadora.
 - Bloqueio é ação física. Um booleano "biometria ok" enviado pelo app não prova nada ao servidor (v1.1 p. 18).
 
 ## Decisão
@@ -15,13 +15,15 @@
    - Plugins: `bearer` (app Flutter, token em `flutter_secure_storage`) e `twoFactor` (TOTP para a equipe da operadora).
    - Console: cookie de sessão `HttpOnly`, `Secure`, `SameSite=Lax`, com checagem de origem confiável.
    - F0: e-mail + senha para `operator_admin`, `operator_agent` e `tenant_owner`.
-2. **Autorização própria:** `membership` (papel, operadora, tenant), `platform_support_grant` e RLS ([ADR-004](ADR-004-isolamento-tres-niveis.md)). Plugins de organização do Better Auth não são usados: ele responde só "quem é".
+   - F1: titular sem e-mail entra por código de ativação + CPF e depois por CPF + senha ([08 §2](../spec/08-identidade-e-seguranca.md#2-autenticação-better-auth)).
+2. **Autorização própria:** `membership` (papel, operadora, tenant), `platform_support_grant` e RLS ([ADR-004](ADR-004-isolamento-tres-niveis.md)); o contexto ganha `app.user_id` para as políticas de tabelas de usuário (`device_key_self`). Plugins de organização do Better Auth não são usados: ele responde só "quem é".
 3. **Step-up de comando no app por chave do aparelho:**
    - No primeiro login o app gera um par P-256 não exportável no Secure Enclave (iOS) ou no Android Keystore (StrongBox quando houver), com uso condicionado a biometria a cada assinatura; novo cadastro de biometria no aparelho invalida a chave.
-   - A chave pública (SPKI) é gravada em `device_key` por rota autenticada. Registrar chave exige senha confirmada nos últimos 5 min e gera aviso por e-mail ao usuário ([08](../spec/08-identidade-e-seguranca.md)).
+   - A chave pública (SPKI) é gravada em `device_key` por rota autenticada. Registrar chave exige senha confirmada nos últimos 5 min, revoga a anterior, envia push ao aparelho anterior e e-mail com o link "Não fui eu" ([08 §6.1](../spec/08-identidade-e-seguranca.md#61-chave-do-aparelho-cadastro-f1)).
+   - Carência: chave com menos de 24 h autoriza só `unblock`; `block` responde 422 `COMMAND_NOT_ALLOWED` com `reason = device_key_cooldown` e o bloqueio é pela central. O titular não tem 2FA, e senha roubada não vira bloqueio imediato.
    - Para cada comando: o servidor emite desafio válido por 60 s, de uso único, vinculado a usuário, veículo e tipo; o app assina `tracksys-cmd-v1|{challenge_id}|{nonce}|{vehicle_id}|{type}|{reason_code}` com ECDSA P-256/SHA-256 (assinatura DER em base64url); o servidor verifica com a chave pública, consome o desafio de forma atômica e só então cria o comando ([06](../spec/06-comandos-e-bloqueio.md)).
-   - Logout, remoção do aparelho e troca de senha revogam a chave (`revoked_at`).
-4. **Step-up no console:** segundo fator (TOTP) nos últimos 5 min + motivo obrigatório.
+   - Logout, remoção do aparelho e troca de senha revogam a chave (`revoked_at`, que nunca reverte). A central revoga a chave de outro usuário pela função `app.revoke_device_keys(p_user_id)`, `SECURITY DEFINER` da lista fechada (CAT-07).
+4. **Step-up no console:** segundo fator (TOTP) nos últimos 5 min + motivo obrigatório. A central e a equipe de busca comandam pelo console; só titular, familiar e instalador usam a chave do aparelho.
 
 ## Alternativas consideradas
 
@@ -45,6 +47,7 @@
 - Tabelas `auth.*` ficam fora do RLS: acesso só pelo módulo `identity`, garantido por lint e revisão N0.
 - A chave do aparelho exige código nativo pequeno (Swift e Kotlin via platform channel) ou plugin auditado [VALIDAR]; trocar de aparelho exige novo registro.
 - Usuário sem biometria cadastrada não bloqueia pelo app; usa a central ([06](../spec/06-comandos-e-bloqueio.md)).
+- Sem atestação de hardware no F1, a compensação para o titular sem 2FA é chave única, carência de 24 h para bloquear, aviso ao aparelho anterior e e-mail, e auditoria.
 
 ## Gatilho de revisão
 

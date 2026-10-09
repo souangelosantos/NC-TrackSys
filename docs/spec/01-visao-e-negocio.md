@@ -79,7 +79,7 @@
 1. **Preço:** R$ 3,90/veículo/mês + R$ 3.500 de adesão.
 2. **App modesto, com poucos recursos.**
 
-O preço por veículo fica igual. O argumento é: adesão menor, app muito melhor e receita nova.
+O preço por veículo fica igual. O argumento é: adesão menor, app muito melhor e receita nova. Para aliviar a sobreposição do aviso prévio da SmartGPS, ver a regra 9 de 5.
 
 ### 4.2 Paridade mínima para migrar
 
@@ -92,6 +92,8 @@ O preço por veículo fica igual. O argumento é: adesão menor, app muito melho
 | Carteira | Central | F0 (cadastro mínimo); F1 (completa, com chips e instalações) | [04](04-dominio-e-dados.md), [10](10-apps-e-ux.md) |
 | Cobranças | Central | F1 (Asaas) | [12](12-cobranca-e-svas.md) |
 | Suporte | Central | F1 (atendimento com contexto + WhatsApp) | [10](10-apps-e-ux.md) |
+
+Os 7 itens vêm do relato da Lider. Itens novos do inventário de paridade (sessão de 1 h com a Lider operando o tracker-net, registrada em `docs/runbooks/onboarding/lider-paridade.md`) entram nesta tabela até 20/10/2026; item usado toda semana sem equivalente vira cartão F1 antes da 1ª onda. Ordem de serviço (instalação, manutenção, retirada) fica fora do F0 e do F1 (F2).
 
 ### 4.3 Diferenciais
 
@@ -130,9 +132,10 @@ O preço por veículo fica igual. O argumento é: adesão menor, app muito melho
 3. Inadimplência do cliente final: a tarifa da Versix segue DEC-06 (prazo 31/10/2026). Inadimplência nunca dispara bloqueio (INV-09).
 4. Créditos de SLA: 10% da mensalidade se a disponibilidade do mês ficar abaixo de 99,5%; 25% se ficar abaixo de 99,0% ([13](13-infra-e-operacao.md)).
 5. Indicação remunerada é informada ao cliente final e exige consentimento por parceiro e finalidade ([08](08-identidade-e-seguranca.md), [Anexo B](../anexos/B-juridico.md)).
-6. Parceiro local fechado pela operadora: o ganho é dividido. [DECISÃO DO FUNDADOR PENDENTE: em indicação de parceiro local, Versix fica com 20–30% e a operadora com 70–80%, espelhando DEC-05.]
+6. Parceiro local fechado pela operadora: o ganho é dividido. [DECISÃO DO FUNDADOR PENDENTE: em indicação de parceiro local, 75% para quem fecha a parceria (a operadora) e 25% para a Versix, espelhando a recomendação da DEC-05; alternativa registrada: Versix 20–30% e operadora 70–80%.]
 7. App dedicado (opção B, ADR-007): [DECISÃO DO FUNDADOR PENDENTE: preço de setup e anuidade do app dedicado, definido até 31/03/2027, antes da oferta no F2.]
 8. Lider como parceira de design: [DECISÃO DO FUNDADOR PENDENTE: adesão da Lider faturada só após o G1, como contrapartida por ser caso de referência.]
+9. Sobreposição do aviso prévio (DEC-10): [DECISÃO DO FUNDADOR PENDENTE — recomendação: mensalidade isenta por veículo migrado enquanto a Lider pagar o tracker-net pelo mesmo veículo no aviso prévio, por até 60 dias; prazo 31/10/2026.] O abatimento entra como `adjustment_cents` com motivo `overlap_waiver` ([12 §10.2](12-cobranca-e-svas.md#102-fechamento-mensal-platform_fee)).
 
 **Candidatos ao plano superior (DEC-09).** Gestão de custos PF, lembrete de revisões, histórico acima de 90 dias sob demanda, cercas múltiplas, mais links de compartilhamento simultâneos. A lista final sai em DEC-09.
 
@@ -159,6 +162,7 @@ Mais a adesão única de R$ 2.500–3.000. A plataforma pesa 6,5% (R$ 3,90 / R$ 
 | Google Play | US$ 25 único (R$ 137,50) | — (não recorrente) |
 | Uptime Kuma, UptimeRobot, Sentry, Grafana Cloud, Cloudflare R2, Resend/Brevo, FCM | Open source ou free tier | 0,00 |
 | Pushover | Licença única por plataforma [VALIDAR] | ~0,00 |
+| Contingência de VM (só se a DEC-12 falhar: sem A1 até 11/10/2026 18:00 BRT) | VM paga de 2–4 vCPU e 8 GB, teto [VALIDAR preço] | 0,00–150,00 |
 | Reserva variável: SMS, CI macOS para build iOS, imprevistos [PREMISSA] | — | 350,00–650,00 |
 | **Total** | | **~1.500,00–4.000,00** |
 
@@ -245,7 +249,7 @@ Custo de infraestrutura e serviços de terceiros recorrentes ≤ 10% da receita 
 | 31/12/2026 (G1) | 1 | 300 | R$ 1.170 |
 | 31/03/2027 | 4 | 1.000 | R$ 3.900 |
 | 30/06/2027 (G2) | 7 | 1.750 | R$ 6.825 |
-| 30/09/2027 | 10 | 2.500 | R$ 9.750 |
+| 30/09/2027 | 11 | 2.750 | R$ 10.725 |
 | 31/10/2027 | 12 | 3.000 | R$ 11.700 |
 
 ## 9. O que não somos
@@ -263,7 +267,7 @@ Custo de infraestrutura e serviços de terceiros recorrentes ≤ 10% da receita 
 
 ### REQ-NEG-001 — Preço configurável por operadora
 **Fase:** F1 · **Prioridade:** P1 · **Risco:** N0 · **Invariantes:** INV-12
-**Regra.** O sistema DEVE guardar, por operadora e por plano (`'base'`, `'superior'`), o preço por veículo ativo e a adesão em centavos inteiros, com data de início de vigência no 1º dia de um mês civil (estrutura `operator_price`: `operator_id`, `plan`, `price_cents`, `setup_fee_cents`, `valid_from`; tabela a incorporar em [04](04-dominio-e-dados.md)). O padrão do plano `'base'` é 390 centavos. O valor de um período DEVE usar o preço vigente no 1º dia daquele período. Alterar preço NÃO DEVE recalcular `platform_fee` de período já fechado. Valor com casas decimais ou em ponto flutuante DEVE ser rejeitado na fronteira.
+**Regra.** O sistema DEVE guardar, por operadora e por plano (`'base'`, `'superior'`), o preço por veículo ativo e a adesão em centavos inteiros, com data de início de vigência no 1º dia de um mês civil (estrutura `operator_price`: `operator_id`, `plan`, `price_cents`, `setup_fee_cents`, `valid_from`; ([04](04-dominio-e-dados.md), tabelas do F1)). O padrão do plano `'base'` é 390 centavos. O valor de um período DEVE usar o preço vigente no 1º dia daquele período. Alterar preço NÃO DEVE recalcular `platform_fee` de período já fechado. Valor com casas decimais ou em ponto flutuante DEVE ser rejeitado na fronteira.
 **Aceite.** CT-NEG-001 — Dado a Lider com `price_cents = 390` vigente desde 01/11/2026 e `price_cents = 350` vigente desde 01/02/2027, Quando a tarifa de 2027-01 e a de 2027-02 são calculadas com 300 veículos ativos cada, Então `platform_fee.amount_cents` de 2027-01 = 117000 e o de 2027-02 = 105000, e reprocessar 2027-01 depois da mudança mantém 117000.
 CT-NEG-002 — Dado uma requisição de cadastro de preço com `priceCents = 3.9`, Quando a API valida, Então responde 422 e nada é gravado.
 
@@ -274,7 +278,7 @@ CT-NEG-002 — Dado uma requisição de cadastro de preço com `priceCents = 3.9
 
 ### REQ-NEG-003 — Custo de infraestrutura por veículo
 **Fase:** F1 · **Prioridade:** P1 · **Risco:** N2 · **Invariantes:** INV-12
-**Regra.** O `platform_admin` DEVE registrar, por mês, cada custo recorrente de infraestrutura e serviço de terceiro (Oracle, Cloudflare R2, Grafana, Sentry, e-mail, SMS recorrente, mapas, WhatsApp) em centavos, com categoria e fornecedor (tabela de plataforma `platform_cost`, a incorporar em [04](04-dominio-e-dados.md)). O indicador mensal DEVE ser `infra_por_veiculo_cents = round(custo_total_cents / veículos_ativos)` e `razao = custo_total_cents / receita_assinatura_cents`. Meta: `razao ≤ 10%`. Com ≥ 1.000 veículos ativos e `razao > 10%` em 2 meses consecutivos, o worker DEVE alertar o fundador. SMS de onda de migração DEVE ser registrado como custo único (categoria `'migration'`), fora do indicador. A arquitetura NÃO DEVE adotar serviço com custo por requisição sem teto configurado.
+**Regra.** O `platform_admin` DEVE registrar, por mês, cada custo recorrente de infraestrutura e serviço de terceiro (Oracle, Cloudflare R2, Grafana, Sentry, e-mail, SMS recorrente, mapas, WhatsApp) em centavos, com categoria e fornecedor (tabela de plataforma `platform_cost`, em [04](04-dominio-e-dados.md)). O indicador mensal DEVE ser `infra_por_veiculo_cents = round(custo_total_cents / veículos_ativos)` e `razao = custo_total_cents / receita_assinatura_cents`. Meta: `razao ≤ 10%`. Com ≥ 1.000 veículos ativos e `razao > 10%` em 2 meses consecutivos, o worker DEVE alertar o fundador. SMS de onda de migração DEVE ser registrado como custo único (categoria `'migration'`), fora do indicador. A arquitetura NÃO DEVE adotar serviço com custo por requisição sem teto configurado.
 **Aceite.** CT-NEG-004 — Dado 2027-10 com 3.000 veículos ativos, receita de assinatura de R$ 11.700,00 e custos de R$ 180,00 (SMS recorrente), Quando o indicador é calculado, Então `infra_por_veiculo_cents = 6`, `razao = 1,5%` e o status é "dentro da meta".
 CT-NEG-005 — Dado 2027-09 com `razao = 10,6%` e 2027-10 com custos de R$ 1.300,00 para receita de R$ 11.700,00 (`razao = 11,1%`), ambos com 3.000 veículos, Quando o indicador de 2027-10 é calculado, Então o fundador recebe 1 alerta "infra acima de 10% por 2 meses".
 
@@ -285,6 +289,6 @@ CT-NEG-005 — Dado 2027-09 com `razao = 10,6%` e 2027-10 com custos de R$ 1.300
 
 ### REQ-NEG-005 — Tempo de onboarding de operadora
 **Fase:** F2 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** —
-**Regra.** O sistema DEVE registrar a data de assinatura do contrato da operadora (`operator.contract_signed_on`, coluna a incorporar em [04](04-dominio-e-dados.md)) e calcular `onboarding_days` = data (BRT) do 1º `position` com `valid = true` da operadora − `contract_signed_on`, em dias corridos. Rastreador de bancada DEVE ficar em operadora de teste, nunca na operadora real. Meta: `onboarding_days ≤ 14`. O console de plataforma DEVE listar operadoras em onboarding com dias decorridos e alertar o fundador no 10º dia sem 1º fix válido. O processo de onboarding está em [11](11-onboarding-e-migracao.md).
+**Regra.** O sistema DEVE registrar a data de assinatura do contrato da operadora (`operator.contract_signed_on`, coluna em [04](04-dominio-e-dados.md)) e calcular `onboarding_days` = data (BRT) do 1º `position` com `valid = true` da operadora − `contract_signed_on`, em dias corridos. Rastreador de bancada DEVE ficar em operadora de teste, nunca na operadora real. Meta: `onboarding_days ≤ 14`. O console de plataforma DEVE listar operadoras em onboarding com dias decorridos e alertar o fundador no 10º dia sem 1º fix válido. O processo de onboarding está em [11](11-onboarding-e-migracao.md).
 **Aceite.** CT-NEG-007 — Dado a operadora C com contrato em 05/03/2027 e 1º fix válido em 18/03/2027 14:00 BRT, Quando o indicador é calculado, Então `onboarding_days = 13` e o status é "dentro da meta"; com 1º fix em 20/03/2027, Então `onboarding_days = 15` e o status é "fora da meta".
 CT-NEG-008 — Dado a operadora D com contrato em 05/03/2027 e nenhum fix válido, Quando o job diário roda em 15/03/2027, Então o fundador recebe 1 alerta "operadora D: 10 dias sem 1º veículo real" e o job de 16/03/2027 não repete o alerta.

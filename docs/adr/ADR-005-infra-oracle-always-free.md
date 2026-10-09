@@ -16,11 +16,11 @@
    - **Standby (F1):** réplica Postgres por streaming assíncrono via Tailscale, com `restore_command` lendo o WAL do object storage se ficar para trás; Uptime Kuma (sondas de 60 s); `caddy` servindo `status.`; agente SRE ([ADR-010](ADR-010-operacao-assistida-por-ia.md)); imagens de `traccar`, `api` e `worker` baixadas e paradas.
 2. **Docker Compose, sem Kubernetes.** `infra/scripts/provision.sh` é idempotente e reconstrói o host do zero em Ubuntu ARM ou x86 de qualquer provedor (imagens multi-arch).
 3. **Rastreador por domínio.** Todo rastreador recebe `gps.<TRACKSYS_DOMAIN>`, nunca IP. DNS na Cloudflare, registro A **sem proxy** (o proxy gratuito não encaminha TCP arbitrário e trocaria o IP e a porta de origem exigidos no registro de acesso do Marco Civil), TTL de 60 s. `api.`, `app.` e `status.` seguem o mesmo regime.
-4. **Failover dos rastreadores:** [ADOTADO NA v2.0: o registro `gps.` aponta para um IP público reservado da OCI, reatribuído à standby no failover; sem IP reservado, o failover troca o registro A]. Se o J16 não aceitar domínio ou resolver DNS só no boot [VALIDAR — DEC-02], só o IP reservado preserva o RTO de 30 min para os rastreadores; sem ele, voltar a transmitir exige SMS ou reinício do aparelho.
+4. **Failover dos rastreadores:** o registro `gps.` aponta para um IP público reservado da OCI, reatribuído à standby no failover; sem IP reservado, o failover troca o registro A. Se o J16 não aceitar domínio ou resolver DNS só no boot [VALIDAR — DEC-02], só o IP reservado preserva o RTO de 30 min para os rastreadores; sem ele, voltar a transmitir exige SMS ou reinício do aparelho.
 5. **Pay As You Go** (DEC-12): converter a conta. Recursos Always Free seguem sem cobrança; a conta sai da política de recuperação de instância ociosa e ganha mais chance de capacidade A1 [VALIDAR — DEC-12]. Proteções: orçamento OCI com alerta em US$ 1/mês e quotas de compartimento zerando shapes pagos [VALIDAR].
 6. **Failover (F1):** manual pelo fundador com `infra/scripts/failover`; no F2 o agente SRE pode disparar (ADR-010). Ordem: cercar a primária (parar contêineres ou a instância), promover a réplica, subir `traccar`, `api` e `worker` com despacho de comandos desligado até a reconciliação (REQ-ARQ-016), mover IP ou DNS, conferir as sondas. RTO ≤ 30 min com standby; ≤ 2 h sem standby (F0). RPO ≤ 5 min (WAL contínuo, `archive_timeout` 60 s).
 7. **Backups:** WAL-G para o Oracle Object Storage, com cópia na Cloudflare R2 ([13](../spec/13-infra-e-operacao.md)).
-8. **Rede:** só 80, 443 e as portas dos protocolos homologados na security list; SSH só pela Tailscale ([03 §10](../spec/03-arquitetura.md)).
+8. **Rede:** só 80, 443 e as portas dos protocolos homologados na security list; SSH só pela Tailscale ([03 §10](../spec/03-arquitetura.md#10-fronteiras-de-confiança-e-portas)).
 
 ## Alternativas consideradas
 
@@ -55,5 +55,5 @@
 ## Relacionados
 
 - REQ-ARQ-003, REQ-ARQ-004, REQ-ARQ-012, REQ-ARQ-016.
-- [03](../spec/03-arquitetura.md) §2, §10, §11; [13](../spec/13-infra-e-operacao.md); [Anexo C](../anexos/C-operacional.md).
+- [03 §2](../spec/03-arquitetura.md#2-diagrama-de-componentes), §10, §11; [13](../spec/13-infra-e-operacao.md); [Anexo C](../anexos/C-operacional.md).
 - DEC-02, DEC-04, DEC-12; [ADR-002](ADR-002-postgres-unico-fila-barramento.md), [ADR-010](ADR-010-operacao-assistida-por-ia.md).

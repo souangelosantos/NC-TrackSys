@@ -5,7 +5,7 @@
 | Fase | F0 (semana S1: 07–13/10/2026) |
 | Requisitos | REQ-OPS-001, REQ-OPS-002, REQ-OPS-003, REQ-OPS-004, REQ-OPS-005, REQ-OPS-023, REQ-ARQ-003, REQ-ARQ-004, REQ-ING-001, REQ-DAD-017, REQ-SEG-019, REQ-SEG-024 |
 | Invariantes | INV-07 (banco sem porta pública, papéis sem posse), INV-12 (UTC no host e no banco) |
-| Risco de revisão | N1 — os arquivos em caminhos N0 de [14 §6](../docs/spec/14-qualidade-e-processo-ia.md) (`.github/**`, `.sops.yaml`, `infra/secrets/**`) seguem o rito N0: revisor de outro fornecedor e leitura linha a linha desses arquivos |
+| Risco de revisão | N1 — os arquivos em caminhos N0 de [14 §6](../docs/spec/14-qualidade-e-processo-ia.md#6-níveis-de-risco) (`.github/**`, `.sops.yaml`, `infra/secrets/**`) seguem o rito N0: revisor de outro fornecedor e leitura linha a linha desses arquivos |
 | Depende de | DEC-12 |
 | Estimativa | 3 sessões de agente (3a banco, Compose, Caddy e Traccar; 3b provisionamento e firewall; 3c segredos, CI e runbook) + ~5 h do fundador na conta Oracle |
 | Bloqueado por decisão | DEC-12 (padrão: região brasileira com capacidade A1 no dia; conta Pay As You Go quando possível; F0 sem standby, RTO ≤ 2 h). DEC-04 (padrão: `TRACKSYS_DOMAIN` provisório só para a bancada; o `gps.` definitivo existe antes do 1º SMS a veículo real) |
@@ -13,14 +13,14 @@
 
 ## Objetivo
 
-Deixar a VM primária da Oracle reproduzível por script e no ar com `db` (arquivando WAL), `traccar` e `caddy`, firewall em duas camadas, SSH só pela Tailscale, segredos cifrados com SOPS + age e os subdomínios `gps.`, `api.` e `app.` resolvendo para ela. Ao final, o J16 de bancada consegue transmitir para a porta 5023 (marco de 13/10/2026) e os serviços `api`, `worker` e `migrate` já estão declarados no Compose com os limites de [03 §11](../docs/spec/03-arquitetura.md), prontos para receber a imagem única `tracksys-app` da T-004 (`infra/app/Dockerfile`) e o alvo `migrate` da T-013.
+Deixar a VM primária da Oracle reproduzível por script e no ar com `db` (arquivando WAL), `traccar` e `caddy`, firewall em duas camadas, SSH só pela Tailscale, segredos cifrados com SOPS + age e os subdomínios `gps.`, `api.` e `app.` resolvendo para ela. Ao final, o J16 de bancada consegue transmitir para a porta 5023 (marco de 13/10/2026) e os serviços `api`, `worker` e `migrate` já estão declarados no Compose com os limites de [03 §11](../docs/spec/03-arquitetura.md#11-orçamento-de-recursos-vm-de-12-gb-2-ocpu-ampere), prontos para receber a imagem única `tracksys-app` da T-004 (`infra/app/Dockerfile`) e o alvo `migrate` da T-013.
 
 ## Contexto obrigatório
 
-- [13 §1 a §6](../docs/spec/13-infra-e-operacao.md): topologia, provisionamento, firewall, Compose, banco, Traccar, segredos.
-- [03 §10, §11, §13](../docs/spec/03-arquitetura.md): portas, orçamento de memória, variáveis.
-- [05 §2](../docs/spec/05-ingestao-e-telemetria.md): chaves do forward do Traccar.
-- [08 §8, §9](../docs/spec/08-identidade-e-seguranca.md): SOPS, limites da 5023, headers do `app.`.
+- [13 §1 a §6](../docs/spec/13-infra-e-operacao.md#1-topologia): topologia, provisionamento, firewall, Compose, banco, Traccar, segredos.
+- [03 §10, §11, §13](../docs/spec/03-arquitetura.md#10-fronteiras-de-confiança-e-portas): portas, orçamento de memória, variáveis.
+- [05 §2](../docs/spec/05-ingestao-e-telemetria.md#2-contrato-com-o-traccar): chaves do forward do Traccar.
+- [08 §8, §9](../docs/spec/08-identidade-e-seguranca.md#8-segredos): SOPS, limites da 5023, headers do `app.`.
 - [ADR-005](../docs/adr/ADR-005-infra-oracle-always-free.md), [ADR-003](../docs/adr/ADR-003-traccar-borda-de-protocolos.md).
 
 ## Escopo — fazer
@@ -116,9 +116,9 @@ COPY initdb/ /docker-entrypoint-initdb.d/
 
 `WALG_VERSION` = release estável mais recente da série v3 com ≥ 14 dias na data do PR; nome do artefato [VALIDAR na versão fixada]: se mudar, ajuste `F` e registre no PR. Hash errado falha o build (CT-OPS-005).
 
-`infra/db/postgresql.conf`: um parâmetro por linha, exatamente os valores da tabela de [13 §4.2](../docs/spec/13-infra-e-operacao.md) (inclusive `archive_command = 'wal-g wal-push %p'`, `archive_timeout = 60`, `log_parameter_max_length = 0`, `log_parameter_max_length_on_error = 0`, `timezone = 'UTC'`, `shared_preload_libraries = 'pg_stat_statements'`).
+`infra/db/postgresql.conf`: um parâmetro por linha, exatamente os valores da tabela de [13 §4.2](../docs/spec/13-infra-e-operacao.md#42-infradbpostgresqlconf-primária-e-réplica) (inclusive `archive_command = 'wal-g wal-push %p'`, `archive_timeout = 60`, `log_parameter_max_length = 0`, `log_parameter_max_length_on_error = 0`, `timezone = 'UTC'`, `shared_preload_libraries = 'pg_stat_statements'`).
 
-`infra/db/pg_hba.conf.tpl`: o texto de [13 §4.3](../docs/spec/13-infra-e-operacao.md) literal, com `${PEER_TAILSCALE_IP}`; renderizado por `envsubst '${PEER_TAILSCALE_IP}'` para `/run/tracksys/pg_hba.conf` (no F0, `PEER_TAILSCALE_IP` = IP Tailscale da standby já criada).
+`infra/db/pg_hba.conf.tpl`: o texto de [13 §4.3](../docs/spec/13-infra-e-operacao.md#43-pg_hbaconf-renderizado-pelo-deploy-com-envsubst) literal, com `${PEER_TAILSCALE_IP}`; renderizado por `envsubst '${PEER_TAILSCALE_IP}'` para `/run/tracksys/pg_hba.conf` (no F0, `PEER_TAILSCALE_IP` = IP Tailscale da standby já criada).
 
 `infra/db/initdb/10-ops-roles.sh` (volume novo) e `infra/db/roles.sql` (idempotente, padrão `SELECT format(...) WHERE NOT EXISTS (...) \gexec`, executado como `postgres` pelo socket): criam `traccar` (LOGIN, dono do banco `traccar`, sem CONNECT em `tracksys`), `tracksys_replica` (LOGIN REPLICATION), `tracksys_ops_ro` (LOGIN, membro de `pg_monitor`, `ALTER ROLE … SET default_transaction_read_only = on`, `SET statement_timeout = '5s'`, sem USAGE em `app`) e `tracksys_ops_audit` (LOGIN, sem privilégio por enquanto; o schema `ops` vem na T-013). Senhas: `TRACCAR_DB_PASSWORD`, `REPLICA_PASSWORD`, `OPS_RO_PASSWORD`, `OPS_AUDIT_PASSWORD` (≥ 32 caracteres). `roles.sql` também reaplica `REVOKE CONNECT ON DATABASE tracksys FROM traccar`.
 
@@ -190,7 +190,7 @@ Sem diretiva `log` (o `api` grava `access_log`). `sites/standby.caddy` traz `sta
 
 ### (4) Traccar
 
-`infra/traccar/traccar.xml.tpl`: XML `<!DOCTYPE properties SYSTEM 'http://java.sun.com/dtd/properties.dtd'>` com as chaves de [05 §2](../docs/spec/05-ingestao-e-telemetria.md) e [13 §5](../docs/spec/13-infra-e-operacao.md), com estes valores (nomes [VALIDAR — DEC-02], confirmados ou corrigidos na T-002):
+`infra/traccar/traccar.xml.tpl`: XML `<!DOCTYPE properties SYSTEM 'http://java.sun.com/dtd/properties.dtd'>` com as chaves de [05 §2](../docs/spec/05-ingestao-e-telemetria.md#2-contrato-com-o-traccar) e [13 §5](../docs/spec/13-infra-e-operacao.md#5-traccar-operacional), com estes valores (nomes [VALIDAR — DEC-02], confirmados ou corrigidos na T-002):
 
 | Chave | Valor no modelo |
 |---|---|
@@ -213,17 +213,17 @@ Sem diretiva `log` (o `api` grava `access_log`). `sites/standby.caddy` traz `sta
 
 | Arquivo | Conteúdo obrigatório |
 |---|---|
-| `oci-bootstrap.sh` | OCI CLI, idempotente por nome (consulta antes de criar): compartimento `tracksys`; VCN `10.0.0.0/16`; subnet pública regional `10.0.0.0/24`; internet gateway e rota; security list de [13 §2.1](../docs/spec/13-infra-e-operacao.md) (TCP 80, 443, 5023 de `0.0.0.0/0`; UDP 41641 de `10.0.0.0/24`; ICMP 3/4; sem TCP 22); 2 instâncias `VM.Standard.A1.Flex` 2 OCPU/12 GB/boot 100 GB Ubuntu 24.04 ARM (`tracksys-p` FD-1, `tracksys-s` FD-2) com o user-data renderizado; IPs privados secundários `10.0.0.11` e `10.0.0.21`; IP público reservado `ip-svc` → `10.0.0.11` e `ip-sby` → `10.0.0.20`; bucket `tracksys-backup` (privado, versionamento desligado); grupo dinâmico `tracksys-vms` com política de leitura do prefixo `ops/` do bucket; orçamento com alerta em US$ 1; quota que zera shapes pagos. Flags [VALIDAR] na versão da OCI CLI do fundador; o script imprime os OCIDs criados em `infra/scripts/.oci-state.json` (no `.gitignore`) |
+| `oci-bootstrap.sh` | OCI CLI, idempotente por nome (consulta antes de criar): compartimento `tracksys`; VCN `10.0.0.0/16`; subnet pública regional `10.0.0.0/24`; internet gateway e rota; security list de [13 §2.1](../docs/spec/13-infra-e-operacao.md#21-firewall-em-duas-camadas) (TCP 80, 443, 5023 de `0.0.0.0/0`; UDP 41641 de `10.0.0.0/24`; ICMP 3/4; sem TCP 22); 2 instâncias `VM.Standard.A1.Flex` 2 OCPU/12 GB/boot 100 GB Ubuntu 24.04 ARM (`tracksys-p` FD-1, `tracksys-s` FD-2) com o user-data renderizado; IPs privados secundários `10.0.0.11` e `10.0.0.21`; IP público reservado `ip-svc` → `10.0.0.11` e `ip-sby` → `10.0.0.20`; bucket `tracksys-backup` (privado, versionamento desligado); grupo dinâmico `tracksys-vms` com política de leitura do prefixo `ops/` do bucket; orçamento com alerta em US$ 1; quota que zera shapes pagos. Flags [VALIDAR] na versão da OCI CLI do fundador; o script imprime os OCIDs criados em `infra/scripts/.oci-state.json` (no `.gitignore`) |
 | `cloud-init.yaml` + `render-cloud-init.sh` | Usuário `ubuntu` com a chave Ed25519 do fundador; instala Tailscale e entra com chave de uso único (validade 1 h, tag `tag:prod` ou `tag:standby`); renderizado localmente para `infra/scripts/.cloud-init.rendered.yaml` (no `.gitignore`), nunca commitado |
-| `provision.sh --role primary\|standby [--check]` | Os 8 passos de [13 §2](../docs/spec/13-infra-e-operacao.md), idempotentes; `--check` só verifica e sai 0 se nada mudaria, 1 se algo mudaria (lista o quê). Detecta `aarch64`/`x86_64` e funciona nos dois (REQ-OPS-001). No F0 os timers de backup, métricas e restore não são instalados (T-013) |
-| `firewall.sh [--print]` | Gera e aplica as regras de [13 §2.1](../docs/spec/13-infra-e-operacao.md): `INPUT` política `DROP`, aceitando `lo`, `ESTABLISHED,RELATED`, ICMP, `tailscale0`, UDP 41641 de `10.0.0.0/24` e TCP 80/443/5023; cadeia `DOCKER-USER` na interface pública (`PUBLIC_IFACE`, padrão a da rota padrão): 5023 com `connlimit --connlimit-above 50 --connlimit-mask 32` → `DROP` e `hashlimit --hashlimit-above 60/minute --hashlimit-mode srcip --hashlimit-name trk5023` em SYN novos → `DROP`; 5432 vinda da interface pública → `DROP`; `RETURN` no fim. `--print` só imprime em formato `iptables-restore` (usado nos testes). Nunca chama `netfilter-persistent reload` |
-| `role-guard.sh` | [13 §9.3](../docs/spec/13-infra-e-operacao.md): lê `/etc/tracksys/role`; `standby` libera; `primary` lê `ops/role.json` do bucket por instance principal (10 tentativas a cada 30 s) e compara o OCID com o do IMDS; diferente → grava `fenced`, sai 1 e manda page (Pushover, variáveis `PUSHOVER_*`); inacessível → sai 1 (falha fechada). `provision.sh --role primary` grava o marcador inicial `{"primary":"<OCID>","epoch":1,"at":"<RFC 3339>"}` se não existir |
+| `provision.sh --role primary\|standby [--check]` | Os 8 passos de [13 §2](../docs/spec/13-infra-e-operacao.md#2-provisionamento-reproduzível), idempotentes; `--check` só verifica e sai 0 se nada mudaria, 1 se algo mudaria (lista o quê). Detecta `aarch64`/`x86_64` e funciona nos dois (REQ-OPS-001). No F0 os timers de backup, métricas e restore não são instalados (T-013) |
+| `firewall.sh [--print]` | Gera e aplica as regras de [13 §2.1](../docs/spec/13-infra-e-operacao.md#21-firewall-em-duas-camadas): `INPUT` política `DROP`, aceitando `lo`, `ESTABLISHED,RELATED`, ICMP, `tailscale0`, UDP 41641 de `10.0.0.0/24` e TCP 80/443/5023; cadeia `DOCKER-USER` na interface pública (`PUBLIC_IFACE`, padrão a da rota padrão): 5023 com `connlimit --connlimit-above 50 --connlimit-mask 32` → `DROP` e `hashlimit --hashlimit-above 60/minute --hashlimit-mode srcip --hashlimit-name trk5023` em SYN novos → `DROP`; 5432 vinda da interface pública → `DROP`; `RETURN` no fim. `--print` só imprime em formato `iptables-restore` (usado nos testes). Nunca chama `netfilter-persistent reload` |
+| `role-guard.sh` | [13 §9.3](../docs/spec/13-infra-e-operacao.md#93-guarda-de-papel-no-boot): lê `/etc/tracksys/role`; `standby` libera; `primary` lê `ops/role.json` do bucket por instance principal (10 tentativas a cada 30 s) e compara o OCID com o do IMDS; diferente → grava `fenced`, sai 1 e manda page (Pushover, variáveis `PUSHOVER_*`); inacessível → sai 1 (falha fechada). `provision.sh --role primary` grava o marcador inicial `{"primary":"<OCID>","epoch":1,"at":"<RFC 3339>"}` se não existir |
 | `autoheal.sh` | Timer de 30 s: reinicia contêiner do projeto com health `unhealthy`; no máximo 3 reinícios por contêiner em 15 min (estado em `/var/lib/tracksys/autoheal.json`); no 4º, não reinicia e manda page "AL-12 <serviço>" |
 | `bootstrap-stack.sh` | Subida inicial antes da T-013: `sops -d infra/secrets/prod.env.sops > /run/tracksys/prod.env` (0600 root), renderiza `pg_hba.conf`, `docker compose up -d --wait db traccar caddy`, aplica `infra/db/roles.sql` como `postgres` pelo socket |
 | `check-secret-files.sh` | Falha (`exit 1`, listando) se existir no git arquivo `*.env`, `.env.*` (exceto `.env.example` da raiz e `infra/env/*.example`/`ci.env`), `*.key` ou `*.pem` fora de `infra/secrets/*.sops` |
 | Units systemd | `tracksys-secrets.service` (oneshot no boot: decifra para `/run/tracksys/`), `tracksys-firewall.service` (`After=docker.service`, `PartOf=docker.service`, roda `firewall.sh`), `tracksys-autoheal.timer` (30 s), drop-in `docker.service.d/10-tracksys.conf` com `After=`/`Wants=tailscaled.service network-online.target` e `ExecStartPre=/opt/tracksys/infra/scripts/role-guard.sh` |
 
-Host em UTC com chrony apontando para `169.254.169.254`; swap de 2 GB com `vm.swappiness=1`; `daemon.json` de [13 §2](../docs/spec/13-infra-e-operacao.md) passo 3.
+Host em UTC com chrony apontando para `169.254.169.254`; swap de 2 GB com `vm.swappiness=1`; `daemon.json` de [13 §2](../docs/spec/13-infra-e-operacao.md#2-provisionamento-reproduzível) passo 3.
 
 ### (6) Segredos
 
@@ -316,14 +316,14 @@ pnpm verify
 
 | Dúvida provável | Resposta |
 |---|---|
-| O Dockerfile da aplicação não existe ainda. O Compose quebra? | Não. `api` e `worker` ficam no perfil `app` e `migrate` no perfil `ops`; `docker compose config` não exige o build. A T-004 cria `infra/app/Dockerfile` (imagem única `tracksys-app`, estágio final `app`); a T-013 acrescenta o alvo `migrate` e tira o perfil `app` ([13 §3](../docs/spec/13-infra-e-operacao.md)). |
+| O Dockerfile da aplicação não existe ainda. O Compose quebra? | Não. `api` e `worker` ficam no perfil `app` e `migrate` no perfil `ops`; `docker compose config` não exige o build. A T-004 cria `infra/app/Dockerfile` (imagem única `tracksys-app`, estágio final `app`); a T-013 acrescenta o alvo `migrate` e tira o perfil `app` ([13 §3](../docs/spec/13-infra-e-operacao.md#3-docker-compose)). |
 | Healthcheck do `api` na 3000 ou na 3001? | Na 3001 (interna, com `checks`), como o `worker` na 3002. A 3000 pública responde só `{"status"}` ([03](../docs/spec/03-arquitetura.md) REQ-ARQ-005) e é a das sondas e do smoke da T-013. |
-| Arquivar WAL já, sem base diária? | Sim ([13 §18](../docs/spec/13-infra-e-operacao.md): a T-003 já sobe arquivando). A base diária, a retenção e o restore são da T-013. |
+| Arquivar WAL já, sem base diária? | Sim ([13 §18](../docs/spec/13-infra-e-operacao.md#18-requisitos): a T-003 já sobe arquivando). A base diária, a retenção e o restore são da T-013. |
 | Domínio definitivo ainda não existe (DEC-04). | Use um domínio provisório só para a bancada em `TRACKSYS_DOMAIN`. Nenhum veículo real recebe SMS com o domínio provisório. Trocar o domínio depois é só mudar a variável e os registros A. |
 | Standby no F0? | Só a VM criada (garante capacidade A1) com Tailscale. Nenhum contêiner nela no F0. |
 | IP reservado não pode ser movido entre VMs no Always Free [VALIDAR — DEC-12]. | Crie mesmo assim; o failover do F1 troca os registros A se o `oci network public-ip update` falhar. Não bloqueia o F0. |
-| Posso usar `ufw`? | Não. `iptables` com `firewall.sh` e cadeia `DOCKER-USER` ([13 §2.1](../docs/spec/13-infra-e-operacao.md)). `ufw` não enxerga as portas publicadas pelo Docker. |
-| Por que `render-config.sh` dentro do contêiner do Traccar? | O segredo nunca fica no repositório nem em arquivo do host; é renderizado no start a partir do `env_file` ([05 §2](../docs/spec/05-ingestao-e-telemetria.md)). |
+| Posso usar `ufw`? | Não. `iptables` com `firewall.sh` e cadeia `DOCKER-USER` ([13 §2.1](../docs/spec/13-infra-e-operacao.md#21-firewall-em-duas-camadas)). `ufw` não enxerga as portas publicadas pelo Docker. |
+| Por que `render-config.sh` dentro do contêiner do Traccar? | O segredo nunca fica no repositório nem em arquivo do host; é renderizado no start a partir do `env_file` ([05 §2](../docs/spec/05-ingestao-e-telemetria.md#2-contrato-com-o-traccar)). |
 | A imagem do Traccar não tem `wget`. | Troque o healthcheck por `curl -fs` ou por `java`/`nc` disponível na imagem fixada e registre no PR. Não instale pacotes na imagem. |
 | `tracksys_ops_audit` sem privilégios? | Sim, até a T-013 criar o schema `ops` e conceder `INSERT` em `ops.audit_log`. |
 | Agente pode rodar `oci-bootstrap.sh`? | Não. Agente não tem credencial de produção. Ele escreve, testa com `--help`, `shellcheck` e `--print`, e o fundador executa. |

@@ -5,10 +5,10 @@
 | Fase | F0 (semana S3: 21–27/10/2026; teste fechado do Google Play iniciado até 27/10) |
 | Requisitos | REQ-UX-008 (tela A04), REQ-UX-011, REQ-UX-030 (parte F0: teste fechado Android e TestFlight) |
 | Invariantes | INV-03, INV-06, INV-07, INV-12 |
-| Risco de revisão | N2 |
+| Risco de revisão | **N0 pelo caminho:** `.github/workflows/mobile-release.yml` (assinatura e segredos do AAB). Demais arquivos N2 (app Flutter, scripts, runbook). Leitura linha a linha e revisor de outro fornecedor só no workflow; o resto segue o checklist N2 |
 | Depende de | T-009 (app, sessão, marca, `brt.dart`, `formatAge`, A03); usa `GET /api/v1/vehicles/{vehicleId}/history` (com `availableFrom`) e `history-vectors.json` da T-008 |
 | Estimativa | 2 sessões de agente (1: histórico; 2: deep links e distribuição) |
-| Bloqueado por decisão | DEC-03 só para a parte iOS (TestFlight); sem a conta Apple, entrega o Android e o fundador avalia o corte 6 de [02 §2.4](../docs/spec/02-escopo-e-fases.md). DEC-04 não bloqueia o código, mas o build entregue aos testadores do G0 usa o domínio definitivo em `TRACKSYS_DOMAIN` |
+| Bloqueado por decisão | DEC-03 só para a parte iOS (TestFlight); sem a conta Apple, entrega o Android e o fundador avalia o corte 6 de [02 §2.4](../docs/spec/02-escopo-e-fases.md#24-plano-de-corte). DEC-04 não bloqueia o código, mas o build entregue aos testadores do G0 usa o domínio definitivo em `TRACKSYS_DOMAIN` |
 
 ## Objetivo
 
@@ -16,9 +16,9 @@ Completar o app do F0 com o que o cliente usa depois de ver o mapa: o trajeto de
 
 ## Contexto obrigatório
 
-- [10 §5 (idade), §6 (A03, A04, A07, A08), §12 (distribuição)](../docs/spec/10-apps-e-ux.md); REQ-UX-008, REQ-UX-011, REQ-UX-030.
-- [09 §9.4](../docs/spec/09-api-e-contratos.md): histórico, lacunas e paginação; campo aditivo `availableFrom` (T-008).
-- [02 §2.2 e §2.5](../docs/spec/02-escopo-e-fases.md): prazo do teste fechado (27/10) e roteiros G0-3/G0-4.
+- [10 §5 (idade), §6 (A03, A04, A07, A08), §12 (distribuição)](../docs/spec/10-apps-e-ux.md#5-estados-honestos); REQ-UX-008, REQ-UX-011, REQ-UX-030.
+- [09 §9.4](../docs/spec/09-api-e-contratos.md#94-get-apiv1vehiclesvehicleidhistory): histórico, lacunas e paginação; campo aditivo `availableFrom` (T-008).
+- [02 §2.2 e §2.5](../docs/spec/02-escopo-e-fases.md#22-cronograma-semanal): prazo do teste fechado (27/10) e roteiros G0-3/G0-4.
 - [ADR-007](../docs/adr/ADR-007-app-unico-flutter-marca-dinamica.md): app publicado pela conta da Versix; regras das lojas.
 - Cartões T-008 (`buildHistorySegments`, `summarizeHistory`, vetores) e T-009 (estrutura do app, `OfflineGate`, área de ações deixada no A03).
 
@@ -33,7 +33,7 @@ Completar o app do F0 com o que o cliente usa depois de ver o mapa: o trajeto de
 
 ## Fora do escopo
 
-- A05 Alertas, A06 Vigilância e A09 Notificações (T-012 [ADOTADO NA v2.0]; a A05 reutiliza as ações A07 e A08 deste cartão).
+- A05 Alertas, A06 Vigilância e A09 Notificações (T-012; a A05 reutiliza as ações A07 e A08 deste cartão).
 - "Solicitar relatório" acima de 90 dias e exportação (F1, [ADR-009](../docs/adr/ADR-009-retencao-quente-frio.md)).
 - Publicação em produção nas lojas (F1, G1-5); pipeline iOS automatizado (F0 é manual); flavors (F2).
 - Cache offline de histórico; tela C07 do console (T-008); WhatsApp Cloud API (F2).
@@ -218,7 +218,7 @@ Primeira versão (evidência no PR): tag `mobile-v0.1.0` → workflow verde; `bu
 - [ ] Comandos de verificação verdes local e no CI; testes congelados de T-009 e T-010 intactos.
 - [ ] Teste fechado do Google Play com a versão do workflow até 27/10/2026 (ou bloqueio registrado no G0 com causa); TestFlight enviado ou bloqueio por DEC-03 registrado.
 - [ ] Nenhum segredo, `key.properties`, `.jks` ou `google-services.json` no repositório; `check_aab_secrets.sh` verde no AAB publicado.
-- [ ] PR `feat(mobile): histórico do dia, deep links e distribuição do F0 (T-010)` com REQ, INV, CT, risco N2 e as evidências acima.
+- [ ] PR `feat(mobile): histórico do dia, deep links e distribuição do F0 (T-010)` com REQ, INV, CT, `Risco declarado: N0` (pelo caminho: `mobile-release.yml`; demais N2) e as evidências acima.
 
 ## Decisões já tomadas (não pergunte, siga)
 

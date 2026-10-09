@@ -8,6 +8,21 @@
 > - Rollback por SMS testado em 1 veículo antes do piloto (G0-8) e automático nas ondas do F1.
 > - Onboarding de operadora com meta de ≤ 14 dias medida (REQ-NEG-005) e checklist com dono.
 
+**Nesta página**
+
+- [1. Onde fica o código](#1-onde-fica-o-código)
+- [2. Checklist de onboarding (meta ≤ 14 dias, F2)](#2-checklist-de-onboarding-meta--14-dias-f2)
+- [3. Importador de planilha (F1)](#3-importador-de-planilha-f1)
+- [4. Ondas de migração](#4-ondas-de-migração)
+- [5. Modelos de SMS e senha do dispositivo](#5-modelos-de-sms-e-senha-do-dispositivo)
+- [6. Domínio `gps.<domínio>` e plano B](#6-domínio-gpsdomínio-e-plano-b)
+- [7. Migração da Lider passo a passo](#7-migração-da-lider-passo-a-passo)
+- [8. Histórico do tracker-net](#8-histórico-do-tracker-net)
+- [9. Riscos](#9-riscos)
+- [10. Modelo de dados (tipo C, F1)](#10-modelo-de-dados-tipo-c-f1)
+- [11. Contratos [alinhar com 09]](#11-contratos-alinhar-com-09)
+- [12. Requisitos](#12-requisitos)
+
 ## 1. Onde fica o código
 
 | Peça | Caminho |
@@ -27,13 +42,13 @@ D0 = `operator.contract_signed_on`. O `onboarding_days` termina no 1º fix váli
 | # | Passo | Dono | Prazo | Pronto quando |
 |---|---|---|---|---|
 | 1 | Contrato e adesão assinados; `contract_signed_on` gravado | Fundador + operadora | D0 | Contrato assinado |
-| 2 | Operadora criada; `operator_admin` convidado; `command_policy` v1 ([06](06-comandos-e-bloqueio.md) §3.3) | Fundador | D0–D1 | Admin entra no console |
-| 3 | Marca: logo, cor, WhatsApp e telefone da central | Operadora envia; fundador confere a prévia | D1–D3 | Prévia aprovada (contraste de [10](10-apps-e-ux.md) §4) |
+| 2 | Operadora criada; `operator_admin` convidado; `command_policy` v1 ([06 §3.3](06-comandos-e-bloqueio.md#33-política-da-operadora-command_policy)) | Fundador | D0–D1 | Admin entra no console |
+| 3 | Marca: logo, cor, WhatsApp e telefone da central | Operadora envia; fundador confere a prévia | D1–D3 | Prévia aprovada (contraste de [10 §4](10-apps-e-ux.md#4-marca-dinâmica)) |
 | 4 | Usuários: atendentes, plantonista, instaladores, busca | Operadora | D2–D4 | ≥ 1 `operator_agent` ativo com TOTP |
 | 5 | Conta Asaas vinculada e split de R$ 3,90 testado | Operadora + fundador | D1–D5 | Cobrança de teste com split ([12](12-cobranca-e-svas.md)) |
 | 6 | Planilha exportada da plataforma de origem | Operadora | D1–D3 | Arquivo entregue |
 | 7 | Importação: mapeamento, prévia, correções, commit (§3) | Operadora executa (`operator_admin`); fundador acompanha | D3–D6 | `import_job` `committed`, 0 erro pendente |
-| 8 | Hardware: modelos da planilha × perfis; modelo novo → spike de rastreamento ([05](05-ingestao-e-telemetria.md) §15) e modelos de SMS (§5) | Fundador | D1–D8 | Todos os modelos com perfil e modelos de SMS `validated`; bloqueio só após a bancada de [06](06-comandos-e-bloqueio.md) §13 |
+| 8 | Hardware: modelos da planilha × perfis; modelo novo → spike de rastreamento ([05 §15](05-ingestao-e-telemetria.md#15-spike-do-j16-t-002-o-que-capturar)) e modelos de SMS (§5) | Fundador | D1–D8 | Todos os modelos com perfil e modelos de SMS `validated`; bloqueio só após a bancada de [06 §13](06-comandos-e-bloqueio.md#13-homologação-do-perfil-e-g-cmd) |
 | 9 | Dados de migração: senha SMS, servidor atual (alvo de rollback), acesso ao portal do chip ou DEC-01 | Operadora | D3–D5 | 1 item de onda passa na pré-checagem (§4.3) |
 | 10 | Piloto: 1–3 veículos da própria operadora migrados; rollback testado em 1 | Fundador + operadora | D6–D8 | 1º fix válido (fecha `onboarding_days`) |
 | 11 | Treinamento do plantonista (1 h) com o runbook de 1 página ([Anexo C](../anexos/C-operacional.md)) | Fundador | D8–D10 | Ensaio: localizar 1 veículo por SMS |
@@ -63,9 +78,9 @@ Cabeçalhos comparados após aparar, minúsculas, sem acento (NFD) e espaços co
 |---|---|---|---|---|
 | `customerName` | Sim | nome, cliente, nome do cliente, razao social | 2–200 caracteres | `tenant.display_name` |
 | `customerDocument` | Sim | cpf, cnpj, cpf/cnpj, documento | Só dígitos; 11 = CPF com DV (`person`); 14 = CNPJ com DV (`company`) | `tenant.document`, `tenant.kind` |
-| `customerPhone` | Não | telefone, celular, whatsapp, fone | Só dígitos; 10–11 → prefixo +55; 12–13 iniciando em 55 → `+`; E.164 | `tenant.contact_phone` [ADOTADO NA v2.0; coluna nova do F1, criada com o importador: não existe no F0 nem em `POST /api/v1/tenants`] |
-| `customerEmail` | Não | email, e-mail | Minúsculas; `^[^@\s]+@[^@\s]+\.[^@\s]+$`; ≤ 254 | `tenant.contact_email` [ADOTADO NA v2.0] e convite do titular |
-| `plate` | Sim | placa | Maiúsculas, sem hífen e espaço; regex de [04](04-dominio-e-dados.md) §3.1 | `vehicle.plate` |
+| `customerPhone` | Não | telefone, celular, whatsapp, fone | Só dígitos; 10–11 → prefixo +55; 12–13 iniciando em 55 → `+`; E.164 | `tenant.contact_phone` coluna nova do F1, criada com o importador: não existe no F0 nem em `POST /api/v1/tenants` |
+| `customerEmail` | Não | email, e-mail | Minúsculas; `^[^@\s]+@[^@\s]+\.[^@\s]+$`; ≤ 254 | `tenant.contact_email` e convite do titular |
+| `plate` | Sim | placa | Maiúsculas, sem hífen e espaço; regex de [04 §3.1](04-dominio-e-dados.md#31-tabelas-da-t-001) | `vehicle.plate` |
 | `vehicleKind` | Não | tipo, tipo de veiculo, categoria | carro, automovel, auto, passeio → `car`; moto, motocicleta, motoneta → `motorcycle`; caminhao → `truck`; vazio ou outro → `other` | `vehicle.kind` |
 | `make`, `model`, `color` | Não | marca, fabricante / modelo / cor | ≤ 60 / ≤ 60 / ≤ 30 caracteres | `vehicle.*` |
 | `imei` | Sim | imei, id do rastreador, serial, numero do rastreador | Só dígitos; 15 dígitos; Luhn conferido (falha = aviso) | `device.imei` |
@@ -85,7 +100,7 @@ Erro descarta a linha; aviso importa a linha com o campo afetado vazio.
 |---|---|
 | Erro de formato | `REQUIRED_MISSING` (obrigatório vazio); `DOCUMENT_INVALID` (tamanho ou DV); `PLATE_INVALID`; `IMEI_INVALID` (≠ 15 dígitos); `ICCID_INVALID` (fora de 18–20); `CUT_POINT_UNKNOWN`; `DEVICE_MODEL_UNKNOWN` (sem perfil) |
 | Erro de consistência | `DUPLICATE_IN_FILE` (mesmo IMEI, ICCID ou placa em 2+ linhas, todas marcadas); `IMEI_UNAVAILABLE`, `ICCID_UNAVAILABLE` (cadastrado fora da operadora; a mensagem "IMEI indisponível para cadastro" não revela onde, REQ-DAD-022); `PLATE_OTHER_CUSTOMER` (placa ativa com outro documento, INV-06); `DEVICE_ASSIGNED_ELSEWHERE` (vínculo aberto em outro veículo); `VEHICLE_HAS_OTHER_DEVICE` (veículo com outro rastreador primário) |
-| Aviso | `IMEI_CHECK_DIGIT` (Luhn falhou; há equipamento com identificador próprio); `PHONE_INVALID` (descartado), `PHONE_LANDLINE` (sem WhatsApp); `EMAIL_INVALID`, `EMAIL_MISSING` (titular sem app até a central cadastrar); `CUT_POINT_EMPTY` ("Sem ponto de corte: bloqueio indisponível até a central registrar", INV-10); `VEHICLE_KIND_DEFAULTED`; `AMOUNT_INVALID`, `DUE_DAY_INVALID` (cobrança descartada); `NAME_MISMATCH` (mesmo documento, nomes diferentes; vale a 1ª linha) |
+| Aviso | `IMEI_CHECK_DIGIT` (Luhn falhou; há equipamento com identificador próprio); `PHONE_INVALID` (descartado), `PHONE_LANDLINE` (sem WhatsApp); `EMAIL_INVALID`, `EMAIL_MISSING` (titular sem e-mail: convite por código de ativação, [08 §2](08-identidade-e-seguranca.md#2-autenticação-better-auth)); `CUT_POINT_EMPTY` ("Sem ponto de corte: bloqueio indisponível até a central registrar", INV-10); `VEHICLE_KIND_DEFAULTED`; `AMOUNT_INVALID`, `DUE_DAY_INVALID` (cobrança descartada); `NAME_MISMATCH` (mesmo documento, nomes diferentes; vale a 1ª linha) |
 
 ### 3.4 Commit idempotente por linha
 
@@ -94,9 +109,9 @@ Erro descarta a linha; aviso importa a linha com o campo afetado vazio.
 1. **Cliente:** busca `tenant` por `(operator_id, document)`; não existe → cria `active`.
 2. **Veículo:** busca por `(operator_id, plate)` não arquivado; existe em outro cliente → `PLATE_OTHER_CUSTOMER`; não existe → cria.
 3. **Chip:** com ICCID, busca `sim_card` na operadora; não existe → cria (`emnify`, `msisdn` se houver); violação de unicidade → `ICCID_UNAVAILABLE`.
-4. **Rastreador:** busca `device` por IMEI na operadora (não aposentado); não existe → cria `stock` com perfil do modelo; unicidade violada → `IMEI_UNAVAILABLE`. O módulo `fleet` provisiona no Traccar ([03](03-arquitetura.md) §4).
+4. **Rastreador:** busca `device` por IMEI na operadora (não aposentado); não existe → cria `stock` com perfil do modelo; unicidade violada → `IMEI_UNAVAILABLE`. O módulo `fleet` provisiona no Traccar ([03 §4](03-arquitetura.md#4-módulos-do-monólito-e-donos-de-tabelas)).
 5. **Vínculo:** aberto no mesmo veículo → nada (`cut_point` diferente vira `conflict`); aberto em outro veículo → `DEVICE_ASSIGNED_ELSEWHERE`; sem vínculo → cria primário com `valid_from = now()`, `cut_point` da linha, `installed_by` NULL, `notes = 'importado: {source} {AAAA-MM-DD}'`, e `device.status = 'installed'`.
-6. **Titular:** a importação não cria usuário; o convite (`POST /api/v1/invitations`, papel `tenant_owner`, e-mail de contato, [08](08-identidade-e-seguranca.md) §2) sai quando o veículo é migrado (§7, M2).
+6. **Titular:** a importação não cria usuário; o convite (`POST /api/v1/invitations`, papel `tenant_owner`, e-mail de contato, [08 §2](08-identidade-e-seguranca.md#2-autenticação-better-auth)) sai quando o veículo é migrado (§7, M2). Titular com `EMAIL_MISSING` recebe o código de ativação gerado na C03 (§7, M2b).
 7. **Cobrança:** plano, valor e vencimento em `rows[i].billing` para o módulo `billing` consumir ao vincular a conta Asaas [alinhar com 12].
 8. **Resultado:** `created`, `unchanged` (tudo igual), `updated` (só com `updateExisting`), `conflict` (diferenças listadas, nada alterado) ou `error`. `updateExisting = true` altera só telefone, e-mail, marca, modelo, cor e o `cut_point` do vínculo aberto. Nunca move veículo, rastreador ou histórico entre clientes (INV-06).
 9. **Auditoria:** `audit_log` `import.commit` (1 por job, com contagens) e `import.update_existing` por entidade alterada.
@@ -105,10 +120,10 @@ Erro descarta a linha; aviso importa a linha com o campo afetado vazio.
 
 ### 4.1 Liberação, modo e janela
 
-1. Ondas existem só para operadoras em `MIGRATION_WAVES_OPERATORS` (ids separados por vírgula; padrão vazio), alterada por deploy com revisão N1 [ADOTADO NA v2.0]. A Lider entra após G0 aprovado, DEC-10 resolvida e G-CMD aprovado: sem G-CMD, o cliente migrado perde o bloqueio remoto, que é paridade.
-2. `mode = 'api'` exige `EMNIFY_SMS_ENABLED=true` (DEC-01, [06](06-comandos-e-bloqueio.md) §9); sem a flag, só `manual`.
-3. Início de segunda a sexta, 09:00–16:00 BRT [PREMISSA], para 1º contato, rollback e confirmação no sistema de origem caberem no expediente da central. Fora disso: 422 `WAVE_OUTSIDE_WINDOW`.
-4. Criar, iniciar, pausar e abortar: `operator_admin`. Registrar SMS manual e resultado de rollback: `operator_admin` e `operator_agent`. O fundador acompanha; o grant de suporte da Versix é só leitura ([08](08-identidade-e-seguranca.md) §5).
+1. Ondas existem só para operadoras em `MIGRATION_WAVES_OPERATORS` (ids separados por vírgula; padrão vazio), alterada por deploy com revisão N1. A Lider entra após G0 aprovado, DEC-10 resolvida e G-CMD aprovado: sem G-CMD, o cliente migrado perde o bloqueio remoto, que é paridade.
+2. `mode = 'api'` exige `EMNIFY_SMS_ENABLED=true` (DEC-01, [06 §9](06-comandos-e-bloqueio.md#9-desbloqueio-assimétrico)); sem a flag, só `manual`.
+3. Início de segunda a sexta, exceto feriados nacionais (lista em `packages/domain/src/calendar/holidays-br.ts`), 09:00–16:00 BRT [PREMISSA], para 1º contato, rollback e confirmação no sistema de origem caberem no expediente da central. Fora disso: 422 `WAVE_OUTSIDE_WINDOW`. Feriados de 2026: 12/10, 02/11, 20/11 e 25/12.
+4. Criar, iniciar, pausar e abortar: `operator_admin`. Registrar SMS manual e resultado de rollback: `operator_admin` e `operator_agent`. O fundador acompanha; o grant de suporte da Versix é só leitura ([08 §5](08-identidade-e-seguranca.md#5-acesso-de-suporte-da-versix)).
 
 ### 4.2 Estados
 
@@ -139,7 +154,7 @@ Onda: `draft` → `running` ⇄ `paused` → `completed`; `draft`, `running` e `
 | 1 | Rastreador com vínculo primário aberto (as primeiras posições já têm dono) | `no_open_assignment` |
 | 2 | `device.traccar_device_id` preenchido | `traccar_not_provisioned` |
 | 3 | `sim_card` do rastreador `active`, com `msisdn` (manual) ou resolvível na emnify (api) [VALIDAR — DEC-01] | `sim_not_ready` |
-| 4 | Perfil com `sms_templates_ref` e modelos `set_server_*` e `rollback` `validated` (§5) | `sms_templates_missing` |
+| 4 | Perfil com `sms_templates_ref` e modelos `set_password`, `set_server_*` e `rollback` `validated` (§5) | `sms_templates_missing` |
 | 5 | Modo api: segredo `sms_password` da operadora no cofre | `sms_password_missing` |
 | 6 | `target_host` é domínio → `capabilities.domain_support = "yes"` | `domain_unsupported` |
 | 7 | `device_state.last_contact_at` NULL ou anterior a agora − 24 h; senão item `excluded` | `already_reporting` |
@@ -151,13 +166,13 @@ Onda só inicia com ≥ 1 item `ready` e nenhum `pending` (422 `WAVE_NOT_READY`)
 
 Job `onboarding.wave.tick` a cada 30 s por onda `running` (`singletonKey` = id da onda):
 
-1. **`ready`:** modo api → SMS `set_server_*` (§5), um por vez, 3 s entre envios [PREMISSA]. 2xx da emnify → `sms_sent` com `sms_sent_at`, `sms_provider_ref`; 4xx → `blocked` `sms_rejected`; 5xx ou timeout → próximo tick, até 3 tentativas, depois `blocked` `sms_failed`. Repetir o SMS de ida é inofensivo (mesma configuração). Modo manual → a central vê "Enviar SMS" com o texto e registra `POST …/manual-sms {kind: "migrate", sentAt}`.
+1. **`ready`:** modo api → antes do `set_server_*`, SMS `set_password` com a senha da operadora (§5 item 4), confirmado por `query_params` com a senha nova; só então SMS `set_server_*` (§5), um por vez, 3 s entre envios [PREMISSA]. 2xx da emnify → `sms_sent` com `sms_sent_at`, `sms_provider_ref`; 4xx → `blocked` `sms_rejected`; 5xx ou timeout → próximo tick, até 3 tentativas, depois `blocked` `sms_failed`. Repetir o SMS de ida é inofensivo (mesma configuração). Modo manual → a central vê "Enviar SMS" com o texto e registra `POST …/manual-sms {kind: "migrate", sentAt}`.
 2. **`sms_sent`:** `device_state.last_contact_at ≥ sms_sent_at` → `migrated` com `first_contact_at`.
 3. **10 min sem contato** (`contact_timeout_s` = 600): `no_contact`; modo api envia o rollback no mesmo tick → `rollback_sms_sent`; manual → tarefa "Enviar SMS de rollback" e registro `{kind: "rollback"}`.
-4. **`rollback_sms_sent`:** a central confere o veículo no sistema de origem e registra `back_on_source` → `rolled_back`; `not_back`, ou 30 min sem registro → `rollback_failed` e `ticket` automático "Rastreador sem servidor: verificar no local" ([10](10-apps-e-ux.md) §11).
+4. **`rollback_sms_sent`:** a central confere o veículo no sistema de origem e registra `back_on_source` → `rolled_back`; `not_back`, ou 30 min sem registro → `rollback_failed` e `ticket` automático "Rastreador sem servidor: verificar no local" ([10 §11](10-apps-e-ux.md#11-atendimento-ticket-módulo-support)).
 5. Contato com a TrackSys após `no_contact` grava `late_contact_at`; o estado não muda.
 6. **Disjuntor:** com ≥ 5 itens decididos (`migrated` ou `no_contact` e seguintes), falhas / decididos ≥ 30% → onda `paused` (`circuit_open`); nenhum SMS novo; itens enviados seguem o ciclo; aviso no console e e-mail ao `operator_admin` e ao fundador.
-7. Onda `completed` quando todos os itens estão em `migrated`, `rolled_back`, `rollback_failed` ou `excluded`.
+7. Onda `completed` quando todos os itens estão em `migrated`, `rolled_back`, `rollback_failed` ou `excluded`. Item `migrated` sem `password_rotated_at` (rotação confirmada) não conclui a onda.
 8. Restore e standby desligam `EMNIFY_SMS_ENABLED` ([13](13-infra-e-operacao.md)); com a flag desligada o tick não envia SMS e o console mostra "Envio automático desligado" (INV-05).
 
 ### 4.5 Métricas
@@ -166,21 +181,22 @@ Job `onboarding.wave.tick` a cada 30 s por onda `running` (`singletonKey` = id d
 
 ### 4.6 Procedimento manual do piloto (F0, T-014)
 
-Sem tabelas de onda (são F1). Uma linha por envio em `docs/runbooks/gates/G0.md`: veículo pelo IMEI mascarado (`***0017`), tipo (`migrar` ou `rollback`), hora do SMS, hora do 1º contato ou da confirmação do rollback, resultado e duração. Placa, nome e CPF ficam fora do repositório, porque agentes leem o repositório (REQ-QLD-016): o titular aparece por código (`T01`…`T10`) e a correspondência com placa e nome fica no cofre do fundador [ADOTADO NA v2.0: T-014, T-015].
+Sem tabelas de onda (são F1). Uma linha por envio em `docs/runbooks/gates/G0.md`: veículo pelo IMEI mascarado (`***0017`), tipo (`migrar` ou `rollback`), hora do SMS, hora do 1º contato ou da confirmação do rollback, resultado e duração. Placa, nome e CPF ficam fora do repositório, porque agentes leem o repositório (REQ-QLD-016): o titular aparece por código (`T01`…`T10`) e a correspondência com placa e nome fica no cofre do fundador T-014, T-015.
 
-1. **Antes:** termo de participação assinado (G0-9); cliente, veículo, rastreador, chip e vínculo com `cut_point` no console ([10](10-apps-e-ux.md) C03–C06); `traccar_device_id` preenchido pelo subcomando `pilot provision` da T-014 ([02](02-escopo-e-fases.md) §2.3) [ADOTADO NA v2.0]; DEC-04 resolvida e `gps.` resolvendo para a VM com sonda TCP verde; alvo de rollback anotado (§7 passo 2).
-2. Enviar `set_server_domain` pelo portal emnify/Meta Telecom (ou API, com DEC-01) e anotar a hora.
+1. **Antes:** termo de participação assinado (G0-9); cliente, veículo, rastreador, chip e vínculo com `cut_point` no console ([10](10-apps-e-ux.md) C03–C06); `traccar_device_id` preenchido pelo subcomando `pilot provision` da T-014 ([02 §2.3](02-escopo-e-fases.md#23-cartões-de-tarefa-do-f0)); DEC-04 resolvida e `gps.` resolvendo para a VM com sonda TCP verde; alvo de rollback anotado (§7 passo 2).
+2. Enviar `set_password` (senha da operadora, §5 item 4), confirmar com `query_params` e anotar a hora; só então enviar `set_server_domain` pelo portal emnify/Meta Telecom (ou API, com DEC-01) e anotar a hora.
 3. Acompanhar C05: "Último contato" sai de "nunca" para "agora" em ≤ 10 min → migrado.
 4. Sem contato em 10 min: enviar `rollback`; a Lider confirma o veículo no tracker-net em ≤ 10 min (G0-8).
 
 ## 5. Modelos de SMS e senha do dispositivo
 
-Hipóteses da família GT06, todas [VALIDAR — DEC-02, cenário S11 de [05](05-ingestao-e-telemetria.md) §15]:
+Hipóteses da família GT06, todas [VALIDAR — DEC-02, cenário S11 de [05 §15](05-ingestao-e-telemetria.md#15-spike-do-j16-t-002-o-que-capturar)]:
 
 | Uso | Chave | Texto (hipótese) | Resposta esperada |
 |---|---|---|---|
 | Consultar servidor atual | `query_server` | `SERVER#` | Servidor e porta atuais (alvo do rollback) |
 | Consultar parâmetros (testa a senha) | `query_params` | `PARAM#` | IMEI, APN, intervalos |
+| Trocar a senha do dispositivo (antes de apontar) | `set_password` | `PASSWORD,{old},{new}#` [VALIDAR — DEC-02, S11] | Confirmação |
 | Apontar por domínio | `set_server_domain` | `SERVER,1,{host},{port},0#` | Confirmação |
 | Apontar por IP (plano B) | `set_server_ip` | `SERVER,0,{host},{port},0#` | Confirmação |
 | Rollback | `rollback` | `set_server_*` com `{rollbackHost}` e `{rollbackPort}` | Confirmação |
@@ -189,37 +205,37 @@ Hipóteses da família GT06, todas [VALIDAR — DEC-02, cenário S11 de [05](05-
 
 1. Modelos em `sms-templates.ts` sob a chave `sms_templates_ref` do perfil (ex.: `j16/v1`), com `status: 'draft' | 'validated'` e `evidenceRef` (prints das respostas do S11 em `packages/testkit/fixtures/j16/sms/`). Onda e procedimento manual só usam `validated`.
 2. Se o firmware exigir senha, o modelo leva `{password}` na posição que o S11 provar [VALIDAR — DEC-02].
-3. Texto renderizado ≤ 160 caracteres GSM-7; o teste unitário renderiza cada modelo com host de 40 caracteres. O renderizador recusa host com mais de 60 caracteres (`SMS_HOST_TOO_LONG`), o que dá folga para senha e porta dentro dos 160; por isso host de 61 caracteres falha no CT-ONB-015 [ADOTADO NA v2.0: T-014].
-4. **Senha:** segredo por operadora em `app.operator_secret` com `kind = 'sms_password'` (cifra de [08](08-identidade-e-seguranca.md) §8 item 4) [alinhar com 08: incluir o `kind`; senha por rastreador, ameaça 2 de [08](08-identidade-e-seguranca.md) §10, exige segredo por rastreador]. Substituída só na memória do worker no envio; nunca em banco, log, Sentry, resposta de API ou tela. `migration_item` guarda o modelo com `{password}` e o SHA-256 do texto enviado.
+3. Texto renderizado ≤ 160 caracteres GSM-7; o teste unitário renderiza cada modelo com host de 40 caracteres. O renderizador recusa host com mais de 60 caracteres (`SMS_HOST_TOO_LONG`), o que dá folga para senha e porta dentro dos 160; por isso host de 61 caracteres falha no CT-ONB-015 T-014.
+4. **Senha:** segredo por operadora em `app.operator_secret` com `kind = 'sms_password'` (cifra de [08 §8](08-identidade-e-seguranca.md#8-segredos) item 4). A senha da operadora DEVE ser diferente da de fábrica e da usada na SmartGPS e é trocada por SMS `set_password` [VALIDAR — DEC-02, S11] na mesma onda, antes do `set_server_domain`; `migration_item.password_rotated_at` registra a rotação confirmada. Nova rotação a cada saída de pessoa com acesso à senha. Substituída só na memória do worker no envio; nunca em banco, log, Sentry, resposta de API ou tela. `migration_item` guarda o modelo com `{password}` e o SHA-256 do texto enviado.
 5. **Modo manual:** o console mostra o texto com `{senha}` literal; quem envia digita a senha que a operadora já conhece.
 
 ## 6. Domínio `gps.<domínio>` e plano B
 
-1. Rastreadores apontam para `gps.{TRACKSYS_DOMAIN}` na porta do protocolo (gt06: 5023 [VALIDAR — DEC-02]), num domínio da Versix que não muda com a marca do app ([02](02-escopo-e-fases.md) §9, proposta).
+1. Rastreadores apontam para `gps.{TRACKSYS_DOMAIN}` na porta do protocolo (gt06: 5023 [VALIDAR — DEC-02]), num domínio da Versix que não muda com a marca do app ([02 §9](02-escopo-e-fases.md#9-dependências-críticas-dec-por-fase), proposta).
 2. DNS: registro A com TTL 60 s e sem proxy da Cloudflare (TCP direto na VM). O failover troca o A para a standby ([13](13-infra-e-operacao.md)).
 3. O S11 mede: (a) o J16 aceita domínio; (b) quando resolve o DNS — com o J16 conectado, trocar o A para um IP de teste e medir em quanto tempo ele reconecta sem reinício, por até 30 min. (a) vira `capabilities.domain_support`; (b) vai para a evidência do perfil e para o RTO de [13](13-infra-e-operacao.md).
 4. **Plano B** (sem domínio, ou DNS resolvido só no boot): apontar para IP público reservado da Oracle, que o failover move para a standby [VALIDAR — DEC-12: IP reservado na conta Always Free]. Sem IP reservado, o failover exige SMS para todos os rastreadores (~300 na Lider, 15 ondas): último recurso. Adotar o plano B exige revisar o [ADR-005](../adr/ADR-005-infra-oracle-always-free.md).
-5. **Servidor secundário** (se DEC-02 confirmar): secundário = standby, failover sem SMS; no piloto, permite tracker-net primário e TrackSys secundário ([02](02-escopo-e-fases.md) §2.1).
+5. **Servidor secundário** (se DEC-02 confirmar): secundário = standby, failover sem SMS; no piloto, permite tracker-net primário e TrackSys secundário ([02 §2.1](02-escopo-e-fases.md#21-conteúdo)).
 
 ## 7. Migração da Lider passo a passo
 
 | # | Quando | Passo | Dono | Pronto quando |
 |---|---|---|---|---|
 | 1 | 07–13/10 | Spike S11 em bancada: modelos de SMS, domínio, DNS, servidor secundário, senha | Fundador | Modelos `validated`; `domain_support` definido |
-| 2 | até 13/10 | Senha SMS dos J16 e acesso ao portal emnify/Meta Telecom; `query_server` em 1 J16 da Lider → IP e porta da SmartGPS (alvo de rollback) | Lider + fundador | Alvo em `docs/runbooks/onboarding/lider.md` |
+| 2 | até 13/10 (pedidos saem em 09/10; 12/10 é feriado) | Senha SMS dos J16 e acesso ao portal emnify/Meta Telecom; `query_server` em 1 J16 da Lider → IP e porta da SmartGPS (alvo de rollback) | Lider + fundador | Alvo em `docs/runbooks/onboarding/lider.md` |
 | 3 | até 17/10 | DEC-10: contrato Lider × SmartGPS (aviso prévio, fidelidade, exportação, histórico) | Lider | Decisão registrada em [15](15-decisoes-riscos-premissas.md) |
 | 4 | até 17/10 | Exportar os cadastros do tracker-net em planilha [VALIDAR formato] | Lider | Arquivo com a contagem real de veículos |
 | 5 | 14–20/10 | Escolher 5–10 veículos (frota, funcionários, voluntários); termos; cadastro manual no console | Lider + fundador | Vínculos com `cut_point`; rastreadores no Traccar |
 | 6 | 22/10 | 1 veículo da frota: migrar → confirmar → rollback → confirmar no tracker-net em ≤ 10 min → migrar de novo (G0-8) | Fundador + Lider | Registro em `G0.md` |
 | 7 | 28/10 a 29/10 12:00 BRT | Restante do piloto pelo procedimento da §4.6 | Fundador | Veículos transmitindo |
-| 8 | 31/10 | G0 ([02](02-escopo-e-fases.md) §2.5) | Fundador | Aprovado |
+| 8 | 31/10 | G0 ([02 §2.5](02-escopo-e-fases.md#25-gate-g0-31102026)) | Fundador | Aprovado |
 | 9 | 01–15/11 | Importar a planilha completa (veículos do piloto saem `unchanged` ou `conflict`, sem duplicar); corrigir com a Lider | Fundador + Lider | `committed`, 0 erro pendente |
 | 10 | Após o G-CMD (meta 16–30/11) | Ondas: 1 de 20 por dia nos 2 primeiros dias; depois até 3 por dia | Lider (avisos), fundador (ondas) | ~300 veículos em ~7 dias úteis, até 15/12 |
-| 11 | Cada onda | Mensagens M1 (véspera) e M2 (após `migrated`) | Lider | Enviadas |
+| 11 | Cada onda | Mensagens M1 (véspera) e M2 ou M2b, se não houver e-mail (após `migrated`) | Lider | Enviadas |
 | 12 | até 31/12 | Exceções resolvidas ou registradas com motivo (G1-2) | Lider + fundador | 100% em estado final; exceções ≤ 5% |
 | 13 | Após o G1 | Aviso à SmartGPS conforme contrato; acesso ao histórico negociado (§8) | Lider | — |
 
-**Ordem das ondas:** (1) voluntários e funcionários; (2) clientes com 1 veículo, e-mail e celular válidos; (3) clientes com 2–3 veículos, todos na mesma onda; (4) clientes sem e-mail ou sem smartphone compatível, com contato por telefone.
+**Ordem das ondas:** (1) voluntários e funcionários; (2) clientes com 1 veículo, e-mail e celular válidos; (3) clientes com 2–3 veículos, todos na mesma onda; (4) clientes sem smartphone compatível, com contato por telefone; titular sem e-mail entra na onda do seu veículo com código de ativação (M2b).
 
 **Convivência:** até migrar, o veículo segue no tracker-net e no app antigo; a cobrança da Lider segue no Asaas sem mudança; depois de migrar, o veículo para de atualizar no app antigo. Clientes falam com a Lider pelo WhatsApp; a Lider fala com o fundador (F1) ou com o agente de suporte (F2).
 
@@ -227,10 +243,11 @@ Hipóteses da família GT06, todas [VALIDAR — DEC-02, cenário S11 de [05](05-
 
 - **M1 (véspera):** "Olá, {primeiroNome}! Aqui é a {operadora}. Amanhã ({data}), entre {horaInicio} e {horaFim}, vamos passar o rastreador do seu {veiculo} (placa {placa}) para o nosso novo aplicativo. Você não precisa levar o veículo a lugar nenhum. Durante a troca, o rastreamento pode ficar até 20 minutos sem atualizar. Dúvidas? Responda esta mensagem."
 - **M2 (após `migrated`):** "Pronto, {primeiroNome}! O rastreador do seu {veiculo} (placa {placa}) já está no novo app da {operadora}. 1) Baixe o app TrackSys: https://app.{dominio}/baixar 2) Abra o e-mail que enviamos para {email} e crie sua senha pelo link (vale 72 horas) 3) Entre no app com esse e-mail. No app você vê o veículo ao vivo, o histórico do dia, recebe alertas e fala com a gente. O app antigo deixa de mostrar este veículo. Precisa de ajuda? Responda aqui."
+- **M2b (titular sem e-mail):** "Pronto, {primeiroNome}! O rastreador do seu {veiculo} (placa {placa}) já está no novo app da {operadora}. 1) Baixe o app TrackSys: https://app.{dominio}/baixar 2) Abra o app, escolha \"Primeiro acesso\" e informe o código {codigo} e o seu CPF (o código vale 72 horas e só funciona uma vez) 3) Crie sua senha. Depois você pode entrar com CPF e senha. Precisa de ajuda? Responda aqui."
 - **M3 (rollback):** "Olá, {primeiroNome}. A troca do rastreador do seu {veiculo} não foi concluída hoje. Ele continua no aplicativo antigo, funcionando normalmente. Vamos tentar de novo em outra data e avisamos antes."
 - **M4 (sem smartphone compatível):** "Olá, {primeiroNome}. O novo app precisa de Android 8 ou iPhone com iOS 15 ou mais novo. Se preferir, um familiar pode receber os alertas: é só nos mandar o e-mail dele."
 
-"Enviar boas-vindas" chama `POST /api/v1/invitations` (convite por e-mail, 72 h, [08](08-identidade-e-seguranca.md) §2) e abre o link `wa.me` com M2; o token nunca passa pelo WhatsApp. Versões mínimas do app em [10](10-apps-e-ux.md) §12.
+"Enviar boas-vindas" chama `POST /api/v1/invitations` (convite por e-mail, 72 h, [08 §2](08-identidade-e-seguranca.md#2-autenticação-better-auth)) e abre o link `wa.me` com M2; titular sem e-mail recebe o código de ativação de 8 caracteres (gerado na C03, uso único, 72 h) e o `wa.me` abre com M2b. O token do convite nunca passa pelo WhatsApp. Versões mínimas do app em [10 §12](10-apps-e-ux.md#12-distribuição).
 
 ## 8. Histórico do tracker-net
 
@@ -244,7 +261,7 @@ Hipóteses da família GT06, todas [VALIDAR — DEC-02, cenário S11 de [05](05-
 | Risco | Detecção | Prevenção | Resposta |
 |---|---|---|---|
 | SMS não entregue | Falha de entrega na emnify [VALIDAR — DEC-01]; sem 1º contato em 10 min | Chip ativo na pré-checagem; janela diurna | Rollback automático; se o SMS de ida não chegou, o rastreador segue na SmartGPS e o rollback é inócuo; nova onda |
-| Senha alterada | Sem 1º contato; resposta de senha errada no portal [VALIDAR — DEC-02] | `query_params` com a senha em 1 rastreador por onda antes de iniciar (manual) ou em todos, se a resposta for legível pela API [VALIDAR — DEC-01] | Item `blocked` `sms_password_rejected`; Lider obtém a senha com o instalador ou a SmartGPS |
+| Senha alterada | Sem 1º contato; resposta de senha errada no portal [VALIDAR — DEC-02] (a senha de fábrica ou da SmartGPS só vale até o `set_password`) | `query_params` com a senha em 1 rastreador por onda antes de iniciar (manual) ou em todos, se a resposta for legível pela API [VALIDAR — DEC-01] | Item `blocked` `sms_password_rejected`; Lider obtém a senha com o instalador ou a SmartGPS |
 | Chip suspenso | `sim_card.status`; sem atividade em 24 h na emnify [VALIDAR — DEC-01] | Pré-checagem 3 | Reativar com a Meta Telecom; rechecar |
 | J16 sem domínio | S11 | Plano B (§6) | IP reservado; ADR-005 revisado |
 | DNS resolvido só no boot | S11 item 3(b) | Registrar no perfil | IP reservado no failover ou `reset` por SMS |
@@ -289,6 +306,7 @@ CREATE TABLE app.migration_item (
   sms_attempts smallint NOT NULL DEFAULT 0 CHECK (sms_attempts BETWEEN 0 AND 3), sms_channel text NULL CHECK (sms_channel IN ('emnify_api', 'manual')),
   sms_template text NULL CHECK (length(sms_template) <= 200), sms_sha256 bytea NULL CHECK (length(sms_sha256) = 32),  -- modelo com {password}, nunca a senha
   sms_provider_ref text NULL CHECK (length(sms_provider_ref) <= 128), sms_sent_at timestamptz NULL, first_contact_at timestamptz NULL, late_contact_at timestamptz NULL,
+  password_rotated_at timestamptz NULL,  -- rotação da senha SMS confirmada (§5 item 4)
   rollback_sms_sent_at timestamptz NULL, rollback_result_by uuid NULL REFERENCES auth."user" (id), rollback_result_at timestamptz NULL,
   created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT migration_item_wave_fk FOREIGN KEY (operator_id, wave_id) REFERENCES app.migration_wave (operator_id, id),
@@ -309,7 +327,7 @@ CREATE TRIGGER migration_item_limit BEFORE INSERT ON app.migration_item FOR EACH
 GRANT SELECT, INSERT, UPDATE ON app.import_job, app.migration_wave, app.migration_item TO tracksys_app;
 ```
 
-**Sonda de quarentena por rastreador** (F0, para o aviso "Comunicando sem vínculo" de [10](10-apps-e-ux.md) C05) [ADOTADO NA v2.0: nova função na lista fechada de [04](04-dominio-e-dados.md) §4.4, revisão N0, criada pela T-005 (REQ-ONB-019); aviso de C05 na T-007; caminho do IMEI no `payload` da inbox: alinhar com [05](05-ingestao-e-telemetria.md)]:
+**Sonda de quarentena por rastreador** (F0, para o aviso "Comunicando sem vínculo" de [10](10-apps-e-ux.md) C05) nova função na lista fechada de [04 §4.4](04-dominio-e-dados.md#44-funções-security-definer-lista-fechada), revisão N0, criada pela T-005 (REQ-ONB-019); aviso de C05 na T-007; caminho do IMEI no `payload` da inbox: alinhar com [05](05-ingestao-e-telemetria.md):
 
 ```sql
 CREATE FUNCTION app.device_ingest_probe(p_device_id uuid)
@@ -450,3 +468,13 @@ Rastreador de outra operadora ou escopo `tenant` → 1 linha com `quarantined_24
 **Fase:** F1 · **Prioridade:** P1 · **Risco:** N2 · **Invariantes:** INV-06
 **Regra.** Posições do tracker-net NÃO DEVEM ser carregadas em `position`; app e console DEVEM indicar a data a partir da qual há histórico.
 **Aceite.** CT-ONB-020 — Dado V1 com 1º vínculo em 22/10/2026 às 13:03Z, Quando `dono.a1` abre o histórico de 21/10/2026, Então "Histórico disponível a partir de 22/10/2026" e 0 requisições de posições; `SELECT count(*) FROM app.position WHERE vehicle_id = V1 AND fix_time < '2026-10-22T13:03Z'` retorna 0.
+
+### REQ-ONB-021 — Janela de ondas só em dia útil sem feriado
+**Fase:** F1 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** —
+**Regra.** Criar e iniciar onda DEVE recusar feriado nacional, sábado e domingo, usando `packages/domain/src/calendar/holidays-br.ts`, além da faixa 09:00–16:00 BRT da §4.1 item 3.
+**Aceite.** CT-ONB-021 — Dado `MIGRATION_WAVES_OPERATORS` com a Alfa, Quando `admin.alfa` inicia uma onda em 20/11/2026 (sexta, feriado nacional) às 10:00 BRT, Então 422 `WAVE_OUTSIDE_WINDOW`; Dado 23/11/2026 (segunda) às 10:00 BRT, Então 200.
+
+### REQ-ONB-022 — Rotação da senha SMS na onda
+**Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-10, INV-11
+**Regra.** O worker DEVE enviar `set_password` antes de `set_server_domain` em cada item e gravar `password_rotated_at` só depois de `query_params` confirmar a senha nova; item sem rotação confirmada NÃO DEVE concluir a onda. A senha nova NÃO DEVE ser igual à de fábrica nem à da SmartGPS e NÃO DEVE ser persistida nem logada.
+**Aceite.** CT-ONB-022 — Dado onda `running` com 2 itens `ready` em modo api, Quando o tick roda, Então o fake da emnify recebe `set_password` antes de `set_server_domain` em cada item; Dado `query_params` com a senha nova sem resposta, Então o item fica `blocked` `sms_password_rejected` e `password_rotated_at` permanece NULL; Dado 1 item `migrated` sem `password_rotated_at`, Então a onda não passa a `completed`.

@@ -19,7 +19,7 @@ Integrar a conta Asaas da operadora sem migrar a cobrança: chave cifrada, webho
 
 ## Contexto obrigatório
 
-[12 — Cobrança e SVAs](../docs/spec/12-cobranca-e-svas.md) (parte de cobrança); [01 §5](../docs/spec/01-visao-e-negocio.md) (preço e veículo ativo); [08](../docs/spec/08-identidade-e-seguranca.md) (segredos e webhook)
+[12 — Cobrança e SVAs](../docs/spec/12-cobranca-e-svas.md) (parte de cobrança); [01 §5](../docs/spec/01-visao-e-negocio.md#5-modelo-de-receita) (preço e veículo ativo); [08](../docs/spec/08-identidade-e-seguranca.md) (segredos e webhook)
 
 ## Escopo — fazer
 
@@ -36,7 +36,7 @@ Integrar a conta Asaas da operadora sem migrar a cobrança: chave cifrada, webho
 
 ## Para completar o DoR
 
-1. Especificação detalhada (tabelas com SQL, rotas, jobs e textos) a partir dos capítulos citados.
+1. Lacunas a fechar: DDL de `billing_account`, `billing_customer`, `invoice`, `platform_fee` e `operator_price` (com `suspended_fee_policy`), todas com RLS forçada e FK composta; eventos e campos do webhook do Asaas e do split [VALIDAR em sandbox]; CT-COB-NNN em blocos (idempotência do webhook, reconciliação diária, inadimplência sem bloqueio); rotas e telas de fatura/PIX; respostas da DEC-06 e da DEC-14.
 2. Testes de aceite com Dado/Quando/Então e arquivos em `tests/acceptance/T-023/`, congelados antes da implementação (risco N0: revisão adversarial por agente de outro fornecedor e leitura humana linha a linha).
-3. Comandos de verificação e seção "Decisões já tomadas" com pelo menos 5 respostas (DoR de [14 §5](../docs/spec/14-qualidade-e-processo-ia.md)).
+3. Comandos de verificação e seção "Decisões já tomadas" com pelo menos 5 respostas (DoR de [14 §5](../docs/spec/14-qualidade-e-processo-ia.md#5-dor-e-dod)).
 4. Conferir se os requisitos listados ainda batem com os capítulos ([16 — Rastreabilidade](../docs/spec/16-rastreabilidade.md)).

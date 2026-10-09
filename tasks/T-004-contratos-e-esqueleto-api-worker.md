@@ -3,9 +3,9 @@
 | Campo | Valor |
 |---|---|
 | Fase | F0 (semana S1: 07–13/10/2026) |
-| Requisitos | REQ-API-001, REQ-API-002, REQ-API-003, REQ-API-004, REQ-API-005, REQ-API-007, REQ-API-019 (corpo e mídia), REQ-ARQ-001, REQ-ARQ-002 (404 no listener público), REQ-ARQ-005, REQ-ARQ-006, REQ-ARQ-007, REQ-ARQ-014, REQ-SEG-021, REQ-SEG-025 |
+| Requisitos | REQ-DAD-005 (parte: CAT-07), REQ-API-001, REQ-API-002, REQ-API-003, REQ-API-004, REQ-API-005, REQ-API-007, REQ-API-019 (corpo e mídia), REQ-ARQ-001, REQ-ARQ-002 (404 no listener público), REQ-ARQ-005, REQ-ARQ-006, REQ-ARQ-007, REQ-ARQ-014, REQ-SEG-021, REQ-SEG-025 |
 | Invariantes | INV-03 (enum aberto, `null` explícito), INV-12 (unidades e RFC 3339 verificados no OpenAPI) |
-| Risco de revisão | **N1** — revisão cruzada obrigatória. A migration `pgboss` fica fora do schema `app`, mas o fundador a lê linha a linha |
+| Risco de revisão | **N0 pelo caminho:** `.github/workflows/ci.yml`, migration pg-boss, CAT-07 e `app.tg_immutable_columns()` (base definidora). Demais arquivos N1 (`package.json` e `biome.json` só com mudança aditiva). Revisão adversarial de outro fornecedor e leitura humana linha a linha só nos arquivos N0 |
 | Depende de | T-001 |
 | Estimativa | 3 sessões de agente (1: contratos e CI; 2: `api`; 3: `worker`, pg-boss, Kysely e Compose) |
 | Bloqueado por decisão | nenhuma |
@@ -31,12 +31,13 @@ Entregar a fundação de código que as tarefas do S2 usam: o pacote `@tracksys/
 5. Esqueletos de `packages/domain` e `packages/testkit` com as regras de dependência de 03 §12 aplicadas por Biome e por teste (seção 5).
 6. `infra/app/Dockerfile` (imagem única para os dois processos) e serviços `api`/`worker` no `docker-compose.yml` sob o profile `app` (seção 6).
 7. CI: job de contratos (regeneração + `git diff`) e de `oasdiff` contra `main` (seção 6).
-8. Testes de aceite em `tests/acceptance/T-004/` e verificação verde.
+8. Base definidora, dono único (migration `20261010130000_base_definidora.sql`, seção 7): `app.tg_immutable_columns()`, as políticas `operator_definer_read` e `tenant_definer_read` (tipo G, `TO tracksys_owner`) e a regra CAT-07 no verificador de catálogo (`CatalogRule` ganha `'CAT-07'`; `CatalogAllowlistSchema` ganha `securityDefiner: z.record(z.string(), z.string().min(10)).default({})`). A T-005 e a T-006 só acrescentam entradas em `securityDefiner`.
+9. Testes de aceite em `tests/acceptance/T-004/` e verificação verde.
 
 ## Fora do escopo
 
 - Better Auth, sessão, membership, contexto RLS por requisição, `SET LOCAL statement_timeout`, idempotência, ETag e mapeamento de SQLSTATE (T-006).
-- Rotas `/internal/v1`, header secreto, outbox, relay e checagem de LISTEN no readiness (T-005). Aqui o listener 3001 só tem health.
+- Rotas `/internal/v1`, header secreto, outbox, publicador da outbox e checagem de LISTEN no readiness (T-005). Aqui o listener 3001 só tem health.
 - Schemas de recursos (veículo, cliente, rastreador, estado, SSE, eventos `*.v1`): cada tarefa cria os seus junto com a rota.
 - `infra/docker-compose.yml` de produção, Caddy, alvo `migrate` e deploy (T-003, T-013). SDK do Sentry no `api` e no `worker` (T-013) e no console (T-007). Swagger UI.
 - `build_runner` do cliente Dart (T-009, no app).
@@ -58,7 +59,8 @@ gerar    packages/contracts/openapi/openapi.json  packages/contracts/generated/t
 criar    packages/domain/{package.json,tsconfig.json,src/index.ts}  packages/testkit/{package.json,tsconfig.json,src/index.ts}
 criar    packages/db/src/{kysely.ts,pool.ts}  packages/db/scripts/{gen-types.ts,pgboss-sql.ts}
 gerar    packages/db/src/generated/db.ts
-criar    packages/db/migrations/20261010120000_pgboss.sql
+criar    packages/db/migrations/20261010120000_pgboss.sql  packages/db/migrations/20261010130000_base_definidora.sql
+alterar  packages/db/src/{catalog.ts,allowlist.ts}  packages/db/catalog-allowlist.json  packages/db/scripts/check-catalog.ts
 criar    apps/api/{package.json,tsconfig.json,scripts/build.ts}
 criar    apps/api/src/{main.ts,bootstrap.ts,index.ts,testing.ts,public.module.ts,internal.module.ts}
 criar    apps/api/src/config/env.ts
@@ -70,7 +72,7 @@ criar    apps/worker/src/{main.ts,worker.module.ts}  apps/worker/src/config/env.
 criar    apps/worker/src/platform/{logger.ts,health-server.ts,readiness.ts,queue.ts}
 criar    apps/worker/src/jobs/arq-probe.consumer.ts
 criar    tests/acceptance/T-004/{support/proc.ts,support/tcp-proxy.ts,fixtures/*.json}
-criar    tests/acceptance/T-004/{config,health,probe-job,http-contract,problem-catalog,openapi,logs-headers,deps}.test.ts
+criar    tests/acceptance/T-004/{config,health,probe-job,http-contract,problem-catalog,openapi,logs-headers,deps,catalog-definer}.test.ts
 ```
 
 ## Especificação detalhada
@@ -81,7 +83,7 @@ Depende só de `zod` (^4, o mesmo major da T-001). `exports: { ".": "./src/index
 
 - `common/primitives.ts`: `Uuid = z.uuid()` (formato `uuid`), `DateTime = z.iso.datetime({ offset: false })` (RFC 3339 com `Z`), `Limit = z.coerce.number().int().min(1).max(200).default(50)`, `Cursor = z.string().regex(/^[A-Za-z0-9_-]{1,512}$/)` (base64url de JSON; o conteúdo é validado por Zod na rota), `collection(item)` → `z.strictObject({ items: z.array(item), nextCursor: Cursor.nullable(), serverTime: DateTime })`.
 - `common/problem.ts`: `Problem` com `type`, `title`, `status`, `code` (`ProblemCode`), `detail?`, `instance`, `correlationId` (uuid), `errors?: [{ path, rule, message }]` e extensões abertas (`z.looseObject`). Registrado com `.meta({ id: 'Problem' })`.
-- `common/problem-codes.ts`: `PROBLEM_CODES` = mapa `code → { status, title }` com **todos** os códigos da tabela de 09 §3, exceto `INGEST_*` (a T-005 acrescenta no mesmo arquivo). Pares exatos: MALFORMED_REQUEST 400, IDEMPOTENCY_KEY_REQUIRED 400, OPERATOR_SELECTION_REQUIRED 400, AUTH_REQUIRED 401, INVALID_CREDENTIALS 401, WEBHOOK_UNAUTHORIZED 401, FORBIDDEN 403, CSRF_REJECTED 403, TWO_FACTOR_ENROLLMENT_REQUIRED 403, STEP_UP_REQUIRED 403, STEP_UP_INVALID 403, NOT_FOUND 404, INVITATION_INVALID 404, CONFLICT 409, IDEMPOTENCY_CONFLICT 409, DEVICE_ALREADY_REGISTERED 409, SIM_ALREADY_REGISTERED 409, ASSIGNMENT_OVERLAP 409, WATCH_MODE_VEHICLE_ON 409, WATCH_MODE_NO_FIX 409, TELEMETRY_STALE 409, SPEED_ABOVE_LIMIT 409, COMMAND_ALREADY_ACTIVE 409, COMMAND_IN_FLIGHT 409, COMMAND_NOT_CANCELLABLE 409, PRECONDITION_FAILED 412, PAYLOAD_TOO_LARGE 413, UNSUPPORTED_MEDIA_TYPE 415, CUT_POINT_MISSING 422, PROFILE_NOT_HOMOLOGATED 422, COMMAND_NOT_ALLOWED 422, VALIDATION_FAILED 422, HISTORY_RANGE_TOO_LARGE 422, HISTORY_REQUIRES_EXPORT 422, STREAM_SCOPE_TOO_LARGE 422, ALERT_PREFERENCE_LOCKED 422, CLIENT_UPGRADE_REQUIRED 426, PRECONDITION_REQUIRED 428, RATE_LIMITED 429, INTERNAL_ERROR 500, DEPENDENCY_UNAVAILABLE 503, COMMAND_DISPATCH_DISABLED 503 (42 códigos). `title` em PT-BR (ex.: `VALIDATION_FAILED` → "Dados inválidos"). `problemType(code, domain)` = `https://api.<domain>/problems/<code em kebab-case>`.
+- `common/problem-codes.ts`: `PROBLEM_CODES` = mapa `code → { status, title }` com **todos** os códigos da tabela de 09 §3, exceto `INGEST_*` (a T-005 acrescenta no mesmo arquivo). Pares exatos: MALFORMED_REQUEST 400, IDEMPOTENCY_KEY_REQUIRED 400, OPERATOR_SELECTION_REQUIRED 400, AUTH_REQUIRED 401, INVALID_CREDENTIALS 401, WEBHOOK_UNAUTHORIZED 401, FORBIDDEN 403, CSRF_REJECTED 403, TWO_FACTOR_ENROLLMENT_REQUIRED 403, STEP_UP_REQUIRED 403, STEP_UP_INVALID 403, NOT_FOUND 404, INVITATION_INVALID 404, CONFLICT 409, IDEMPOTENCY_CONFLICT 409, DEVICE_ALREADY_REGISTERED 409, SIM_ALREADY_REGISTERED 409, ASSIGNMENT_OVERLAP 409, WATCH_MODE_VEHICLE_ON 409, WATCH_MODE_NO_FIX 409, TELEMETRY_STALE 409 (reservado e não adotado, 09 §9.3), SPEED_ABOVE_LIMIT 409, COMMAND_ALREADY_ACTIVE 409, COMMAND_IN_FLIGHT 409, COMMAND_NOT_CANCELLABLE 409, PRECONDITION_FAILED 412, PAYLOAD_TOO_LARGE 413, UNSUPPORTED_MEDIA_TYPE 415, CUT_POINT_MISSING 422, PROFILE_NOT_HOMOLOGATED 422, COMMAND_NOT_ALLOWED 422, VALIDATION_FAILED 422, HISTORY_RANGE_TOO_LARGE 422, HISTORY_REQUIRES_EXPORT 422, STREAM_SCOPE_TOO_LARGE 422, ALERT_PREFERENCE_LOCKED 422, CLIENT_UPGRADE_REQUIRED 426, PRECONDITION_REQUIRED 428, RATE_LIMITED 429, INTERNAL_ERROR 500, DEPENDENCY_UNAVAILABLE 503, COMMAND_DISPATCH_DISABLED 503 (42 códigos). `title` em PT-BR (ex.: `VALIDATION_FAILED` → "Dados inválidos"). `problemType(code, domain)` = `https://api.<domain>/problems/<code em kebab-case>`.
 - `auth/permissions.ts`: `PERMISSIONS` = nomes da coluna "Permissão" de 08 §3 (F0 e F1), `type Permission`. `auth/roles.ts`: `ROLES` (6 papéis de `membership`) e `F0_ROLES = ['operator_admin', 'operator_agent', 'tenant_owner']`.
 - `http/health.ts`: `HealthLive = { status: 'ok' }`; `HealthReadyPublic = { status: 'ok' | 'unavailable' }`; `HealthReadyDetailed = { status, checks: Record<string, 'ok' | 'fail'> }`.
 - `routes/types.ts`:
@@ -184,6 +186,26 @@ Filas novas entram por migration (`SELECT pgboss.create_queue(...)`) na tarefa q
 
 Versões: majors canônicos (NestJS 11, Fastify 5, Zod 4, pg-boss 10, Biome 2); demais pacotes (`kysely`, `kysely-codegen`, `pino`, `openapi-typescript`, `esbuild`) na última versão estável com ≥ 2 semanas, fixadas no lockfile e listadas no PR.
 
+### (7) Base definidora (CAT-07, imutabilidade e políticas de leitura do dono)
+
+Migration `20261010130000_base_definidora.sql` (`SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '60s';` no topo):
+
+1. `CREATE FUNCTION app.tg_immutable_columns() RETURNS trigger` com o corpo de [04 §3.2](../docs/spec/04-dominio-e-dados.md#32-gatilho-de-imutabilidade): para cada coluna em `TG_ARGV`, se `to_jsonb(NEW) -> col` difere de `to_jsonb(OLD) -> col`, `RAISE EXCEPTION 'coluna %.% é imutável'` com `ERRCODE = 'integrity_constraint_violation'`.
+2. `CREATE POLICY operator_definer_read ON app.operator FOR SELECT TO tracksys_owner USING (true)` e `CREATE POLICY tenant_definer_read ON app.tenant FOR SELECT TO tracksys_owner USING (true)`.
+3. `down`: remove as duas políticas e a função.
+
+CAT-07 (schema `app`, `prosecdef`; `object` = `'app.' || p.proname || '(' || oidvectortypes(p.proargtypes) || ')'`, ex.: `app.tmp_definer()`):
+
+| Violação | Mensagem |
+|---|---|
+| Função fora de `securityDefiner` | `função SECURITY DEFINER fora da allowlist` |
+| Chave de `securityDefiner` sem função | `allowlist cita função inexistente` |
+| `proconfig` sem o item `search_path=pg_catalog, pg_temp` | `search_path não fixado` |
+| `has_function_privilege('public', p.oid, 'EXECUTE')` | `executável por PUBLIC` |
+| `pg_get_userbyid(p.proowner) <> 'tracksys_owner'` | `dono diferente de tracksys_owner` |
+
+`pnpm db:check` passa a imprimir `Catálogo OK: nenhuma violação de CAT-01..CAT-07.` A allowlist da T-004 entra com `securityDefiner: {}`. Qual papel executa cada função não fica na allowlist: cada tarefa dona prova o 42501 do papel errado nos próprios testes.
+
 ## Testes de aceite (congelados)
 
 Em `tests/acceptance/T-004/`. Processos sobem por `support/proc.ts` a partir de `apps/*/dist/main.js` com portas livres; `support/tcp-proxy.ts` fica entre os processos e o Postgres para simular queda do banco. Testes longos declaram `{ timeout: 60_000 }`.
@@ -197,6 +219,7 @@ Em `tests/acceptance/T-004/`. Processos sobem por `support/proc.ts` a partir de 
 | `problem-catalog.test.ts` (CT-API-007 catálogo) | Dado `PROBLEM_CODES`, Então é igual à tabela de 42 pares `code → status` copiada no teste; os 42 `problemType(code, 'tracksys.com.br')` são distintos e `VALIDATION_FAILED` → `https://api.tracksys.com.br/problems/validation-failed` |
 | `openapi.test.ts` (CT-API-002, CT-API-003, CT-API-005) | Quando `pnpm --filter @tracksys/contracts build` roda, Então `openapi.json` tem `openapi = "3.1.0"`, `paths["/health/live"]`, `paths["/health/ready"]` e `components.schemas.Problem`, e `git status --porcelain -- packages/contracts/openapi packages/contracts/generated/ts` fica vazio após `gen:ts`. Dado `fixtures/lint-bad.json` com `speed_kmh`, `speed: number` e `valueCents: number`, Então `lintOpenApi` devolve `chave fora de camelCase: speed_kmh`, `grandeza sem unidade: speed` e `dinheiro deve ser inteiro: valueCents`; com `contactAgeS` inteiro e `pageSize`, Então nenhuma violação. Dado `fixtures/oas-base.json` e `fixtures/oas-sem-plate.json`, Quando `oasdiff breaking --fail-on ERR` roda, Então sai ≠ 0 citando `plate`; com `fixtures/oas-vinlast4.json` (campo opcional novo), Então sai 0 |
 | `logs-headers.test.ts` (CT-ARQ-014 parte, CT-SEG-021 parte, CT-SEG-025) | Dado `TRACKSYS_VERSION=t004`, `INGEST_SHARED_SECRET=CANARIO-<32 aleatórios>` e requisições com `Authorization: Bearer CANARIO-b1` e `Cookie: s=CANARIO-c1`, Então toda linha do stdout do `api` é JSON com `ts`, `level`, `service = "api"`, `version = "t004"`, `msg`, as linhas de requisição têm `correlationId`, e nenhuma contém `CANARIO-`. `OPTIONS /health/live` com `Origin: https://evil.example` → sem `Access-Control-Allow-Origin`; com `Origin: https://app.tracksys.com.br` → exatamente esse valor e `Access-Control-Allow-Credentials: true`. `GET /health/live` → `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`, `Strict-Transport-Security: max-age=31536000; includeSubDomains`, `Referrer-Policy: no-referrer` |
+| `catalog-definer.test.ts` (CAT-07) | Dado o banco migrado, Quando `pnpm db:check`, Então sai 0 com `CAT-01..CAT-07`. Numa transação desfeita, como `tracksys_owner`, `CREATE FUNCTION app.tmp_definer() … SECURITY DEFINER` fora da allowlist → violação `CAT-07 app.tmp_definer()`; o mesmo sem `SET search_path` → `search_path não fixado`; com `GRANT EXECUTE … TO PUBLIC` → `executável por PUBLIC`. `UPDATE` de coluna listada em trigger `app.tg_immutable_columns` → SQLSTATE 23000; `operator_definer_read` e `tenant_definer_read` existem em `pg_policies` |
 | `deps.test.ts` (CT-ARQ-007) | Dado `packages/domain/src/__probe__.ts` com `import { readFile } from 'node:fs/promises'`, Quando `pnpm exec biome lint` no arquivo, Então falha citando `noNodejsModules`; Dado `apps/worker/src/__probe__.ts` com `import '@tracksys/api'`, Quando `pnpm --filter @tracksys/worker typecheck`, Então falha com `TS2307`; os arquivos são removidos no `finally`. A matriz de 03 §12 sobre os `package.json` passa, e as listas `redact` do `api` e do `worker` são iguais |
 
 ## Comandos de verificação
@@ -205,7 +228,7 @@ Em `tests/acceptance/T-004/`. Processos sobem por `support/proc.ts` a partir de 
 pnpm install
 cp .env.example .env
 pnpm db:up
-pnpm db:migrate                                   # Applied: 20261010120000_pgboss.sql
+pnpm db:migrate                                   # Applied: 20261010120000_pgboss.sql e 20261010130000_base_definidora.sql
 pnpm contracts:check                              # build + lint + gen:ts + gen:dart + diff vazio
 pnpm db:types:check
 pnpm build
@@ -221,7 +244,7 @@ docker compose --profile app down
 - Todos os comandos acima verdes, local e no CI; `acceptance-freeze` verde (T-001 intacta).
 - `openapi.json`, `generated/ts` e `generated/dart` versionados e iguais à regeneração.
 - Versões fixadas, tag e digest das imagens `openapi-generator-cli` e `oasdiff` listados no PR.
-- Revisão cruzada registrada; o PR lista REQ/CT acima, risco N1 e a migration `pgboss` destacada para leitura linha a linha.
+- Revisão cruzada registrada; o PR lista REQ/CT acima, risco `Risco declarado: N0` (pelo caminho), com a leitura linha a linha restrita a `ci.yml`, às duas migrations e à CAT-07; o resto segue o checklist N1.
 
 ## Decisões já tomadas
 
@@ -239,3 +262,4 @@ docker compose --profile app down
 | CORS e headers já aqui, sem sessão? | Sim: não dependem de sessão (REQ-SEG-025). `Cache-Control: no-store` vai em toda resposta, um superconjunto da regra "toda resposta autenticada". |
 | O rótulo `api-breaking` vale de quem aplicou? | Só do fundador: o status obrigatório `label-guard` (T-019) fica vermelho se o `labeled` mais recente for de outra conta. O job chama-se `contracts-breaking` também na 14 §11. |
 | Commit | Conventional Commits, ex.: `feat(contracts): pipeline openapi (T-004)`, `feat(api): esqueleto nest (T-004)`. |
+| Quem entrega CAT-07, `app.tg_immutable_columns()` e as políticas `operator_definer_read`/`tenant_definer_read`? | Esta tarefa, uma vez só (seção 7). T-005 e T-006 acrescentam entradas em `securityDefiner` e criam as políticas `*_definer_read` das próprias tabelas. |

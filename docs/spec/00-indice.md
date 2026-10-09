@@ -14,7 +14,7 @@
 | Fundador (produto e vendas) | [01](01-visao-e-negocio.md) → [02](02-escopo-e-fases.md) → [15](15-decisoes-riscos-premissas.md) → [Anexo A](../anexos/A-comercial.md) | 40 min |
 | Agente de IA implementando | [AGENTS.md](../../AGENTS.md) → cartão em [tasks/](../../tasks/) → só os capítulos citados no cartão | 10 min |
 | Revisor de arquitetura | [03](03-arquitetura.md) → [ADRs](../adr/) → [04](04-dominio-e-dados.md) → [13](13-infra-e-operacao.md) | 60 min |
-| Revisor de segurança | [06](06-comandos-e-bloqueio.md) → [08](08-identidade-e-seguranca.md) → [04 §4](04-dominio-e-dados.md) → [Anexo B](../anexos/B-juridico.md) | 60 min |
+| Revisor de segurança | [06](06-comandos-e-bloqueio.md) → [08](08-identidade-e-seguranca.md) → [04 §4](04-dominio-e-dados.md#4-modelo-rls) → [Anexo B](../anexos/B-juridico.md) | 60 min |
 | Advogado | [Anexo B](../anexos/B-juridico.md) → [08](08-identidade-e-seguranca.md) | 45 min |
 | Operadora / plantonista | [Anexo A](../anexos/A-comercial.md) → [Anexo C](../anexos/C-operacional.md) | 20 min |
 
@@ -61,21 +61,21 @@
 | Prefixo | Significado | Onde é definido |
 |---|---|---|
 | `REQ-<ÁREA>-NNN` | Requisito com regra normativa (DEVE, NÃO DEVE, PODE) | No capítulo da área. Áreas: NEG, ARQ, DAD, ING, CMD, ALR, SEG, API, UX, ONB, COB, SVA, OPS, QLD |
-| `CT-<ÁREA>-NNN` | Teste de aceite (Dado / Quando / Então) | Logo abaixo do requisito |
+| `CT-<ÁREA>-NNN` | Teste de aceite (Dado / Quando / Então). A numeração é sequencial por área e independente da do REQ; não se renumera | Logo abaixo do requisito |
 | `INV-NN` | Invariante: propriedade que nenhuma mudança pode violar | Nesta página, seção "Invariantes" |
 | `DEC-NN` | Decisão pendente com dono e prazo | [15](15-decisoes-riscos-premissas.md) |
 | `ADR-NNN` | Decisão de arquitetura aceita | [docs/adr/](../adr/) |
-| `CAT-NN` / `ISO-NN` | Regra do verificador de catálogo (CAT-01 a CAT-07) / teste de isolamento (ISO-01 a ISO-09) | [04 §5](04-dominio-e-dados.md) |
+| `CAT-NN` / `ISO-NN` | Regra do verificador de catálogo (CAT-01 a CAT-07) / teste de isolamento (ISO-01 a ISO-09) | [04 §5](04-dominio-e-dados.md#5-verificador-de-catálogo-e-testes-de-isolamento) |
 | `T-NNN` | Cartão de tarefa | [tasks/](../../tasks/) |
 | `F0`–`F3` | Fases | [02](02-escopo-e-fases.md) |
 | `G0`, `G-CMD`, `G1`, `G2` | Gates de saída e de liberação do bloqueio | [02](02-escopo-e-fases.md) |
 | `P0` / `P1` / `P2` | Prioridade: bloqueia a fase / necessário na fase / desejável | Em cada requisito |
 | `N0` / `N1` / `N2` | Nível de risco de revisão | [14](14-qualidade-e-processo-ia.md) |
 | `[PREMISSA]` | Premissa assumida; validação listada em [15](15-decisoes-riscos-premissas.md) | No texto |
-| `[VALIDAR — DEC-02]` | Comportamento a confirmar no spike do J16; o texto diz o padrão seguro até lá | No texto |
+| `[VALIDAR — DEC-NN]` | Comportamento a confirmar na decisão indicada (ex.: spike do J16 na DEC-02); o texto diz o padrão seguro até lá ("Padrão até a DEC-NN: …") | No texto |
 | `[VALIDAR]` | Fato externo (API de terceiro, norma, limite de plano gratuito) a confirmar antes de depender dele | No texto |
-| `[ADOTADO NA v2.0]` | Detalhe técnico decidido na consolidação da v2.0; o fundador pode reverter por PR | No texto; lista em [15 §5](15-decisoes-riscos-premissas.md) |
-| `[DECISÃO DO FUNDADOR PENDENTE]` | Escolha comercial ou jurídica aguardando o fundador; o texto traz a recomendação | No texto; lista em [15 §5](15-decisoes-riscos-premissas.md) |
+| Escolha da v2.0 revertível | Detalhe técnico decidido na consolidação da v2.0 não leva marcador no texto; a proveniência e o status ("Adotada na v2.0 — fundador confirma") ficam na coluna "Seção" de [15 §5](15-decisoes-riscos-premissas.md#5-propostas-de-decisão-registradas-nos-capítulos) | Só em 15 §5 |
+| `[DECISÃO DO FUNDADOR PENDENTE]` | Escolha comercial ou jurídica aguardando o fundador; o texto traz a recomendação | No texto; lista em [15 §5](15-decisoes-riscos-premissas.md#5-propostas-de-decisão-registradas-nos-capítulos) |
 | `[ADIADO PARA O F2]` | Fora do escopo até o F2 | No texto |
 
 **Regras de escrita:**

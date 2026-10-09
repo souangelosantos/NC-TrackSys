@@ -19,7 +19,7 @@ Medir se o negócio fecha: relatório mensal em CSV por operadora e consolidado 
 
 ## Contexto obrigatório
 
-[01 §5–8](../docs/spec/01-visao-e-negocio.md); [04 §8](../docs/spec/04-dominio-e-dados.md); [14](../docs/spec/14-qualidade-e-processo-ia.md) (métricas do processo)
+[01 §5–8](../docs/spec/01-visao-e-negocio.md#5-modelo-de-receita); [04 §8](../docs/spec/04-dominio-e-dados.md#8-retenção-e-armazenamento); [14](../docs/spec/14-qualidade-e-processo-ia.md) (métricas do processo)
 
 ## Escopo — fazer
 
@@ -32,7 +32,7 @@ Medir se o negócio fecha: relatório mensal em CSV por operadora e consolidado 
 
 ## Para completar o DoR
 
-1. Especificação detalhada (tabelas com SQL, rotas, jobs e textos) a partir dos capítulos citados.
+1. Lacunas a fechar: DDL da tabela de custos da plataforma (RLS forçada, entrada na allowlist, migration N0), de `operator_price` e `platform_cost` conforme 04 §8, ou o motivo de não existirem; colunas e fórmulas do CSV mensal; limiar de 10% da receita por 2 meses; consulta de `pg_total_relation_size` por partição; métricas do `process:report` (REQ-QLD-019); CT em blocos.
 2. Testes de aceite com Dado/Quando/Então e arquivos em `tests/acceptance/T-031/`, congelados antes da implementação.
-3. Comandos de verificação e seção "Decisões já tomadas" com pelo menos 5 respostas (DoR de [14 §5](../docs/spec/14-qualidade-e-processo-ia.md)).
+3. Comandos de verificação e seção "Decisões já tomadas" com pelo menos 5 respostas (DoR de [14 §5](../docs/spec/14-qualidade-e-processo-ia.md#5-dor-e-dod)).
 4. Conferir se os requisitos listados ainda batem com os capítulos ([16 — Rastreabilidade](../docs/spec/16-rastreabilidade.md)).

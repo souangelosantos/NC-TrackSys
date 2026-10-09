@@ -18,28 +18,29 @@
 
 **Passo 2 — Confirme quem pede.** Antes de qualquer SMS, confira na lista de contingência: (a) o telefone de quem liga é o do titular; (b) nome completo; (c) placa; (d) 3 últimos dígitos do CPF. Faltou um item → não envie SMS de comando nem informe localização; ofereça retorno no telefone cadastrado.
 
-**Passo 3 — Localizar por SMS.** No portal emnify/Meta Telecom, envie ao número do chip do rastreador (coluna "Linha" da lista) o texto "Posição" do cartão de SMS (`WHERE#` no J16 [VALIDAR — DEC-02]). A resposta chega no portal em até 2 min, com coordenadas ou link de mapa. Sem resposta em 5 min: envie mais 1 vez; se persistir, o rastreador está sem sinal ou desligado — anote.
+**Passo 3 — Localizar por SMS.** No portal emnify/Meta Telecom, envie ao número do chip do rastreador (coluna "Linha" da lista) o texto "Posição" do cartão de SMS (`WHERE#` no J16 [VALIDAR — DEC-02]). A resposta chega no portal em até 2 min, com coordenadas ou link de mapa. Sem resposta em 5 min: envie mais 1 vez (no ensaio G1-6, meça o tempo entre o `WHERE#` e a resposta); se persistir, o rastreador está sem sinal ou desligado — anote.
 
 **Passo 4 — Desbloquear por SMS.** Sempre permitido ao titular confirmado no passo 2. Envie o texto "Desbloquear" do cartão de SMS. "Entregue" no portal não é confirmação: peça ao titular para dar partida e anote o resultado.
 
-**Passo 5 — Bloquear por SMS (contingência).** Só com uma destas condições:
+**Passo 5 — Bloquear por SMS (contingência).** A janela de evidência é a mesma do app: 60 s ([06 §3.1](../spec/06-comandos-e-bloqueio.md#31-evidência-válida), DEC-07). Só com uma destas condições:
 - **(A)** furto ou roubo relatado pelo titular confirmado, com a ocorrência anotada (hora e, se houver, número do BO); ou
-- **(B)** pedido do titular confirmado com o veículo **parado**, comprovado por posição SMS de no máximo 5 minutos atrás com velocidade 0 [PREMISSA: 5 min].
+- **(B)** pedido do titular confirmado com o veículo **parado**, comprovado por 2 posições SMS seguidas com velocidade 0, a última com hora do fix de no máximo 60 s antes do SMS de bloqueio.
 
-E respeite o ponto de corte do veículo (coluna "Corte" da lista), a mesma regra do app ([06 §3.2](../spec/06-comandos-e-bloqueio.md)):
+E respeite o ponto de corte do veículo (coluna "Corte" da lista), a mesma regra do app ([06 §3.2](../spec/06-comandos-e-bloqueio.md#32-regra-por-cut_point)):
 
 | Corte | Pode bloquear |
 |---|---|
-| Arranque (`starter`) | Em (A) ou (B): só impede nova partida |
-| Bomba de combustível (`fuel_pump`) | Em (B); em (A), se a posição SMS de até 5 min mostrar velocidade ≤ 40 km/h (limite da Lider) |
-| Ignição (`ignition`) ou "não sei" | Só com o veículo parado (velocidade 0 na posição SMS de até 5 min), mesmo em furto |
+| Arranque (`starter`) | Em (A) ou (B), a qualquer momento: só impede nova partida |
+| Bomba de combustível (`fuel_pump`) | Em (B). Em (A), só se a resposta do `WHERE#` trouxer hora do fix de no máximo 60 s antes do SMS de bloqueio e velocidade ≤ 40 km/h (limite da Lider): envie `WHERE#`, espere a resposta e mande o bloqueio em até 60 s da hora do fix. Sem isso, não corte em movimento |
+| Ignição (`ignition`) ou "não sei" | Só com velocidade 0 em 2 posições SMS seguidas, a última com no máximo 60 s, mesmo em furto |
 | Sem bloqueio | Nunca |
+| Moto (qualquer corte) | Só parada (regra de moto do [06 §3.2](../spec/06-comandos-e-bloqueio.md#32-regra-por-cut_point)); em movimento, não corte |
 
 Nunca bloqueie por falta de pagamento (INV-09). Roubo com a vítima dentro do veículo: não bloqueie; ligue 190.
 
 **Passo 6 — Quem acionar.** Versix: telefone de plantão entregue no onboarding; sem resposta em 5 min, ligue de novo e mande WhatsApp "TRACKSYS FORA — <operadora> — <hora>". Polícia: 190 em roubo em andamento. Equipe de busca e guincho: procedimento interno da operadora.
 
-**Passo 7 — Anote para lançar depois.** No F1, em até 72 h, lance cada SMS de bloqueio ou desbloqueio no painel (Comandos → "Registrar contingência", [06 §10](../spec/06-comandos-e-bloqueio.md)); no F0, envie a anotação à Versix. Anote agora:
+**Passo 7 — Anote para lançar depois.** No F1, em até 72 h, lance cada SMS de bloqueio ou desbloqueio no painel (Comandos → "Registrar contingência", [06 §10](../spec/06-comandos-e-bloqueio.md#10-contingência-por-sms-manual)); no F0, envie a anotação à Versix. Anote agora:
 
 | Campo | Exemplo |
 |---|---|
@@ -54,11 +55,11 @@ Nunca bloqueie por falta de pagamento (INV-09). Roubo com a vítima dentro do ve
 
 Nunca escreva a senha do rastreador na anotação nem no painel.
 
-**Na central, sempre:** lista de contingência impressa, atualizada toda semana e guardada trancada (placa, titular, telefone, 3 últimos dígitos do CPF, linha do chip, modelo do rastreador, corte); cartão de SMS com a senha em poder do responsável da operadora; usuário próprio do plantonista no portal emnify/Meta Telecom. [ADOTADO NA v2.0: o console exporta a lista de contingência (PDF e CSV) para o `operator_admin` no F1, com `audit_log` `export.create`.]
+**Na central, sempre:** lista de contingência impressa, atualizada toda semana e guardada trancada (placa, titular, telefone, 3 últimos dígitos do CPF, linha do chip, modelo do rastreador, corte); cartão de SMS com a senha da operadora (diferente da de fábrica e da usada na SmartGPS, trocada por `set_password` na migração, [11 §5](../spec/11-onboarding-e-migracao.md#5-modelos-de-sms-e-senha-do-dispositivo)) em poder do responsável da operadora; usuário próprio do plantonista no portal emnify/Meta Telecom. O console exporta a lista de contingência (PDF e CSV) para o `operator_admin` no F1, com `audit_log` `export.create`.
 
 ## 2. Runbooks técnicos
 
-Convenções: entrar por `ssh ubuntu@tracksys-p` (ou `tracksys-s`) pela Tailscale e `sudo -i`; `dc`, `opsql` e `$TRACKSYS_DOMAIN` vêm de `/etc/profile.d/tracksys.sh` ([13 §2](../spec/13-infra-e-operacao.md)); horários em UTC; toda ação vai para a nota do incidente; SEV e prazos de comunicação em [13 §14](../spec/13-infra-e-operacao.md). Regra de alerta → runbook: AL-01/AL-02 → R1, R3 ou R7; AL-03/AL-05 → R2; AL-07 → R4; AL-08 → R4 ou R5; AL-09 → R6; AL-10 → R3.
+Convenções: entrar por `ssh ubuntu@tracksys-p` (ou `tracksys-s`) pela Tailscale e `sudo -i`; `dc`, `opsql` e `$TRACKSYS_DOMAIN` vêm de `/etc/profile.d/tracksys.sh` ([13 §2](../spec/13-infra-e-operacao.md#2-provisionamento-reproduzível)); horários em UTC; toda ação vai para a nota do incidente; SEV e prazos de comunicação em [13 §14](../spec/13-infra-e-operacao.md#14-incidentes-severidade-e-comunicação). Regra de alerta → runbook: AL-01/AL-02 → R1, R3 ou R7; AL-03/AL-05 → R2; AL-07 → R4; AL-08 → R4 ou R5; AL-09 → R6; AL-10 → R3.
 
 ### R1 — Banco indisponível
 
@@ -99,14 +100,14 @@ opsql "SELECT * FROM ops.storage_stats();"
 2. `pg_wal` grande e `failed_count` subindo → arquivamento quebrado; `dc logs --since 1h db | grep -i wal-g` mostra a causa (credencial, bucket, rede). Corrija no SOPS e aplique (R10 passo 3). Nunca apague arquivos de `pg_wal` à mão.
 3. Slot inativo retendo mais de 8 GB (standby fora há horas) → `dc exec -T -u postgres db psql -c "SELECT pg_drop_replication_slot('standby_1');"`; reconstrua a standby depois (`standby-rebuild.sh`).
 4. Inbox ou outbox crescendo → confira se `ingest.retention` e a limpeza da outbox rodaram: `opsql "SELECT * FROM ops.queue_stats();"`.
-5. Ainda acima de 90% → aumente o boot volume no console da OCI (Block Storage → Boot Volumes → Edit) e, após o rescan do disco indicado pela OCI, rode `growpart /dev/sda 1 && resize2fs /dev/sda1` [VALIDAR nome do dispositivo]; custo em [13 §16](../spec/13-infra-e-operacao.md).
+5. Ainda acima de 90% → aumente o boot volume no console da OCI (Block Storage → Boot Volumes → Edit) e, após o rescan do disco indicado pela OCI, rode `growpart /dev/sda 1 && resize2fs /dev/sda1` [VALIDAR nome do dispositivo]; custo em [13 §16](../spec/13-infra-e-operacao.md#16-custos-de-infra-câmbio-us-1--r-550).
 
 **Verificação:** `df -h /` < 75%; `last_archived_time` há menos de 2 min.
 **Comunicação:** SEV2; SEV1 se o banco parou.
 
 ### R3 — Traccar sem conexões
 
-**Sintoma:** AL-10 (queda > 30% das sessões em 5 min); `ingest_last_received_age_seconds` > 300 s; "sem comunicação" suprimido ([07 §4](../spec/07-alertas-e-tempo-real.md)).
+**Sintoma:** AL-10 (queda > 30% das sessões em 5 min); `ingest_last_received_age_seconds` > 300 s; "sem comunicação" suprimido ([07 §4](../spec/07-alertas-e-tempo-real.md#4-sem-comunicação-e-comunicação-perdida-em-movimento)).
 **Diagnóstico:**
 ```bash
 nsenter -t "$(docker inspect -f '{{.State.Pid}}' "$(dc ps -q traccar)")" -n ss -Htn state established '( sport = :5023 )' | wc -l   # sessões no namespace do contêiner
@@ -119,10 +120,10 @@ De fora (notebook): `nc -vz -w 5 gps.$TRACKSYS_DOMAIN 5023`. No portal emnify/Me
 **Ação:**
 1. Traccar parado ou sem responder → `dc restart traccar` (todas as sessões reconectam).
 2. DNS errado → corrija o A na Cloudflare (TTL 60 s). Security list ou iptables alterados → `/opt/tracksys/infra/scripts/firewall.sh`.
-3. `DROP` da 5023 subindo com muitos rastreadores atrás do mesmo NAT da emnify → acrescente a faixa à allowlist ([13 §2.1](../spec/13-infra-e-operacao.md)) e rode `firewall.sh`.
+3. `DROP` da 5023 subindo com muitos rastreadores atrás do mesmo NAT da emnify → acrescente a faixa à allowlist ([13 §2.1](../spec/13-infra-e-operacao.md#21-firewall-em-duas-camadas)) e rode `firewall.sh`.
 4. Queda concentrada numa operadora móvel no portal → falha da rede celular, não da plataforma: avise as operadoras; nada a reiniciar.
 
-**Verificação:** sessões ≥ 90% do nível anterior em 15 min [VALIDAR — DEC-02: tempo de reconexão do J16]; 30 min depois, `ingest.reconcile` recuperou a lacuna ([05 §12](../spec/05-ingestao-e-telemetria.md)).
+**Verificação:** sessões ≥ 90% do nível anterior em 15 min [VALIDAR — DEC-02: tempo de reconexão do J16]; 30 min depois, `ingest.reconcile` recuperou a lacuna ([05 §12](../spec/05-ingestao-e-telemetria.md#12-queda-prolongada-reconciliação-e-backfill)).
 **Comunicação:** SEV1; informe que "sem comunicação" ficou suprimido no intervalo.
 
 ### R4 — Inbox acumulando
@@ -178,7 +179,7 @@ tailscale ping -c 3 tracksys-p
 oci compute instance get --instance-id "$PRIMARY_OCID" --auth instance_principal --query 'data."lifecycle-state"'
 opsql "SELECT * FROM ops.replication_status();"     # replay recente?
 ```
-**Ação:** `/opt/tracksys/infra/scripts/failover --reason "<texto>"`; o script segue [13 §9.2](../spec/13-infra-e-operacao.md) e imprime cada etapa. Parou no fencing: confira no console da OCI; com a instância `STOPPED` ou `TERMINATED`, ou com o `ip-svc` desanexado à mão, rode `failover --fenced-manually --reason "<texto>"`. Nunca promova com a primária possivelmente viva e dona do `ip-svc`.
+**Ação:** `/opt/tracksys/infra/scripts/failover --reason "<texto>"`; o script segue [13 §9.2](../spec/13-infra-e-operacao.md#92-failover-infrascriptsfailover-roda-na-standby) e imprime cada etapa. Parou no fencing: confira no console da OCI; com a instância `STOPPED` ou `TERMINATED`, ou com o `ip-svc` desanexado à mão, rode `failover --fenced-manually --reason "<texto>"`. Nunca promova com a primária possivelmente viva e dona do `ip-svc`.
 **Verificação:** `slo-gps-tcp` e `slo-api-https` verdes; sessões TCP subindo; `opsql "SELECT ops.health_snapshot();"` com `inRecovery = false`; comandos que estavam em DISPATCHING ou AWAITING_CONFIRMATION agora UNKNOWN com motivo `failover`.
 **Depois (≤ 24 h):** ligue a ex-primária pelo console (o guarda a mantém `fenced`) e rode nela `/opt/tracksys/infra/scripts/standby-rebuild.sh --primary tracksys-s`.
 **Comunicação:** SEV1; status page; WhatsApp às operadoras; postmortem.
@@ -191,12 +192,12 @@ opsql "SELECT * FROM ops.replication_status();"     # replay recente?
 3. `/opt/tracksys/infra/scripts/backup/restore.sh --target-time "2026-11-20T14:05:00Z"`: `backup-fetch`, `recovery.signal`, recuperação até o alvo, promoção.
 4. Suba `traccar api worker caddy` com `COMMAND_DISPATCH_ENABLED=false` e `EMNIFY_SMS_ENABLED=false`; rode a reconciliação de REQ-ARQ-016 (`dc exec -T worker node dist/cli.js commands:reconcile-failover`); religue as flags.
 5. Banco `traccar` restaurado junto → mantenha `INGEST_SOURCE_INSTANCE`; recriado vazio → troque para `traccar-02` (REQ-ARQ-013).
-6. Lacuna de ingestão, se o Traccar antigo ainda existir: `ingest:backfill --from <alvo> --to <agora>` (até 7 dias, sem efeito externo, [05 §12](../spec/05-ingestao-e-telemetria.md)).
+6. Lacuna de ingestão, se o Traccar antigo ainda existir: `ingest:backfill --from <alvo> --to <agora>` (até 7 dias, sem efeito externo, [05 §12](../spec/05-ingestao-e-telemetria.md#12-queda-prolongada-reconciliação-e-backfill)).
 7. Revogações perdidas entre o alvo e o incidente (sessões, links, grants, chaves de aparelho, memberships): no Loki, `{service="api"} | json | action=~".*\\.revoke|auth\\.sessions_revoke"` no intervalo; refaça cada uma pelo console ou CLI [exige 1 linha de log por ação de auditoria com `action` e ids, proposta para [08](../spec/08-identidade-e-seguranca.md)].
 8. Rede: `ip-svc` para o host novo (`oci network public-ip update ...`) ou registros A na Cloudflare.
 9. `dc exec -T -u postgres db wal-g backup-push /var/lib/postgresql/data` imediato (nova timeline).
 
-**Verificação:** checagens de [13 §8](../spec/13-infra-e-operacao.md) item 5; sondas verdes; ≤ 2 h e perda ≤ 5 min (G0-7).
+**Verificação:** checagens de [13 §8](../spec/13-infra-e-operacao.md#8-backups-e-restore) item 5; sondas verdes; ≤ 2 h e perda ≤ 5 min (G0-7).
 **Comunicação:** SEV1; informe às operadoras o intervalo perdido, se houver.
 
 ### R9 — VM recuperada pela Oracle
@@ -206,7 +207,7 @@ opsql "SELECT * FROM ops.replication_status();"     # replay recente?
 **Ação:**
 1. Primária parada: F1 → R7 se o incidente já passa de 10 min; senão `oci compute instance action --action START --instance-id <OCID>` e acompanhe o boot (o guarda libera se ela ainda for a primária do marcador). F0 → START; sem volta em 30 min, R8.
 2. Standby parada → START; a réplica alcança pelo slot ou pelo `restore_command`; sem alcançar em 1 h, `standby-rebuild.sh`.
-3. Terminada → `oci-bootstrap.sh` recria. "Out of host capacity" → repita a cada 5 min por até 2 h, depois outro fault domain; em último caso, shape pago temporário ([13 §16](../spec/13-infra-e-operacao.md)).
+3. Terminada → `oci-bootstrap.sh` recria. "Out of host capacity" → repita a cada 5 min por até 2 h, depois outro fault domain; em último caso, shape pago temporário ([13 §16](../spec/13-infra-e-operacao.md#16-custos-de-infra-câmbio-us-1--r-550)).
 4. Prevenção: conta em Pay As You Go e instâncias acima dos limiares de ociosidade [VALIDAR — DEC-12].
 
 **Verificação:** `cat /etc/tracksys/role` correto nas duas VMs; lag da réplica < 60 s.
@@ -227,7 +228,7 @@ opsql "SELECT * FROM ops.replication_status();"     # replay recente?
 | `INGEST_SHARED_SECRET` | Valor novo; o deploy re-renderiza `traccar.xml` e reinicia `traccar` e `api` | Rastreadores reconectam |
 | `BETTER_AUTH_SECRET` | Valor novo | Todas as sessões caem |
 | Senhas de papéis do banco | `ALTER ROLE <papel> PASSWORD '<novo>'` como `postgres`, SOPS, deploy | — |
-| `SECRETS_MASTER_KEYS` | Nova versão ativa e `secrets.rewrap` ([08 §8](../spec/08-identidade-e-seguranca.md)) | — |
+| `SECRETS_MASTER_KEYS` | Nova versão ativa e `secrets.rewrap` ([08 §8](../spec/08-identidade-e-seguranca.md#8-segredos)) | — |
 | Chave Asaas de uma operadora | A operadora gera outra no Asaas e atualiza no console | — |
 | Conta de serviço do FCM, chave APNs | Revogar no Google Cloud ou na Apple; nova no SOPS ou no Firebase | — |
 | Credenciais S3 (Oracle, R2) | Revogar a Customer Secret Key ou o token da R2; nova no SOPS | — |
@@ -254,16 +255,16 @@ Relatório técnico para a controladora: natureza dos dados; titulares afetados 
 
 ## 3. Checklist de go-live do Piloto Zero (G0, 31/10/2026)
 
-Critérios G0-1 a G0-9: [02 §2.5](../spec/02-escopo-e-fases.md). Evidências em `docs/runbooks/gates/G0.md`.
+Critérios G0-1 a G0-9: [02 §2.5](../spec/02-escopo-e-fases.md#25-gate-g0-31102026). Evidências em `docs/runbooks/gates/G0.md`.
 
 - [ ] VM primária pelo `provision.sh`; CT-OPS-001, CT-OPS-002 e CT-OPS-023 (região brasileira) verdes.
 - [ ] `gps.`, `api.` e `app.` com TTL 60 s, sem proxy, no `ip-svc`; TLS válido em `api.` e `app.`.
-- [ ] Deploy por tag com 1 rollback automático provado (CT-OPS-006, `DEPLOY_FAULT=smoke` como root na VM) e deploy barrado pelo verificador (CT-OPS-007, `DEPLOY_FAULT=catalog`), sem release quebrada em `main` ([13 §7](../spec/13-infra-e-operacao.md)).
+- [ ] Deploy por tag com 1 rollback automático provado (CT-OPS-006, `DEPLOY_FAULT=smoke` como root na VM) e deploy barrado pelo verificador (CT-OPS-007, `DEPLOY_FAULT=catalog`), sem release quebrada em `main` ([13 §7](../spec/13-infra-e-operacao.md#7-deploy)).
 - [ ] WAL arquivando há ≥ 48 h sem falha; 2 bases noturnas seguidas; cópia R2 em dia (CT-OPS-008).
-- [ ] Restore ensaiado (G0-7, CT-OPS-009) na primária, no projeto isolado `tracksys-drill` ([13 §8](../spec/13-infra-e-operacao.md)): ≤ 2 h, perda ≤ 5 min, relatório em `docs/runbooks/restore/`.
+- [ ] Restore ensaiado (G0-7, CT-OPS-009) na primária, no projeto isolado `tracksys-drill` ([13 §8](../spec/13-infra-e-operacao.md#8-backups-e-restore)): ≤ 2 h, perda ≤ 5 min, relatório em `docs/runbooks/restore/`.
 - [ ] Chave do WAL-G e chave age do fundador em 2 cópias offline, testadas (decifrar `prod.env.sops` num notebook limpo).
 - [ ] UptimeRobot sondando `gps.` (TCP) e `api.` (HTTPS) a cada 5 min; Pushover de emergência testado às 03:00 BRT e reconhecido.
-- [ ] Regras do F0 ([13 §12](../spec/13-infra-e-operacao.md)) disparadas uma vez cada em teste; Sentry com erro de teste sem PII (CT-OPS-016).
+- [ ] Regras do F0 ([13 §12](../spec/13-infra-e-operacao.md#12-regras-de-alerta)) disparadas uma vez cada em teste; Sentry com erro de teste sem PII (CT-OPS-016).
 - [ ] G0-1, G0-2 e G0-5 pelas consultas da T-015; G0-6 verde no pipeline implantado.
 - [ ] Rollback de SMS em 1 veículo (G0-8); termos assinados (G0-9).
 - [ ] §1 entregue à Lider na versão F0: sem bloqueio pela plataforma, contingência por SMS como hoje.
@@ -277,15 +278,15 @@ Plano de 14 dias: [11](../spec/11-onboarding-e-migracao.md). Aqui, só o que a o
 - [ ] Plantonista treinado (1 h) com o §1 e ensaio de localização por SMS feito.
 - [ ] Lista de contingência impressa e guardada; cartão de SMS com a senha em poder do `operator_admin`.
 - [ ] Usuário próprio do plantonista no portal emnify/Meta Telecom.
-- [ ] F1: faixas de saída da emnify/Meta Telecom na allowlist da 5023 ([13 §2.1](../spec/13-infra-e-operacao.md)) [VALIDAR — DEC-01].
-- [ ] Capacidade: veículos atuais + previstos dentro da coluna de [13 §17](../spec/13-infra-e-operacao.md); disco projetado < 70%.
+- [ ] F1: faixas de saída da emnify/Meta Telecom na allowlist da 5023 ([13 §2.1](../spec/13-infra-e-operacao.md#21-firewall-em-duas-camadas)) [VALIDAR — DEC-01].
+- [ ] Capacidade: veículos atuais + previstos dentro da coluna de [13 §17](../spec/13-infra-e-operacao.md#17-capacidade); disco projetado < 70%.
 - [ ] Endereço da status page e telefone de plantão da Versix entregues.
-- [ ] DPA assinado com a lista de suboperadores de [13 §15](../spec/13-infra-e-operacao.md).
+- [ ] DPA assinado com a lista de suboperadores de [13 §15](../spec/13-infra-e-operacao.md#15-dados-no-brasil-e-transferências-internacionais).
 - [ ] Primeira onda acompanhada no painel `/migracao` ([10](../spec/10-apps-e-ux.md) C15), sem AL-10 durante a onda.
 
 ## 5. Requisição de autoridade
 
-Base legal: [Anexo B](B-juridico.md). Passos técnicos: [08 §11](../spec/08-identidade-e-seguranca.md). Prazo: o do documento; sem prazo, ≤ 10 dias úteis [PREMISSA].
+Base legal: [Anexo B](B-juridico.md). Passos técnicos: [08 §11](../spec/08-identidade-e-seguranca.md#11-lgpd-técnica-marco-civil-auditoria-e-autoridades). Prazo: o do documento; sem prazo, ≤ 5 dias úteis [PREMISSA] ([Anexo B](B-juridico.md) §12 item 7).
 
 1. **Registrar.** Abra um atendimento (`ticket`) com assunto "Requisição de autoridade" e anexe o documento: órgão, número, data, prazo e pedido.
 2. **Conferir autenticidade.** Ligue para o órgão pelo telefone do site oficial (não o do documento) e confirme número e signatário.
@@ -341,7 +342,7 @@ Arquivo `docs/runbooks/postmortems/AAAA-MM-DD-<slug>.md`. Sem culpados: o foco �
 | SLO | Painel "SLO" | Minutos ruins da semana ≤ 50 (ritmo dos 216/mês) |
 | Incidentes | Gateway e `docs/runbooks/postmortems/` | Postmortems e ações corretivas dentro do prazo |
 | Backups | `wal-g backup-list`; painel | 7 bases diárias; cópia R2 < 26 h; arquivamento sem falha |
-| Recursos | Painéis "Host e contêineres" e "Banco" | Disco < 70%, RAM < 80%, CPU < 70% ([03 §14](../spec/03-arquitetura.md)) |
+| Recursos | Painéis "Host e contêineres" e "Banco" | Disco < 70%, RAM < 80%, CPU < 70% ([03 §14](../spec/03-arquitetura.md#14-gatilhos-objetivos-de-evolução)) |
 | Atualizações de segurança | `apt list --upgradable`; `/var/run/reboot-required`; Dependabot; gitleaks | Reboot pendente agendado em janela anunciada (48 h); CVE crítica em imagem base vira tarefa |
 | Quarentena | `opsql "SELECT * FROM ops.inbox_stats();"` | Causa conhecida para toda linha `quarantined` |
 
@@ -356,6 +357,6 @@ Arquivo `docs/runbooks/postmortems/AAAA-MM-DD-<slug>.md`. Sem culpados: o foco �
 | Acessos | Tailscale, GitHub, OCI, Cloudflare, grants de suporte ativos, destinatários do `.sops.yaml` | Só quem precisa |
 | Versões | Postgres 17.x, Traccar (troca de versão refaz a homologação), Caddy, Node 24 | Patch aplicado ou tarefa aberta |
 | Paging | Teste de emergência do Pushover | Reconhecido em ≤ 5 min |
-| Capacidade | [13 §17](../spec/13-infra-e-operacao.md) | Próximo gatilho a ≥ 2 meses |
+| Capacidade | [13 §17](../spec/13-infra-e-operacao.md#17-capacidade) | Próximo gatilho a ≥ 2 meses |
 
-**Trimestral:** ensaio de failover (CT-OPS-011). **Semestral:** ensaio de contingência com o plantonista de cada operadora (CT-OPS-024). **Anual:** rotação de `SECRETS_MASTER_KEYS` ([08 §8](../spec/08-identidade-e-seguranca.md)) e revisão deste anexo.
+**Trimestral:** ensaio de failover (CT-OPS-011). **Semestral:** ensaio de contingência com o plantonista de cada operadora (CT-OPS-024). **Anual:** rotação de `SECRETS_MASTER_KEYS` ([08 §8](../spec/08-identidade-e-seguranca.md#8-segredos)) e revisão deste anexo.

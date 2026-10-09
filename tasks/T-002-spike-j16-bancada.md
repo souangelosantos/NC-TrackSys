@@ -19,10 +19,10 @@ Transformar o J16 de hipótese em fato medido. Ao final existem: um servidor de 
 
 ## Contexto obrigatório
 
-- [05 §2, §3, §4, §13, §15](../docs/spec/05-ingestao-e-telemetria.md): chaves do forward, envelope, normalização, perfil de normalização e o roteiro S01–S14.
-- [04 §3.3](../docs/spec/04-dominio-e-dados.md): `capability_profile` e as 11 chaves obrigatórias.
-- [06 §13.1 item 4, §13.4](../docs/spec/06-comandos-e-bloqueio.md): o S07 preenche a seção `commands` (sem homologar).
-- [11 §5, §6](../docs/spec/11-onboarding-e-migracao.md): modelos de SMS e medição de domínio/DNS.
+- [05 §2, §3, §4, §13, §15](../docs/spec/05-ingestao-e-telemetria.md#2-contrato-com-o-traccar): chaves do forward, envelope, normalização, perfil de normalização e o roteiro S01–S14.
+- [04 §3.3](../docs/spec/04-dominio-e-dados.md#33-frota): `capability_profile` e as 11 chaves obrigatórias.
+- [06 §13.1 item 4, §13.4](../docs/spec/06-comandos-e-bloqueio.md#131-montagem-de-bancada): o S07 preenche a seção `commands` (sem homologar).
+- [11 §5, §6](../docs/spec/11-onboarding-e-migracao.md#5-modelos-de-sms-e-senha-do-dispositivo): modelos de SMS e medição de domínio/DNS.
 - [15 DEC-02](../docs/spec/15-decisoes-riscos-premissas.md): o que a decisão cobre.
 - [ADR-003](../docs/adr/ADR-003-traccar-borda-de-protocolos.md): Traccar como borda.
 
@@ -35,7 +35,7 @@ Transformar o J16 de hipótese em fato medido. Ao final existem: um servidor de 
 4. Escrever os testes de aceite da seção "Testes de aceite" (arquivos de teste de ferramenta passam já na sessão 1; o de fixtures passa só depois das capturas).
 
 **Fundador (09–13/10/2026):**
-5. Montar a bancada ([06 §13.1](../docs/spec/06-comandos-e-bloqueio.md) itens 1–3), apontar os 2 J16 para a VM por SMS e executar S01–S14 seguindo `docs/runbooks/spike-j16.md`, guardando as capturas brutas fora do repositório.
+5. Montar a bancada ([06 §13.1](../docs/spec/06-comandos-e-bloqueio.md#131-montagem-de-bancada) itens 1–3), apontar os 2 J16 para a VM por SMS e executar S01–S14 seguindo `docs/runbooks/spike-j16.md`, guardando as capturas brutas fora do repositório.
 6. Obter com a Lider a senha SMS dos J16 e rodar `query_server` em 1 J16 da Lider (alvo de rollback), anotando o resultado em `docs/runbooks/onboarding/lider.md` (sem a senha).
 7. Preencher as observações de cada cenário (planilha do roteiro) e entregar ao agente.
 
@@ -43,13 +43,13 @@ Transformar o J16 de hipótese em fato medido. Ao final existem: um servidor de 
 8. Importar as capturas com o anonimizador para `packages/testkit/fixtures/j16/<cenário>/` e gerar `manifest.json` (seção 3).
 9. Escrever `capability-profile.draft.json` e `sms/templates.json` com base nas observações (seções 7–8).
 10. Atualizar `infra/traccar/traccar.xml.tpl` e o digest do Traccar se o spike provar chave ou versão diferente (seção 9), e marcar como resolvidos os `[VALIDAR — DEC-02]` confirmados nos capítulos 05, 07 e 11 (só o texto do marcador e o valor; nenhuma regra nova).
-11. Atualizar a linha da DEC-02 em [15 §2](../docs/spec/15-decisoes-riscos-premissas.md) para `Resolvida — <data> — <resumo>` (REQ-QLD-020).
+11. Atualizar a linha da DEC-02 em [15 §2](../docs/spec/15-decisoes-riscos-premissas.md#2-decisões-pendentes-dec) para `Resolvida — <data> — <resumo>` (REQ-QLD-020).
 
 ## Fora do escopo
 
 - Ingestão na TrackSys (`/internal/v1`, inbox, projeção): T-005.
 - Tabela `capability_profile` e o INSERT do perfil: T-005 (migration) copia o JSON desta tarefa.
-- Homologação de bloqueio (20 ciclos, `status = 'homologated'`): F1, [06 §13](../docs/spec/06-comandos-e-bloqueio.md). O S07 aqui só observa respostas.
+- Homologação de bloqueio (20 ciclos, `status = 'homologated'`): F1, [06 §13](../docs/spec/06-comandos-e-bloqueio.md#13-homologação-do-perfil-e-g-cmd). O S07 aqui só observa respostas.
 - Código de modelos de SMS em `packages/domain`: T-014. Aqui só os textos e a evidência.
 - Qualquer captura com IMEI real, coordenada real, senha SMS ou MSISDN dentro do repositório.
 
@@ -171,7 +171,7 @@ Se em 09/10/2026 a VM não tiver o Compose da T-003: na VM (ou em qualquer host 
 
 ### (6) Roteiro do fundador — `docs/runbooks/spike-j16.md`
 
-Contém, nesta ordem: lista de material ([06 §13.1](../docs/spec/06-comandos-e-bloqueio.md)); comando SMS para apontar o J16 para a VM (modelo `set_server_ip` com o IP da VM, porque o domínio definitivo ainda não existe); como subir o `capture` e trocar de cenário (`curl -X POST http://127.0.0.1:3001/_scenario -d S04` a partir do contêiner); a tabela S01–S14 de [05 §15](../docs/spec/05-ingestao-e-telemetria.md) com duração, procedimento, o que anotar e a pergunta que o cenário decide; a planilha de observações (colunas `cenário, início UTC, fim UTC, mensagens, intervalo médio s, observação, resultado`); e o encerramento (copiar `/captures`, compactar com `tar --zstd`, calcular SHA-256, subir ao bucket privado, apagar da VM).
+Contém, nesta ordem: lista de material ([06 §13.1](../docs/spec/06-comandos-e-bloqueio.md#131-montagem-de-bancada)); comando SMS para apontar o J16 para a VM (modelo `set_server_ip` com o IP da VM, porque o domínio definitivo ainda não existe); como subir o `capture` e trocar de cenário (`curl -X POST http://127.0.0.1:3001/_scenario -d S04` a partir do contêiner); a tabela S01–S14 de [05 §15](../docs/spec/05-ingestao-e-telemetria.md#15-spike-do-j16-t-002-o-que-capturar) com duração, procedimento, o que anotar e a pergunta que o cenário decide; a planilha de observações (colunas `cenário, início UTC, fim UTC, mensagens, intervalo médio s, observação, resultado`); e o encerramento (copiar `/captures`, compactar com `tar --zstd`, calcular SHA-256, subir ao bucket privado, apagar da VM).
 
 Pontos que o roteiro manda medir, com o padrão seguro se não for possível medir:
 
@@ -188,12 +188,12 @@ Pontos que o roteiro manda medir, com o padrão seguro se não for possível med
 | Buffer offline e atributo de arquivo | S08 | `offline_buffer = "unknown"`, `archive_attribute = null` |
 | Fix inválido e `fixTime` sem GPS | S09 | fix inválido não vira posição |
 | Intervalos em movimento e parado | S01, S03 | 30 s e 300 s ([P-01](../docs/spec/15-decisoes-riscos-premissas.md)) |
-| Domínio, tempo de re-resolução de DNS, servidor secundário, posição por SMS | S11 | `domain_support = "unknown"` (plano B por IP, [11 §6](../docs/spec/11-onboarding-e-migracao.md)) |
+| Domínio, tempo de re-resolução de DNS, servidor secundário, posição por SMS | S11 | `domain_support = "unknown"` (plano B por IP, [11 §6](../docs/spec/11-onboarding-e-migracao.md#6-domínio-gpsdomínio-e-plano-b)) |
 | WNRO e deriva de relógio | S12 | `wnro_correction = false` |
 
 ### (7) Rascunho do perfil — `fixtures/j16/capability-profile.draft.json`
 
-Objeto que vai literalmente para a coluna `capabilities` (T-005). As 11 chaves de [04 §3.3](../docs/spec/04-dominio-e-dados.md) com `"yes"`, `"no"` ou `"unknown"`; seção `normalization` de [05 §13](../docs/spec/05-ingestao-e-telemetria.md) com os tipos de lá; seção `commands` parcial do S07 sem `homologation_ref`; e `evidence` com o arquivo de captura que prova cada `yes`/`no`:
+Objeto que vai literalmente para a coluna `capabilities` (T-005). As 11 chaves de [04 §3.3](../docs/spec/04-dominio-e-dados.md#33-frota) com `"yes"`, `"no"` ou `"unknown"`; seção `normalization` de [05 §13](../docs/spec/05-ingestao-e-telemetria.md#13-perfil-de-normalização-por-capability_profile) com os tipos de lá; seção `commands` parcial do S07 sem `homologation_ref`; e `evidence` com o arquivo de captura que prova cada `yes`/`no`:
 
 ```json
 {
@@ -213,12 +213,12 @@ O exemplo acima mostra o formato; os valores finais vêm das observações. Regr
 
 ### (8) Textos de SMS — `fixtures/j16/sms/templates.json`
 
-Chaves de [11 §5](../docs/spec/11-onboarding-e-migracao.md) (`query_server`, `query_params`, `set_server_domain`, `set_server_ip`, `rollback`, `position`, `reset`), cada uma com `text` (com `{host}`, `{port}`, `{password}` onde o S11 provar), `status` (`validated` só com resposta observada; senão `draft`), `expectedReply` e `evidenceRef` (print em `sms/evidence/`, com número e senha borrados). Nenhuma senha real no arquivo.
+Chaves de [11 §5](../docs/spec/11-onboarding-e-migracao.md#5-modelos-de-sms-e-senha-do-dispositivo) (`query_server`, `query_params`, `set_password`, `set_server_domain`, `set_server_ip`, `rollback`, `position`, `reset`), cada uma com `text` (com `{host}`, `{port}`, `{password}` onde o S11 provar), `status` (`validated` só com resposta observada; senão `draft`), `expectedReply` e `evidenceRef` (print em `sms/evidence/`, com número e senha borrados). Nenhuma senha real no arquivo.
 
 ### (9) Traccar
 
 - Fixar a imagem por digest do índice multi-arquitetura (`docker buildx imagetools inspect traccar/traccar:<tag>`), registrar em `manifest.json` e, se diferente do que a T-003 colocou, trocar em `infra/docker-compose.yml`.
-- Confirmar cada chave de [05 §2](../docs/spec/05-ingestao-e-telemetria.md) e de [13 §5](../docs/spec/13-infra-e-operacao.md) na versão fixada (inclusive a de retenção de 7 dias, REQ-DAD-017). Chave com nome diferente é corrigida em `infra/traccar/traccar.xml.tpl` e no capítulo.
+- Confirmar cada chave de [05 §2](../docs/spec/05-ingestao-e-telemetria.md#2-contrato-com-o-traccar) e de [13 §5](../docs/spec/13-infra-e-operacao.md#5-traccar-operacional) na versão fixada (inclusive a de retenção de 7 dias, REQ-DAD-017). Chave com nome diferente é corrigida em `infra/traccar/traccar.xml.tpl` e no capítulo.
 
 ## Testes de aceite (congelados)
 
@@ -240,7 +240,7 @@ Chaves de [11 §5](../docs/spec/11-onboarding-e-migracao.md) (`query_server`, `q
 - Dado `manifest.traccar.digest`, Então começa com `sha256:` e tem 71 caracteres.
 
 `tests/acceptance/T-002/profile-draft.test.ts`
-- Dado `capability-profile.draft.json`, Então as 11 chaves de [04 §3.3](../docs/spec/04-dominio-e-dados.md) existem com valor em `yes`/`no`/`unknown`, `normalization.source_id_strategy` ∈ `traccar_id`/`fingerprint_v1` e `moving_interval_s`, `stopped_interval_s` são inteiros > 0.
+- Dado `capability-profile.draft.json`, Então as 11 chaves de [04 §3.3](../docs/spec/04-dominio-e-dados.md#33-frota) existem com valor em `yes`/`no`/`unknown`, `normalization.source_id_strategy` ∈ `traccar_id`/`fingerprint_v1` e `moving_interval_s`, `stopped_interval_s` são inteiros > 0.
 - Dado cada chave com `yes` ou `no`, Então `evidence[chave]` aponta para um arquivo existente em `fixtures/j16/`.
 - Dado `commands`, Então não existe `homologation_ref`.
 - Dado `sms/templates.json`, Então nenhuma entrada `validated` está sem `evidenceRef` existente e nenhum texto contém sequência de 4 ou mais dígitos fora de `{…}` (senha real).
@@ -264,7 +264,7 @@ Esperado: os 4 arquivos de `T-002` verdes; o último comando sem saída.
 - [ ] S01–S14 com captura ou `not_applicable` justificado; manifesto com digest do Traccar e SHA-256 do arquivo bruto no bucket privado.
 - [ ] `capability-profile.draft.json` com evidência para todo `yes`/`no`; `sms/templates.json` sem senha.
 - [ ] Alvo de rollback da SmartGPS em `docs/runbooks/onboarding/lider.md`.
-- [ ] DEC-02 `Resolvida` em [15 §2](../docs/spec/15-decisoes-riscos-premissas.md) e marcadores `[VALIDAR — DEC-02]` resolvidos nos capítulos tocados.
+- [ ] DEC-02 `Resolvida` em [15 §2](../docs/spec/15-decisoes-riscos-premissas.md#2-decisões-pendentes-dec) e marcadores `[VALIDAR — DEC-02]` resolvidos nos capítulos tocados.
 - [ ] PR `feat(testkit): spike J16 em bancada e perfil draft (T-002)`, risco N1, com revisão cruzada.
 
 ## Decisões já tomadas (não pergunte, siga)
@@ -272,11 +272,11 @@ Esperado: os 4 arquivos de `T-002` verdes; o último comando sem saída.
 | Dúvida provável | Resposta |
 |---|---|
 | Onde ficam as capturas brutas e o hex do protocolo? | Fora do repositório: notebook do fundador e bucket privado `tracksys-backup/spike-j16/`. O repositório guarda só o SHA-256 no manifesto. |
-| `true`/`false`/`null` ou `yes`/`no`/`unknown` nas capacidades? | `yes`/`no`/`unknown` nas 11 chaves ([04 §3.3](../docs/spec/04-dominio-e-dados.md), [06 §2](../docs/spec/06-comandos-e-bloqueio.md)). Onde [05 §13](../docs/spec/05-ingestao-e-telemetria.md) e [07](../docs/spec/07-alertas-e-tempo-real.md) dizem `true`, leia `"yes"`; `null` = `"unknown"`. Os campos de `normalization` mantêm os tipos de [05 §13](../docs/spec/05-ingestao-e-telemetria.md). |
-| O rascunho de [05 §13](../docs/spec/05-ingestao-e-telemetria.md) diz `ignition: true, relay: true` antes do spike. Uso isso? | Não. Só vira `yes` o que a captura provar. Sem prova, `unknown`. |
-| O J16 não aceitou domínio no S11. | `domain_support = "no"`; registre o tempo medido; o plano B por IP de [11 §6](../docs/spec/11-onboarding-e-migracao.md) passa a valer e a T-014 o usa. Não altere o ADR-005 nesta tarefa. |
+| `true`/`false`/`null` ou `yes`/`no`/`unknown` nas capacidades? | `yes`/`no`/`unknown` nas 11 chaves ([04 §3.3](../docs/spec/04-dominio-e-dados.md#33-frota), [06 §2](../docs/spec/06-comandos-e-bloqueio.md#2-disponibilidade)). Onde [05 §13](../docs/spec/05-ingestao-e-telemetria.md#13-perfil-de-normalização-por-capability_profile) e [07](../docs/spec/07-alertas-e-tempo-real.md) dizem `true`, leia `"yes"`; `null` = `"unknown"`. Os campos de `normalization` mantêm os tipos de [05 §13](../docs/spec/05-ingestao-e-telemetria.md#13-perfil-de-normalização-por-capability_profile). |
+| O rascunho de [05 §13](../docs/spec/05-ingestao-e-telemetria.md#13-perfil-de-normalização-por-capability_profile) diz `ignition: true, relay: true` antes do spike. Uso isso? | Não. Só vira `yes` o que a captura provar. Sem prova, `unknown`. |
+| O J16 não aceitou domínio no S11. | `domain_support = "no"`; registre o tempo medido; o plano B por IP de [11 §6](../docs/spec/11-onboarding-e-migracao.md#6-domínio-gpsdomínio-e-plano-b) passa a valer e a T-014 o usa. Não altere o ADR-005 nesta tarefa. |
 | O Traccar não decodificou o J16 em gt06. | Pare as capturas, anote no PR e teste o decodificador alternativo que o manual indicar ([15 DEC-02](../docs/spec/15-decisoes-riscos-premissas.md) plano B). Se nenhum servir até 13/10, o fundador decide outro modelo para o piloto. |
 | Posso comandar bloqueio real no S07? | Só na bancada (relé + lâmpada), com chamadas diretas à API do Traccar a partir do túnel SSH. Nunca em veículo. Nada de homologar: o perfil fica `'draft'`. |
-| Precisa de `pnpm verify` verde com as fixtures? | Sim. As fixtures entram no PR; o job `acceptance-freeze` passa a cobrir `packages/testkit/fixtures/**` a partir desta tarefa ([14 §7](../docs/spec/14-qualidade-e-processo-ia.md)). |
+| Precisa de `pnpm verify` verde com as fixtures? | Sim. As fixtures entram no PR; o job `acceptance-freeze` passa a cobrir `packages/testkit/fixtures/**` a partir desta tarefa ([14 §7](../docs/spec/14-qualidade-e-processo-ia.md#7-testes-congelados)). |
 | A senha SMS da Lider entra em algum arquivo? | Nunca. Nem no runbook, nem em fixture, nem no PR. Só o fundador a guarda (gerenciador de senhas). |
 | Quem escreve no capítulo 15? | O agente, no mesmo PR, com o texto que o fundador aprovou na planilha de observações. |

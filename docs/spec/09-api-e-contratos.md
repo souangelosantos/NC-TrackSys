@@ -9,6 +9,20 @@
 > - Idempotência por usuário + operação + chave com hash da intenção; comando guarda a chave para sempre.
 > - Histórico síncrono limitado a 7 dias e aos 90 dias quentes; além disso, exportação assíncrona.
 
+**Nesta página**
+
+- [1. Contrato primeiro](#1-contrato-primeiro)
+- [2. Convenções](#2-convenções)
+- [3. Erros: Problem Details](#3-erros-problem-details)
+- [4. Idempotência](#4-idempotência)
+- [5. Concorrência otimista](#5-concorrência-otimista)
+- [6. Rotas do F0](#6-rotas-do-f0)
+- [7. Rotas do F1 e do F2 (resumo)](#7-rotas-do-f1-e-do-f2-resumo)
+- [8. Rotas internas e webhook](#8-rotas-internas-e-webhook)
+- [9. Exemplos](#9-exemplos)
+- [10. Evolução de schema](#10-evolução-de-schema)
+- [11. Requisitos](#11-requisitos)
+
 ## 1. Contrato primeiro
 
 ```text
@@ -33,7 +47,7 @@ export const routes = {
 // auth: 'session' | 'public' | 'share_session' | 'webhook_asaas'; a chave é o operationId do OpenAPI
 ```
 
-No `apps/api`, o decorator `@Route('<operationId>')` liga o handler ao registro; um guard único aplica autenticação, permissão ([08 §3](08-identidade-e-seguranca.md)), idempotência (§4), limite ([08 §9](08-identidade-e-seguranca.md)) e valida entrada e saída com os mesmos schemas.
+No `apps/api`, o decorator `@Route('<operationId>')` liga o handler ao registro; um guard único aplica autenticação, permissão ([08 §3](08-identidade-e-seguranca.md#3-papéis-e-permissões)), idempotência (§4), limite ([08 §9](08-identidade-e-seguranca.md#9-limites-cors-e-headers)) e valida entrada e saída com os mesmos schemas.
 
 Pipeline (scripts de `packages/contracts/package.json`; versões fixadas na T-004):
 
@@ -60,7 +74,7 @@ O console usa `openapi-fetch` com o tipo `paths` gerado; o app usa o pacote Dart
 | Ids | uuid em minúsculas gerado pelo servidor (UUIDv7 recomendado); o cliente não escolhe id de recurso |
 | Coleção | `{ "items": [...], "nextCursor": "<opaco>" \| null, "serverTime": "…" }`; `limit` padrão 50, máximo 200 (exceção: histórico, §9.4); `limit` > 200 → 422; keyset por (campo de ordenação, `id`), sem OFFSET; cursor = base64url de JSON validado por Zod, inválido → 422 |
 | Recurso | `GET` de item devolve `ETag`; criação 201 com `Location`; ação assíncrona 202 com `Location` do acompanhamento |
-| Headers de entrada | `Authorization`, `Idempotency-Key`, `If-Match`, `X-Operator-Id` ([08 §4](08-identidade-e-seguranca.md)), `X-Request-Id` (UUID, ecoado; senão gerado), `X-App-Version` (app), `Last-Event-ID` (SSE) |
+| Headers de entrada | `Authorization`, `Idempotency-Key`, `If-Match`, `X-Operator-Id` ([08 §4](08-identidade-e-seguranca.md#4-do-request-ao-banco)), `X-Request-Id` (UUID, ecoado; senão gerado), `X-App-Version` (app), `Last-Event-ID` (SSE) |
 | Corpo | `application/json` UTF-8, máximo 1 MiB (importação F1: `multipart/form-data` até 10 MiB); objeto estrito (`z.strictObject`): campo desconhecido → 422 |
 | Tempo limite | 10 s por requisição (SSE fora); `SET LOCAL statement_timeout = '5s'` nas transações de rota; estouro → 503 |
 | Texto | `title` e `detail` em PT-BR para humanos; o cliente decide pelo `code` |
@@ -86,7 +100,7 @@ Toda resposta 4xx/5xx usa `Content-Type: application/problem+json`, com `type` =
 | `AUTH_REQUIRED` | 401 | Sem sessão, sessão expirada, revogada ou no transporte errado | `reason` | 08 |
 | `INVALID_CREDENTIALS` | 401 | Login ou TOTP inválido (mesma resposta exista ou não o e-mail) | — | 08 |
 | `WEBHOOK_UNAUTHORIZED` | 401 | Token do webhook ausente ou errado | — | 08 |
-| `FORBIDDEN` | 403 | Recurso visível; papel sem a permissão (ex.: `tenant_member` sem `can_command`, `allow_app_block = false`, cliente reconhecendo alerta, equipe nas preferências de alerta); escrita em transação somente leitura; login no app de usuário com 2FA ativo (F0) | `reason` opcional; F0: `two_factor_app_unsupported` ([08 §2](08-identidade-e-seguranca.md)) | 08 |
+| `FORBIDDEN` | 403 | Recurso visível; papel sem a permissão (ex.: `tenant_member` sem `can_command`, `allow_app_block = false`, cliente reconhecendo alerta, equipe nas preferências de alerta); escrita em transação somente leitura; login no app de usuário com 2FA ativo (F0) | `reason` opcional; F0: `two_factor_app_unsupported` ([08 §2](08-identidade-e-seguranca.md#2-autenticação-better-auth)) | 08 |
 | `CSRF_REJECTED` | 403 | Mutação por cookie sem `Origin` permitido | — | 08 |
 | `TWO_FACTOR_ENROLLMENT_REQUIRED` | 403 | Papel exige 2FA ativo | — | 08 |
 | `STEP_UP_REQUIRED` | 403 | Comando sem prova; TOTP com mais de 5 min; cadastro de chave sem login recente | `requiredMethod`: `device_key`, `device_key_registration`, `totp`, `password` | 08 |
@@ -98,16 +112,17 @@ Toda resposta 4xx/5xx usa `Content-Type: application/problem+json`, com `type` =
 | `DEVICE_ALREADY_REGISTERED` · `SIM_ALREADY_REGISTERED` | 409 | IMEI ou ICCID ativo na plataforma, sem revelar a operadora (REQ-DAD-022) | — | 04 |
 | `ASSIGNMENT_OVERLAP` | 409 | Vínculo sobreposto (SQLSTATE 23P01) | — | 04 |
 | `WATCH_MODE_VEHICLE_ON` · `WATCH_MODE_NO_FIX` | 409 | Vigilância com ignição ligada ou sem fix válido em 24 h | — | 07 |
-| `TELEMETRY_STALE` | 409 | Evidência ausente, inválida ou com mais de 60 s quando a política recusa em vez de armar (§9.3) | `evidence` | 06 |
+| `TELEMETRY_STALE` | 409 | Reservado, não usado na v2.0: a política de 06 arma o pedido (`awaiting_evidence`) em vez de recusar (§9.3) | `evidence` | 06 |
 | `SPEED_ABOVE_LIMIT` | 409 | Reservado: hoje a política de 06 arma (`awaiting_speed`) em vez de recusar | `speedKmh`, `maxMovingCutKmh` | 06 |
 | `COMMAND_ALREADY_ACTIVE` · `COMMAND_IN_FLIGHT` | 409 | Já existe `block`/`unblock` ativo; o ativo já saiu para o rastreador (com `Retry-After`) | `activeCommandId` | 06 |
 | `COMMAND_NOT_CANCELLABLE` | 409 | Cancelamento depois de DISPATCHING | — | 06 |
-| `CUT_POINT_MISSING` · `PROFILE_NOT_HOMOLOGATED` | 422 | Vínculo sem `cut_point`; perfil sem homologação com relé (INV-10). Os motivos do domínio de [06 §14](06-comandos-e-bloqueio.md) (T-016) mapeiam para os códigos desta tabela (T-018) | — | 06 |
-| `COMMAND_NOT_ALLOWED` | 422 | Política recusa | `reason`: `block_terms_missing`, `block_scope_disabled`, `relay_unsupported`, `tenant_closed`, `no_primary_device` (veículo sem vínculo primário aberto; T-018) (lista em 06) | 06 |
+| `RELAY_NOT_UNBLOCKED` | 409 | Encerrar cliente ou fechar vínculo com relé não desbloqueado, ou com o último `block` CONFIRMED, UNKNOWN ou ativo (06 §2) | — | 06 |
+| `CUT_POINT_MISSING` · `PROFILE_NOT_HOMOLOGATED` | 422 | Vínculo sem `cut_point`; perfil sem homologação com relé (INV-10). Os motivos do domínio de [06 §14](06-comandos-e-bloqueio.md#14-contratos) (T-016) mapeiam para os códigos desta tabela (T-018) | — | 06 |
+| `COMMAND_NOT_ALLOWED` | 422 | Política recusa | `reason`: `block_terms_missing`, `block_scope_disabled`, `relay_unsupported`, `tenant_closed`, `no_primary_device` (veículo sem vínculo primário aberto; T-018), `device_key_cooldown` (chave de aparelho com menos de 24 h; 06 §4.2) (lista em 06) | 06 |
 | `PRECONDITION_FAILED` | 412 | `If-Match` diferente do `ETag` atual | — | 09 |
 | `PAYLOAD_TOO_LARGE` | 413 | Corpo acima do limite | `maxBytes` | 09 |
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | `Content-Type` não aceito na rota | — | 09 |
-| `VALIDATION_FAILED` | 422 | Schema ou regra semântica; inclui token de redefinição de senha inválido, usado ou vencido (`errors[0] = {path: "token", rule: "token_invalid"}`, [08 §2](08-identidade-e-seguranca.md)) | `errors[{path, rule, message}]` | 09 |
+| `VALIDATION_FAILED` | 422 | Schema ou regra semântica; inclui token de redefinição de senha inválido, usado ou vencido (`errors[0] = {path: "token", rule: "token_invalid"}`, [08 §2](08-identidade-e-seguranca.md#2-autenticação-better-auth)) | `errors[{path, rule, message}]` | 09 |
 | `HISTORY_RANGE_TOO_LARGE` | 422 | Histórico com `to − from` > 7 dias | `maxRangeS: 604800` | 09 |
 | `HISTORY_REQUIRES_EXPORT` | 422 | `from` anterior aos 90 dias quentes | `hotSince` | 09 |
 | `STREAM_SCOPE_TOO_LARGE` · `ALERT_PREFERENCE_LOCKED` | 422 | Ver [07](07-alertas-e-tempo-real.md) | ver 07 | 07 |
@@ -117,9 +132,9 @@ Toda resposta 4xx/5xx usa `Content-Type: application/problem+json`, com `type` =
 | `INTERNAL_ERROR` | 500 | Erro não previsto, inclusive violação do contrato de resposta | — | 09 |
 | `DEPENDENCY_UNAVAILABLE` | 503 | Banco fora, pool esgotado, `statement_timeout` (com `Retry-After: 5`) | — | 09 |
 | `COMMAND_DISPATCH_DISABLED` | 503 | `block` com despacho desligado (failover, REQ-ARQ-016) | — | 06 |
-| `INGEST_*` | 400/401/413/503 | Rotas internas | ver 05 | [05 §3](05-ingestao-e-telemetria.md) |
+| `INGEST_*` | 400/401/413/503 | Rotas internas | ver 05 | [05 §3](05-ingestao-e-telemetria.md#3-rotas-internas) |
 
-Recusa síncrona de comando (permissão, step-up, política) não cria linha em `command`: grava `audit_log` `command.request` com `result = 'denied'` ([06 §4.2](06-comandos-e-bloqueio.md)). Mapeamento de erro do banco: 42501 (WITH CHECK) e 23503 (FK composta) → 404; 23P01 → 409 específico; 23505 → 409 específico da constraint; 25006 → 403; 57014, 08xxx e 53300 → 503; 40001/40P01 → 1 nova tentativa da transação, depois 503.
+Recusa síncrona de comando (permissão, step-up, política) não cria linha em `command`: grava `audit_log` `command.request` com `result = 'denied'` ([06 §4.2](06-comandos-e-bloqueio.md#42-step-up-detalhe-em-08)). Mapeamento de erro do banco: 42501 (WITH CHECK) e 23503 (FK composta) → 404; 23P01 → 409 específico; 23505 → 409 específico da constraint; 25006 → 403; 57014, 08xxx e 53300 → 503; 40001/40P01 → 1 nova tentativa da transação, depois 503.
 
 ## 4. Idempotência
 
@@ -127,7 +142,7 @@ Obrigatória em:
 
 | Operação | Rota | Retenção da chave |
 |---|---|---|
-| `command.create` · `command.contingency` | `POST /api/v1/vehicles/{vehicleId}/commands` · `.../commands/contingency` | Com o comando (5 anos): a própria linha de `command` é o registro ([06 §4.3](06-comandos-e-bloqueio.md)) |
+| `command.create` · `command.contingency` | `POST /api/v1/vehicles/{vehicleId}/commands` · `.../commands/contingency` | Com o comando (5 anos): a própria linha de `command` é o registro ([06 §4.3](06-comandos-e-bloqueio.md#43-idempotência-e-concorrência)) |
 | `invitation.create` | `POST /api/v1/invitations` | 24 h |
 | `import.create` | `POST /api/v1/imports` | 24 h |
 | `share_link.create` | `POST /api/v1/share-links` | 24 h |
@@ -136,7 +151,7 @@ Obrigatória em:
 Outros POST aceitam a chave opcionalmente, com a mesma semântica. Formato: 16 a 64 caracteres `[A-Za-z0-9_-]`; comandos exigem UUID.
 
 ```sql
--- rls: A · DDL canônica em [04](04-dominio-e-dados.md) §3.7 (T-006); tenant_id NULL em operação de nível operadora → entrada em nullableTenantId
+-- rls: A · DDL canônica em [04 §3.7](04-dominio-e-dados.md#37-conformidade) (T-006); tenant_id NULL em operação de nível operadora → entrada em nullableTenantId
 CREATE TABLE app.idempotency_record (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   operator_id uuid NOT NULL REFERENCES app.operator (id), tenant_id uuid NULL,
@@ -155,21 +170,21 @@ CREATE TABLE app.idempotency_record (
 2. Primeiro comando da transação da rota: `INSERT ... ON CONFLICT (user_id, operation, key) DO NOTHING RETURNING id`. Requisição concorrente com a mesma chave espera no índice único até a primeira terminar (arbitragem pelo banco, sem lock em memória).
 3. Sem linha devolvida: lê a existente. Mesmo hash → repete o status original com a representação atual de `resource_id` (ou o `problem` gravado) e `Idempotent-Replayed: true`. Hash diferente → 409 `IDEMPOTENCY_CONFLICT`.
 4. Com linha: executa, grava `response_status`, `resource_type`, `resource_id` e faz COMMIT. Erro de validação ou exceção → ROLLBACK e a chave fica livre. Recusa de negócio persistida (ex.: comando `REJECTED` com 409) grava `problem` sem `correlationId`.
-5. `expires_at = created_at + 24 h`; chave vencida é reaproveitada pelo `ON CONFLICT … WHERE expires_at <= now()` (T-006); o expurgo de volume é de hora em hora por `app.retention_purge('idempotency_record', 50000)` (tipo `idempotency_record` de `app.retention_purge`, [04](04-dominio-e-dados.md) §4.4; função da T-027, no F1 [ADOTADO NA v2.0: adiado do F0]; até lá, a chave vencida só é reaproveitada). Comandos não usam esta tabela: `command` guarda `idempotency_key` UNIQUE por `(operator_id, tenant_id)` e `request_sha256`; a mesma chave vinda de outro usuário recebe 409 `IDEMPOTENCY_CONFLICT`, o que mantém o escopo por usuário.
-6. Comando: a checagem de idempotência vem antes da verificação do step-up, então a repetição devolve o comando existente sem consumir outro desafio ([08 §6.3](08-identidade-e-seguranca.md)).
+5. `expires_at = created_at + 24 h`; chave vencida é reaproveitada pelo `ON CONFLICT … WHERE expires_at <= now()` (T-006); o expurgo de volume é de hora em hora por `app.retention_purge('idempotency_record', 50000)` (tipo `idempotency_record` de `app.retention_purge`, [04 §4.4](04-dominio-e-dados.md#44-funções-security-definer-lista-fechada); função da T-027, no F1 adiado do F0; até lá, a chave vencida só é reaproveitada). Comandos não usam esta tabela: `command` guarda `idempotency_key` UNIQUE por `(operator_id, tenant_id)` e `request_sha256`; a mesma chave vinda de outro usuário recebe 409 `IDEMPOTENCY_CONFLICT`, o que mantém o escopo por usuário.
+6. Comando: a checagem de idempotência vem antes da verificação do step-up, então a repetição devolve o comando existente sem consumir outro desafio ([08 §6.3](08-identidade-e-seguranca.md#63-assinatura-e-verificação)).
 
 ## 5. Concorrência otimista
 
-1. `ETag` forte `"u<updated_at em microssegundos desde a época>"`, ex.: `"u1760972400123456"`, em `tenant`, `vehicle`, `device` e `operator_brand` (`command_policy` é versionada por INSERT, [06 §3.3](06-comandos-e-bloqueio.md)).
+1. `ETag` forte `"u<updated_at em microssegundos desde a época>"`, ex.: `"u1760972400123456"`, em `tenant`, `vehicle`, `device` e `operator_brand` (`command_policy` é versionada por INSERT, [06 §3.3](06-comandos-e-bloqueio.md#33-política-da-operadora-command_policy)).
 2. PATCH e PUT desses recursos exigem `If-Match`: ausente → 428 `PRECONDITION_REQUIRED`; diferente → 412 `PRECONDITION_FAILED` com o `ETag` atual no header. PATCH segue JSON Merge Patch (RFC 7396): `null` limpa campo opcional; aceita `application/merge-patch+json` e `application/json`.
 3. SQL: `UPDATE app.vehicle SET nickname = $3, updated_at = greatest(clock_timestamp(), updated_at + interval '1 microsecond') WHERE id = $1 AND updated_at = $2 RETURNING updated_at`; 0 linhas → relê: ausente → 404, presente → 412.
-4. Comando usa `stateVersion` ([06 §4.3](06-comandos-e-bloqueio.md)): `ETag: "<stateVersion>"` e `POST /api/v1/commands/{id}/cancel` com `If-Match: "<stateVersion>"`.
+4. Comando usa `stateVersion` ([06 §4.3](06-comandos-e-bloqueio.md#43-idempotência-e-concorrência)): `ETag: "<stateVersion>"` e `POST /api/v1/commands/{id}/cancel` com `If-Match: "<stateVersion>"`.
 
 ## 6. Rotas do F0
 
 | Método e caminho | Permissão | Request → Response | Idem. |
 |---|---|---|---|
-| `POST /api/v1/auth/sign-in/email` | público | `{email, password}` → 200 `{user, twoFactorRedirect}`; app recebe o token em `set-auth-token`, console recebe cookie ([08 §2](08-identidade-e-seguranca.md)) | — |
+| `POST /api/v1/auth/sign-in/email` | público | `{email, password}` → 200 `{user, twoFactorRedirect}`; app recebe o token em `set-auth-token`, console recebe cookie ([08 §2](08-identidade-e-seguranca.md#2-autenticação-better-auth)) | — |
 | `POST /api/v1/auth/two-factor/verify-totp` | login pendente | `{code}` → 200 sessão completa | — |
 | `POST /api/v1/auth/sign-out` | sessão | → 200; no app revoga a chave do aparelho | — |
 | `POST /api/v1/auth/request-password-reset` · `/reset-password` | público | `{email}` → 200 sempre · `{token, newPassword}` → 200 | — |
@@ -187,44 +202,45 @@ CREATE TABLE app.idempotency_record (
 | `GET /api/v1/vehicles/{vehicleId}/history` | `telemetry.history` | `?from&to&cursor&limit` → §9.4 | — |
 | `GET /api/v1/vehicles/{vehicleId}/assignments` | `vehicle.read` + `device.read` | → coleção `{id, deviceId, cutPoint, isPrimary, validFrom, validTo}` | — |
 | `GET /api/v1/devices` · `POST` | `device.read` · `device.write` | `?status&q&cursor&limit` · `{imei, model, protocol, capabilityProfileId, firmware?, simIccid?}` → 201 `{…, provisioning: "pending"}` (no F0, o cadastro no Traccar é o `pilot provision` da T-014; job automático do worker no F1, T-024); cria na mesma transação a linha de `device_state` do rastreador, sem vínculo (T-007); 409 `DEVICE_ALREADY_REGISTERED` | opcional |
-| `GET /api/v1/devices/{deviceId}` · `PATCH` | `device.read` · `device.write` | → 200 + `ETag`, `provisioning` ∈ `pending`, `done` (derivado de `device.traccar_device_id`; `failed` entra com o job automático do F1, T-024), IMEI completo só aqui; todo `Device` traz `ingestProbe {lastQuarantinedAt, lastError, quarantined24h}` de `app.device_ingest_probe` ([11 §10](11-onboarding-e-migracao.md); acréscimo aditivo da T-007) · `{status, firmware, simIccid}` + `If-Match` | — |
+| `GET /api/v1/devices/{deviceId}` · `PATCH` | `device.read` · `device.write` | → 200 + `ETag`, `provisioning` ∈ `pending`, `done` (derivado de `device.traccar_device_id`; `failed` entra com o job automático do F1, T-024), IMEI completo só aqui; todo `Device` traz `ingestProbe {lastQuarantinedAt, lastError, quarantined24h}` de `app.device_ingest_probe` ([11 §10](11-onboarding-e-migracao.md#10-modelo-de-dados-tipo-c-f1); acréscimo aditivo da T-007) · `{status, firmware, simIccid}` + `If-Match` | — |
 | `GET /api/v1/sim-cards` · `POST` | `device.read` · `device.write` | `?q&cursor&limit` · `{iccid, msisdn?, apn?}` → 201; 409 `SIM_ALREADY_REGISTERED` | opcional |
 | `POST /api/v1/device-assignments` | `assignment.write` | `{vehicleId, deviceId, cutPoint, isPrimary, notes?}` com `cutPoint` obrigatório (`fuel_pump`, `ignition`, `starter` ou `null` explícito = sem bloqueio, INV-10) → 201; 409 `ASSIGNMENT_OVERLAP` | opcional |
-| `POST /api/v1/device-assignments/{assignmentId}/close` | `assignment.write` | `{reason, deviceStatus?}` → 200 `{validTo}` (corte não retroativo, [04 §9.1](04-dominio-e-dados.md)); `deviceStatus` opcional `stock` (padrão) ou `maintenance` define o status do rastreador devolvido (C06, [10 §9](10-apps-e-ux.md); acréscimo aditivo da T-007) | — |
-| `POST /api/v1/vehicles/{vehicleId}/transfer` | `vehicle.write` + `assignment.write` (só equipe) | `{toTenantId, reason}` → 201 `{vehicle, transferredAt}` (`vehicle` = V1' do novo titular) + `Location`; transferência sem mover histórico de [04 §9.1](04-dominio-e-dados.md) (REQ-DAD-018); veículo ou cliente fora do escopo → 404; veículo arquivado ou cliente `closed` → 409 `CONFLICT`; mesmo cliente → 422 `same_tenant` (acréscimo aditivo da T-007) | — |
+| `POST /api/v1/device-assignments/{assignmentId}/close` | `assignment.write` | `{reason, deviceStatus?}` → 200 `{validTo}` (corte não retroativo, [04 §9.1](04-dominio-e-dados.md#91-transferência-sem-mover-histórico-inv-06)); `deviceStatus` opcional `stock` (padrão) ou `maintenance` define o status do rastreador devolvido (C06, [10 §9](10-apps-e-ux.md#9-console--telas); acréscimo aditivo da T-007) | — |
+| `POST /api/v1/vehicles/{vehicleId}/transfer` | `vehicle.write` + `assignment.write` (só equipe) | `{toTenantId, reason}` → 201 `{vehicle, transferredAt}` (`vehicle` = V1' do novo titular) + `Location`; transferência sem mover histórico de [04 §9.1](04-dominio-e-dados.md#91-transferência-sem-mover-histórico-inv-06) (REQ-DAD-018); veículo ou cliente fora do escopo → 404; veículo arquivado ou cliente `closed` → 409 `CONFLICT`; mesmo cliente → 422 `same_tenant` (acréscimo aditivo da T-007) | — |
 | `GET /api/v1/capability-profiles` | equipe da operadora | → coleção `{id, model, firmwareRange, protocol, version, status, capabilities}` | — |
-| `GET /api/v1/operator/brand` · `PUT` | sessão · `brand.manage` | → 200 + `ETag`, `If-None-Match` igual → 304 sem corpo (T-009; `GET /api/v1/me` traz o mesmo `brand`) · `{displayName, logoUrl, primaryColor, secondaryColor, supportWhatsapp, supportPhone}` + `If-Match`. O `PUT` serve à tela Marca (C13, F1); no F0 a marca é gravada pelo script `seed:brand` ([10 §4](10-apps-e-ux.md)) | — |
-| `GET /api/v1/stream` | `telemetry.live` | SSE ([07 §11](07-alertas-e-tempo-real.md)) | — |
-| `GET /api/v1/alerts` · `POST /api/v1/alerts/{alertId}/acknowledge` | `alert.read` · `alert.ack` | [07 §9](07-alertas-e-tempo-real.md) | — |
+| `GET /api/v1/operator/brand` · `PUT` | sessão · `brand.manage` | → 200 + `ETag`, `If-None-Match` igual → 304 sem corpo (T-009; `GET /api/v1/me` traz o mesmo `brand`) · `{displayName, logoUrl, primaryColor, secondaryColor, supportWhatsapp, supportPhone}` + `If-Match`. O `PUT` serve à tela Marca (C13, F1); no F0 a marca é gravada pelo script `seed:brand` ([10 §4](10-apps-e-ux.md#4-marca-dinâmica)) | — |
+| `GET /api/v1/stream` | `telemetry.live` | SSE ([07 §11](07-alertas-e-tempo-real.md#11-tempo-real-get-apiv1stream-sse)) | — |
+| `GET /api/v1/alerts` · `POST /api/v1/alerts/{alertId}/acknowledge` | `alert.read` · `alert.ack` | [07 §9](07-alertas-e-tempo-real.md#9-fila-de-alertas-no-console-da-central) | — |
 | `GET /api/v1/alerts/{alertId}` | `alert.read` | Detalhe do alerta para a A05: item de `GET /api/v1/alerts` + `title`, `body` (`renderAlertText` da abertura) e `lastLocation` (`{latitude, longitude}` ou `null`); fora do escopo → 404 idêntico (REQ-API-008) (acréscimo aditivo da T-012) | — |
-| `POST` · `DELETE /api/v1/vehicles/{vehicleId}/watch-mode` | `watch_mode.manage` | [07 §5](07-alertas-e-tempo-real.md) | — |
+| `POST` · `DELETE /api/v1/vehicles/{vehicleId}/watch-mode` | `watch_mode.manage` | [07 §5](07-alertas-e-tempo-real.md#5-modo-vigilância-cerca-âncora) | — |
 | `GET /api/v1/vehicles/{vehicleId}/watch-mode` | `vehicle.read` | → 200 `{"active": true, "watchModeId", "anchor": {latitude, longitude}, "radiusM", "activatedAt"}` ou `{"active": false}`; fora do escopo → 404 (acréscimo aditivo da T-012, para a A06) | — |
-| `GET` · `PUT /api/v1/me/alert-preferences`; `PUT` · `DELETE /api/v1/me/push-tokens` | sessão | [07 §7–8](07-alertas-e-tempo-real.md) | — |
+| `GET` · `PUT /api/v1/me/alert-preferences`; `PUT` · `DELETE /api/v1/me/push-tokens` | sessão | [07 §7–8](07-alertas-e-tempo-real.md#7-entrega-push-fcm) | — |
 | `GET /health/live` · `/health/ready` | público | [03 REQ-ARQ-005](03-arquitetura.md) | — |
 
 ## 7. Rotas do F1 e do F2 (resumo)
 
 | Grupo | Rotas | Fase | Regras |
 |---|---|---|---|
-| Comandos | `GET /api/v1/vehicles/{id}/command-availability` · `POST /api/v1/vehicles/{id}/commands/challenges` (201) · `POST /api/v1/vehicles/{id}/commands` (202, idem.) · `POST /api/v1/vehicles/{id}/commands/contingency` (201, idem.) · `GET /api/v1/vehicles/{id}/commands` · `GET /api/v1/commands/{commandId}` · `POST /api/v1/commands/{commandId}/cancel` | F1 | [06 §14](06-comandos-e-bloqueio.md), [08 §6](08-identidade-e-seguranca.md), §9.2 |
-| Step-up e sessões | `POST /api/v1/me/step-up` (204) · `POST /api/v1/device-keys` (201) · `GET /api/v1/me/device-keys` · `DELETE /api/v1/device-keys/{id}` · `POST /api/v1/users/{userId}/revoke-sessions` (204) | F1 | [08 §6](08-identidade-e-seguranca.md) |
-| Política e termo | `GET` · `POST /api/v1/command-policies` (201 nova `version`, step-up de console) · `POST /api/v1/tenants/{tenantId}/block-terms` (201) | F1 | [06 §3.3, §12](06-comandos-e-bloqueio.md) |
-| Links | `POST /api/v1/share-links` (201, idem.) · `GET /api/v1/share-links?vehicleId=` · `DELETE /api/v1/share-links/{id}` · `POST /api/v1/public/share-sessions` · `GET /api/v1/public/share-sessions/current` · `GET /api/v1/public/stream` | F1 | [08 §7](08-identidade-e-seguranca.md) |
+| Comandos | `GET /api/v1/vehicles/{id}/command-availability` · `POST /api/v1/vehicles/{id}/commands/challenges` (201) · `POST /api/v1/vehicles/{id}/commands` (202, idem.) · `POST /api/v1/vehicles/{id}/commands/contingency` (201, idem.) · `GET /api/v1/vehicles/{id}/commands` · `GET /api/v1/commands/{commandId}` · `POST /api/v1/commands/{commandId}/cancel` | F1 | [06 §14](06-comandos-e-bloqueio.md#14-contratos), [08 §6](08-identidade-e-seguranca.md#6-step-up-de-comando), §9.2 |
+| Ativação por código | `POST /api/v1/tenants/{tenantId}/activation-codes` (201, idem.) · `POST /api/v1/activation-codes/redeem` (200, público; login por CPF: [08 §2](08-identidade-e-seguranca.md#2-autenticação-better-auth) item 6) | F1 | [08 §2](08-identidade-e-seguranca.md#2-autenticação-better-auth) |
+| Step-up e sessões | `POST /api/v1/me/step-up` (204) · `POST /api/v1/device-keys` (201) · `GET /api/v1/me/device-keys` · `DELETE /api/v1/device-keys/{id}` · `POST /api/v1/device-keys/not-me` (público; token do e-mail; 5 tentativas/15 min por IP; evento `security.device_key_registered.v1`) · `POST /api/v1/users/{userId}/revoke-sessions` (204) | F1 | [08 §6](08-identidade-e-seguranca.md#6-step-up-de-comando) |
+| Política e termo | `GET` · `POST /api/v1/command-policies` (201 nova `version`, step-up de console) · `POST /api/v1/tenants/{tenantId}/block-terms` (201) | F1 | [06 §3.3, §12](06-comandos-e-bloqueio.md#33-política-da-operadora-command_policy) |
+| Links | `POST /api/v1/share-links` (201, idem.) · `GET /api/v1/share-links?vehicleId=` · `DELETE /api/v1/share-links/{id}` · `POST /api/v1/public/share-sessions` · `GET /api/v1/public/share-sessions/current` · `GET /api/v1/public/stream` | F1 | [08 §7](08-identidade-e-seguranca.md#7-links-temporários-f1) |
 | Ocorrência | `POST /api/v1/vehicles/{id}/occurrences` · `GET` · `PATCH /api/v1/occurrences/{id}` · `POST /api/v1/occurrences/{id}/close` | F1 | [06](06-comandos-e-bloqueio.md) |
 | Exportação | `POST /api/v1/exports` (202, idem.) · `GET /api/v1/exports/{id}` · `GET /api/v1/exports/{id}/download` | F1 | §9.4 |
-| Conformidade | `GET /api/v1/audit-log` · `POST` · `GET` · `DELETE /api/v1/support-grants` · `POST /api/v1/legal-holds` · `POST /api/v1/legal-holds/{id}/release` · `POST /api/v1/evidence-packages` (202, idem.) · `GET /api/v1/evidence-packages/{id}/download` · `POST /api/v1/me/data-exports` (202, idem.) · `POST` · `DELETE /api/v1/me/consents` | F1 | [08 §11](08-identidade-e-seguranca.md) |
+| Conformidade | `GET /api/v1/audit-log` · `POST` · `GET` · `DELETE /api/v1/support-grants` · `POST /api/v1/legal-holds` · `POST /api/v1/legal-holds/{id}/release` · `POST /api/v1/evidence-packages` (202, idem.) · `GET /api/v1/evidence-packages/{id}/download` · `POST /api/v1/me/data-exports` (202, idem.) · `POST` · `DELETE /api/v1/me/consents` | F1 | [08 §11](08-identidade-e-seguranca.md#11-lgpd-técnica-marco-civil-auditoria-e-autoridades) |
 | Cobrança | `GET` · `PUT /api/v1/billing/account` · `GET /api/v1/invoices` · `GET /api/v1/invoices/{id}` (com `pixPayload`) · `GET /api/v1/platform-fees` | F1 | [12](12-cobranca-e-svas.md) |
 | Atendimento e SVA | `GET` · `POST /api/v1/tickets` · `PATCH /api/v1/tickets/{id}` · `GET /api/v1/partners` · `POST /api/v1/referrals` | F1 | [10](10-apps-e-ux.md), [12](12-cobranca-e-svas.md) |
 | Onboarding | `POST /api/v1/imports` (multipart, idem.) · `GET /api/v1/imports/{id}` · `POST /api/v1/imports/{id}/commit` · `POST /api/v1/migration-waves` · `GET /api/v1/migration-waves/{id}` · `POST /api/v1/migration-waves/{id}/rollback` | F1 | [11](11-onboarding-e-migracao.md) |
 | Cercas | `GET` · `POST /api/v1/vehicles/{id}/geofences` · `PATCH` · `DELETE /api/v1/geofences/{id}` | F1 | [07](07-alertas-e-tempo-real.md) |
-| F2 | Portal do parceiro `/api/v1/partner/*` · onboarding `/api/v1/platform/operators` · diagnóstico `GET /api/v1/sim-cards/{id}/diagnostics` · agente de suporte `POST /api/v1/support-agent/messages` | F2 | [11](11-onboarding-e-migracao.md), [12](12-cobranca-e-svas.md), [08 §12](08-identidade-e-seguranca.md) |
+| F2 | Portal do parceiro `/api/v1/partner/*` · onboarding `/api/v1/platform/operators` · diagnóstico `GET /api/v1/sim-cards/{id}/diagnostics` · agente de suporte `POST /api/v1/support-agent/messages` | F2 | [11](11-onboarding-e-migracao.md), [12](12-cobranca-e-svas.md), [08 §12](08-identidade-e-seguranca.md#12-agentes-de-ia-inv-07-inv-11) |
 
 ## 8. Rotas internas e webhook
 
 | Rota | Autenticação | Contrato | Dono |
 |---|---|---|---|
-| `POST /internal/v1/traccar/positions` · `/events` | `X-Ingest-Token`, só porta 3001 | 202 `{result, inboxId}`; erros `INGEST_*`; corpo ≤ 256 KiB; prazo 5 s | [05 §3](05-ingestao-e-telemetria.md) |
-| `POST /api/v1/webhooks/asaas/{operatorId}` | Header `asaas-access-token` [VALIDAR — tarefa de cobrança] contra o SHA-256 da operadora do caminho | Corpo ≤ 256 KiB; 200 `{"result": "processed" \| "duplicate" \| "ignored"}` após o commit; 401 `WEBHOOK_UNAUTHORIZED`; sem sessão, sem CORS; dedupe pelo id do evento; nunca aciona comando (INV-09) | [12](12-cobranca-e-svas.md), [08 §8](08-identidade-e-seguranca.md) |
+| `POST /internal/v1/traccar/positions` · `/events` | `X-Ingest-Token`, só porta 3001 | 202 `{result, inboxId}`; erros `INGEST_*`; corpo ≤ 256 KiB; prazo 5 s | [05 §3](05-ingestao-e-telemetria.md#3-rotas-internas) |
+| `POST /api/v1/webhooks/asaas/{operatorId}` | Header `asaas-access-token` [VALIDAR — tarefa de cobrança] contra o SHA-256 da operadora do caminho | Corpo ≤ 256 KiB; 200 `{"result": "processed" \| "duplicate" \| "ignored"}` após o commit; 401 `WEBHOOK_UNAUTHORIZED`; sem sessão, sem CORS; dedupe pelo id do evento; nunca aciona comando (INV-09) | [12](12-cobranca-e-svas.md), [08 §8](08-identidade-e-seguranca.md#8-segredos) |
 
 Schemas das rotas internas ficam em `packages/contracts/src/internal/traccar.ts` e não entram no OpenAPI público.
 
@@ -232,10 +248,10 @@ Schemas das rotas internas ficam em `packages/contracts/src/internal/traccar.ts`
 
 ### 9.1 `GET /api/v1/vehicles?limit=2` (`agente.alfa`)
 
-`state` é exatamente o schema do evento SSE `vehicle.state` ([07 §11](07-alertas-e-tempo-real.md)); `stateAge` é calculado contra `serverTime` e o cliente recalcula a cada 10 s; `availableActions` explica por que uma ação está indisponível.
+`state` é exatamente o schema do evento SSE `vehicle.state` ([07 §11](07-alertas-e-tempo-real.md#11-tempo-real-get-apiv1stream-sse)); `stateAge` é calculado contra `serverTime` e o cliente recalcula a cada 10 s; `availableActions` explica por que uma ação está indisponível.
 
 Acréscimos aditivos adotados na v2.0 (T-008):
-- `presenceThresholds: {delayedAfterS, offlineAfterS, lostMovingAfterS}` em cada item, do perfil efetivo do dispositivo primário (`stopped_interval_s + 60`, `1800`, `max(180, 3 × moving_interval_s)`; perfil ausente ou não legível → `{360, 1800, 180}`), usado pelo cliente para recalcular `presence` ([10 §5](10-apps-e-ux.md)).
+- `presenceThresholds: {delayedAfterS, offlineAfterS, lostMovingAfterS}` em cada item, do perfil efetivo do dispositivo primário (`stopped_interval_s + 60`, `1800`, `max(180, 3 × moving_interval_s)`; perfil ausente ou não legível → `{360, 1800, 180}`), usado pelo cliente para recalcular `presence` ([10 §5](10-apps-e-ux.md#5-estados-honestos)).
 - `availableActions.block.reason`/`unblock.reason` no F0 (nunca disponível), na ordem: `NO_PRIMARY_DEVICE` (veículo sem vínculo primário aberto) → `CUT_POINT_MISSING` → `PROFILE_NOT_HOMOLOGATED` → `COMMAND_DISPATCH_DISABLED`. `watchMode` vale `{available: false, active: false}` até a T-011 ligar o leitor real.
 - No escopo `tenant`, `app.device` (tipo C) não é legível: o titular recebe `primaryDevice.model`, `imeiLast4` e `profileStatus` nulos e os limiares padrão do J16 [VALIDAR — DEC-02]. Perfil diferente do J16 no escopo do cliente (F1) exige função `SECURITY DEFINER` ou visão de limiares, com revisão N0 e CAT-07 ([04](04-dominio-e-dados.md)).
 
@@ -281,7 +297,7 @@ Acréscimos aditivos adotados na v2.0 (T-008):
 
 ### 9.2 `POST /api/v1/vehicles/{vehicleId}/commands` (F1)
 
-Headers: `Authorization: Bearer <token>`, `Idempotency-Key: 0192a1b2-9a00-7000-8000-000000000101`, `Content-Type: application/json`, `X-App-Version: 1.3.0`. Corpo do app (step-up por chave do aparelho, [08 §6.3](08-identidade-e-seguranca.md)):
+Headers: `Authorization: Bearer <token>`, `Idempotency-Key: 0192a1b2-9a00-7000-8000-000000000101`, `Content-Type: application/json`, `X-App-Version: 1.3.0`. Corpo do app (step-up por chave do aparelho, [08 §6.3](08-identidade-e-seguranca.md#63-assinatura-e-verificação)):
 
 ```json
 {
@@ -291,7 +307,7 @@ Headers: `Authorization: Bearer <token>`, `Idempotency-Key: 0192a1b2-9a00-7000-8
 }
 ```
 
-Corpo do console (TOTP na sessão há ≤ 5 min): `{"type": "block", "reasonCode": "theft_suspected", "reason": "Cliente ligou às 21:00 relatando furto na garagem", "stepUp": {"kind": "console_totp"}}`. `reasonCode` vem do catálogo de [06 §6](06-comandos-e-bloqueio.md).
+Corpo do console (TOTP na sessão há ≤ 5 min): `{"type": "block", "reasonCode": "theft_suspected", "reason": "Cliente ligou às 21:00 relatando furto na garagem", "stepUp": {"kind": "console_totp"}}`. `reasonCode` vem do catálogo de [06 §6](06-comandos-e-bloqueio.md#6-modelo-de-dados).
 
 Resposta `202 Accepted`, `Location: /api/v1/commands/0192a1b2-0d00-7000-8000-00000000d001`, `ETag: "2"`. 202 significa pedido persistido, **não** veículo bloqueado. Repetição com a mesma chave: 202 com `Idempotent-Replayed: true`. O resultado chega por `GET /api/v1/commands/{id}`, push ([07](07-alertas-e-tempo-real.md)) e pelo evento SSE `command.state` (sem `id`; `data` = `{commandId, vehicleId, type, state, stateVersion, stateReason, at}`), enviado às conexões que têm o veículo no escopo; o cliente descarta `stateVersion` menor ou igual à exibida.
 
@@ -306,9 +322,11 @@ Resposta `202 Accepted`, `Location: /api/v1/commands/0192a1b2-0d00-7000-8000-000
 }
 ```
 
-Campos e prazos seguem [06 §14](06-comandos-e-bloqueio.md) (`expiresAt` = criação + `armed_ttl_s`); `evidence` resume `evidence_snapshot`.
+Campos e prazos seguem [06 §14](06-comandos-e-bloqueio.md#14-contratos) (`expiresAt` = criação + `armed_ttl_s`); `evidence` resume `evidence_snapshot`.
 
-### 9.3 Erro `TELEMETRY_STALE`
+### 9.3 Erro `TELEMETRY_STALE` (formato reservado)
+
+O exemplo abaixo fica como formato reservado; a v2.0 não o emite.
 
 ```json
 {
@@ -321,11 +339,11 @@ Campos e prazos seguem [06 §14](06-comandos-e-bloqueio.md) (`expiresAt` = cria�
 }
 ```
 
-Nenhuma linha em `command`; `audit_log` `command.request` `denied`. Com presença `online` ou `delayed`, a política de [06 §3](06-comandos-e-bloqueio.md) arma (`awaiting_evidence` ou `awaiting_on_demand_fix`) em vez de recusar. [ADOTADO NA v2.0: com presença `offline` (contato há mais de 1.800 s), o pedido de `block` é recusado na hora com 409 `TELEMETRY_STALE` em vez de ficar ARMED 5 min sem chance de evidência; `unblock` segue [06](06-comandos-e-bloqueio.md).]
+[AVALIADO E NÃO ADOTADO: T-018 — recusar na hora o `block` de rastreador `offline` (contato há mais de 1.800 s) com 409 `TELEMETRY_STALE`. O pedido segue [06 §3](06-comandos-e-bloqueio.md#3-política-de-bloqueio): fica ARMED e expira em `armed_ttl_s`. Reabrir se a operação mostrar muitos pedidos ARMED sem chance de evidência.]
 
 ### 9.4 `GET /api/v1/vehicles/{vehicleId}/history`
 
-Regras: `from` e `to` obrigatórios (RFC 3339, `to > from`); `to − from` ≤ 604.800 s (7 dias), senão 422 `HISTORY_RANGE_TOO_LARGE`; `from` ≥ agora − 90 dias, senão 422 `HISTORY_REQUIRES_EXPORT`; `to` no futuro é cortado em agora. Inclui as posições de todos os vínculos primários do veículo no período ([04 §7.3](04-dominio-e-dados.md)), em ordem de `fixTime`. Página: `limit` padrão 1.000, máximo 5.000 pontos (exceção à regra de coleção); cursor com o último `(fixTime, assignmentId)`. `flags` traz os nomes dos bits de [05 §4.1](05-ingestao-e-telemetria.md). `gaps`: `signal_lost_moving` quando o ponto anterior tem `speedKmh` ≥ 5 e o intervalo passa de 180 s; `no_data` quando o intervalo passa de 2.400 s [PREMISSA; intervalos do J16 — DEC-02]. Lacuna não é preenchida nem interpolada. `availableFrom` (acréscimo aditivo da T-008) = início do 1º vínculo primário do veículo visível no escopo, ou `null` sem vínculo; o app e o console usam o campo para "Histórico disponível a partir de {data}" (A04, C07).
+Regras: `from` e `to` obrigatórios (RFC 3339, `to > from`); `to − from` ≤ 604.800 s (7 dias), senão 422 `HISTORY_RANGE_TOO_LARGE`; `from` ≥ agora − 90 dias, senão 422 `HISTORY_REQUIRES_EXPORT`; `to` no futuro é cortado em agora. Inclui as posições de todos os vínculos primários do veículo no período ([04 §7.3](04-dominio-e-dados.md#73-índices-por-consulta-prevista)), em ordem de `fixTime`. Página: `limit` padrão 1.000, máximo 5.000 pontos (exceção à regra de coleção); cursor com o último `(fixTime, assignmentId)`. `flags` traz os nomes dos bits de [05 §4.1](05-ingestao-e-telemetria.md#41-flags-de-positionflags). `gaps`: `signal_lost_moving` quando o ponto anterior tem `speedKmh` ≥ 5 e o intervalo passa de 180 s; `no_data` quando o intervalo passa de 2.400 s [PREMISSA; intervalos do J16 — DEC-02]. Lacuna não é preenchida nem interpolada. `availableFrom` (acréscimo aditivo da T-008) = início do 1º vínculo primário do veículo visível no escopo, ou `null` sem vínculo; o app e o console usam o campo para "Histórico disponível a partir de {data}" (A04, C07).
 
 `GET /api/v1/vehicles/0192a1b2-0000-7000-8000-0000000000f1/history?from=2026-10-20T03:00:00Z&to=2026-10-21T03:00:00Z` (dia 20/10 em BRT):
 
@@ -350,7 +368,7 @@ Regras: `from` e `to` obrigatórios (RFC 3339, `to > from`); `to − from` ≤ 6
 }
 ```
 
-Período maior que 7 dias ou anterior aos 90 dias quentes: `POST /api/v1/exports` com `{"kind": "vehicle_history", "vehicleId": "…", "from": "2026-06-01T03:00:00Z", "to": "2026-07-01T03:00:00Z", "format": "csv"}` e `Idempotency-Key` → 202 `{id, status: "queued"}`; até 92 dias por exportação, dentro dos 12 meses retidos; o worker lê o quente (Postgres) e o frio (Parquet, [04 §8.3](04-dominio-e-dados.md)); o resultado traz SHA-256 e fica disponível por 7 dias em `GET /api/v1/exports/{id}/download`, que revalida a permissão.
+Período maior que 7 dias ou anterior aos 90 dias quentes: `POST /api/v1/exports` com `{"kind": "vehicle_history", "vehicleId": "…", "from": "2026-06-01T03:00:00Z", "to": "2026-07-01T03:00:00Z", "format": "csv"}` e `Idempotency-Key` → 202 `{id, status: "queued"}`; até 92 dias por exportação, dentro dos 12 meses retidos; o worker lê o quente (Postgres) e o frio (Parquet, [04 §8.3](04-dominio-e-dados.md#83-consulta-fria)); o resultado traz SHA-256 e fica disponível por 7 dias em `GET /api/v1/exports/{id}/download`, que revalida a permissão.
 
 ## 10. Evolução de schema
 
@@ -363,7 +381,7 @@ Período maior que 7 dias ou anterior aos 90 dias quentes: `POST /api/v1/exports
 
 ## 11. Requisitos
 
-Fixture dos CTs: a mesma de [08 §13](08-identidade-e-seguranca.md).
+Fixture dos CTs: a mesma de [08 §13](08-identidade-e-seguranca.md#13-requisitos).
 
 ### REQ-API-001 — Contrato único e registro de rotas
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** INV-12
@@ -433,11 +451,11 @@ Fixture dos CTs: a mesma de [08 §13](08-identidade-e-seguranca.md).
 ### REQ-API-014 — Criação de comando com resposta 202
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-08, INV-09, INV-10
 **Regra.** `POST /api/v1/vehicles/{id}/commands` DEVE responder 202 só após o commit, com `Location`, `ETag` e estado `READY` ou `ARMED`; recusa síncrona DEVE responder com o `code` do §3 sem criar linha em `command`. O app NÃO DEVE enfileirar comando offline.
-**Aceite.** CT-API-014 — Dado V1 com perfil homologado, `cut_point = "fuel_pump"`, fix válido de 9 s a 23,5 km/h e step-up válido, Quando o comando é enviado, Então 202 com `Location: /api/v1/commands/{id}`, `ETag: "2"`, `state = "READY"` e `command_event` de `REQUESTED` para `READY`; Dado V3 com `cut_point` NULL, Então 422 `CUT_POINT_MISSING`, 0 linhas novas em `command` e 1 `audit_log` `denied`; Dado perfil `draft` fora da operadora de bancada, Então 422 `PROFILE_NOT_HOMOLOGATED`; Dado `block` ARMED em V1, Quando chega outro `block`, Então 409 `COMMAND_ALREADY_ACTIVE` com `activeCommandId`.
+**Aceite.** CT-API-014 — Dado V1 com perfil homologado, `cut_point = "fuel_pump"`, fix válido de 9 s a 23,5 km/h e step-up válido, Quando o comando é enviado, Então 202 com `Location: /api/v1/commands/{id}`, `ETag: "2"`, `state = "READY"` e `command_event` de `REQUESTED` para `READY`; Dado V3 com `cut_point` NULL, Então 422 `CUT_POINT_MISSING`, 0 linhas novas em `command` e 1 `audit_log` `denied`; Dado perfil `draft` fora da operadora de bancada, Então 422 `PROFILE_NOT_HOMOLOGATED`; Dado `block` ARMED em V1, Quando chega outro `block`, Então 409 `COMMAND_ALREADY_ACTIVE` com `activeCommandId`; Dado chave de aparelho cadastrada há 1 h, Quando chega `block` com step-up válido, Então 422 `COMMAND_NOT_ALLOWED` com `reason = device_key_cooldown` e 0 linhas em `command`.
 
 ### REQ-API-015 — Contratos internos validados pelas capturas reais
 **Fase:** F0 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** INV-01
-**Regra.** Os schemas de `packages/contracts/src/internal/traccar.ts` DEVEM aceitar todas as capturas reais do J16 em `packages/testkit` e recusar envelopes fora do contrato de [05 §3](05-ingestao-e-telemetria.md).
+**Regra.** Os schemas de `packages/contracts/src/internal/traccar.ts` DEVEM aceitar todas as capturas reais do J16 em `packages/testkit` e recusar envelopes fora do contrato de [05 §3](05-ingestao-e-telemetria.md#3-rotas-internas).
 **Aceite.** CT-API-015 — Dado as capturas `packages/testkit/fixtures/j16/*.json` da T-002, Quando o teste de contrato roda, Então 100% são aceitas por `TraccarPositionEnvelope` ou `TraccarEventEnvelope`; Dado uma captura sem `position.deviceId`, Quando enviada a `/internal/v1/traccar/positions`, Então 400 `INGEST_INVALID_ENVELOPE`.
 
 ### REQ-API-016 — Versão mínima do app

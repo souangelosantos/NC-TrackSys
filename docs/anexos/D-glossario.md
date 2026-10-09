@@ -17,10 +17,12 @@
 | **Bomba de combustível** | Ponto de corte mais comum no Brasil (~80%). Corta o motor em movimento; permitido até o teto da operadora (40 km/h). `cut_point = 'fuel_pump'`. | [06](../spec/06-comandos-e-bloqueio.md) |
 | **CAT** | Regra do verificador de catálogo do banco (CAT-01 a CAT-07): RLS forçada, políticas, colunas de escopo, FK composta, papel da aplicação, tabelas append-only, funções privilegiadas. | [04](../spec/04-dominio-e-dados.md) |
 | **Cardápio de ações** | Lista fechada de ações que o agente SRE pode executar (reiniciar serviço, rotacionar logs, reprocessar fila, coletar diagnóstico, promover standby com pré-condições). | [ADR-010](../adr/ADR-010-operacao-assistida-por-ia.md) |
+| **Central** | Equipe de atendimento da operadora (`operator_agent`, `operator_admin`), que opera pelo console. Não confundir com Console, que é o aplicativo. | [10](../spec/10-apps-e-ux.md) |
 | **Chave do aparelho** | Par de chaves criado no chip seguro do celular (Secure Enclave/Android Keystore), liberado por biometria, que assina a intenção do comando. | [08](../spec/08-identidade-e-seguranca.md) |
 | **Chip M2M** | Chip de dados para máquinas. Na Lider: emnify multi-operadora, administrado pela Meta Telecom. Identificado pelo ICCID. | [11](../spec/11-onboarding-e-migracao.md) |
 | **Cliente (tenant)** | Cliente final da operadora (pessoa física ou jurídica), dono dos veículos e dos dados de rastreamento. `tenant`. | [04](../spec/04-dominio-e-dados.md) |
 | **Compactação de parado** | Regra que só grava posição parada se houver deslocamento > 50 m ou a cada 30 min; os demais sinais só atualizam o "visto por último". | [05](../spec/05-ingestao-e-telemetria.md) |
+| **Console** | App web React (`apps/console`) usado pela central e pela equipe de busca da operadora. Não confundir com Central, que é a equipe. | [10](../spec/10-apps-e-ux.md) |
 | **Controlador (LGPD)** | Quem decide sobre o tratamento de dados pessoais. No serviço principal, a operadora. | [Anexo B](B-juridico.md) |
 | **CT** | Teste de aceite (Dado / Quando / Então), ligado a um requisito. | [00](../spec/00-indice.md) |
 | **`cut_point`** | Ponto onde o relé de bloqueio foi instalado: `fuel_pump`, `ignition` ou `starter`. Sem registro, o bloqueio fica indisponível (INV-10). | [06](../spec/06-comandos-e-bloqueio.md) |
@@ -28,7 +30,7 @@
 | **Deep link** | Link que abre outro app já com contexto: WhatsApp da central com placa e posição, Google Maps/Waze até o veículo. Custo zero. | [10](../spec/10-apps-e-ux.md) |
 | **Design partner** | Operadora piloto que ajuda a construir o produto em troca de condições especiais (proposta para a Lider: adesão após o G1). | [Anexo A](A-comercial.md) |
 | **DoD / DoR** | Definition of Done / Definition of Ready: critérios para encerrar e para iniciar um cartão de tarefa. | [tasks/](../../tasks/README.md) |
-| **DPA** | Acordo de tratamento de dados entre a operadora (controladora) e a Versix (operadora de dados), com a lista de suboperadores. | [Anexo B](B-juridico.md) |
+| **DPA** | Acordo de tratamento de dados entre a operadora (controladora) e a Versix (operador, LGPD), com a lista de suboperadores. | [Anexo B](B-juridico.md) |
 | **DuckDB** | Motor de consulta analítica usado para ler o histórico frio em Parquet sob demanda. | [ADR-009](../adr/ADR-009-retencao-quente-frio.md) |
 | **Encarregado** | Pessoa responsável pelo canal com titulares e com a ANPD (LGPD). Na Versix, o fundador. | [Anexo B](B-juridico.md) |
 | **Equipe de busca** | Equipe da operadora que vai a campo recuperar veículo furtado. Usa a visão de ocorrência no celular. `search_team`. | [10](../spec/10-apps-e-ux.md) |
@@ -37,6 +39,7 @@
 | **FCM** | Firebase Cloud Messaging, serviço gratuito de push para Android e iOS. | [07](../spec/07-alertas-e-tempo-real.md) |
 | **Fencing** | Isolar a primária (parar a VM pela API da OCI) antes de promover a standby, para nunca haver dois primários. | [13](../spec/13-infra-e-operacao.md) |
 | **FK composta** | Chave estrangeira que inclui `operator_id` e `tenant_id`, tornando impossível ligar dados de clientes ou operadoras diferentes. | [04](../spec/04-dominio-e-dados.md) |
+| **Fix / `fix_time`** | Posição calculada pelo rastreador e o instante (UTC) em que o GPS a mediu, distinto de `received_at`. Define a que vínculo o fato pertence (INV-06). | [05](../spec/05-ingestao-e-telemetria.md) |
 | **G0, G-CMD, G1, G2** | Gates: saída do F0, liberação do bloqueio real, saída do F1, saída do F2. Cada item tem critério, medida e evidência. | [02](../spec/02-escopo-e-fases.md) |
 | **Heartbeat** | Sinal periódico do rastreador sem mudança relevante (ex.: parado a cada 300 s). | [05](../spec/05-ingestao-e-telemetria.md) |
 | **ICCID** | Número de série do chip. Fica em `sim_card.iccid`. | [04](../spec/04-dominio-e-dados.md) |
@@ -57,8 +60,9 @@
 | **Operador (LGPD)** | Quem trata dados em nome do controlador. No serviço principal, a Versix. | [Anexo B](B-juridico.md) |
 | **Operadora** | Empresa de rastreamento cliente da Versix (ex.: Lider Rastreamento). Raiz do isolamento. `operator`. | [01](../spec/01-visao-e-negocio.md) |
 | **Opção C** | Estratégia de distribuição: app único TrackSys com marca dinâmica agora; app dedicado por operadora depois, como opcional pago. | [ADR-007](../adr/ADR-007-app-unico-flutter-marca-dinamica.md) |
-| **Outbox** | Tabela `outbox` gravada na mesma transação do fato; publica eventos de domínio para o worker (alertas, tempo real). | [05](../spec/05-ingestao-e-telemetria.md) |
+| **Outbox** | Tabela `outbox` gravada na mesma transação do fato; o publicador da outbox (`outbox-publisher`, `runPublisherOnce`) publica eventos de domínio para o worker (alertas, tempo real). | [05](../spec/05-ingestao-e-telemetria.md) |
 | **Pacote de evidências** | PDF + CSV de um período/veículo com hash SHA-256, quem exportou e quando; usado em ocorrências e requisições de autoridades. | [08](../spec/08-identidade-e-seguranca.md) |
+| **Perfil de capacidades** | `capability_profile`: o que um modelo de rastreador faz, com valores `yes`, `no` ou `unknown` (INV-03), e a evidência de homologação. | [04](../spec/04-dominio-e-dados.md) |
 | **Parquet** | Formato colunar compactado usado para o histórico frio (posições com mais de 90 dias). | [ADR-009](../adr/ADR-009-retencao-quente-frio.md) |
 | **Pay As You Go** | Tipo de conta da Oracle que mantém os recursos Always Free sem custo e reduz o risco de recuperação de instância ociosa. | [ADR-005](../adr/ADR-005-infra-oracle-always-free.md) |
 | **Piloto Zero** | Fase F0: 5 a 10 veículos reais da Lider com rastreamento apenas, até 31/10/2026. | [02](../spec/02-escopo-e-fases.md) |
@@ -66,6 +70,7 @@
 | **`platform_fee`** | Fechamento mensal da tarifa da Versix por operadora (veículos ativos × R$ 3,90), liquidada por split ou fatura. | [12](../spec/12-cobranca-e-svas.md) |
 | **Pós-chave (ignição)** | Ponto de corte na linha de ignição (~15%). Só pode atuar com o veículo parado. `cut_point = 'ignition'`. | [06](../spec/06-comandos-e-bloqueio.md) |
 | **Quarentena** | Mensagem legível que não pode ser projetada (sem vínculo, fora da janela de tempo, falhas repetidas). Não alimenta mapa, alertas nem comandos. | [05](../spec/05-ingestao-e-telemetria.md) |
+| **Relé / `relay_state`** | Relé de bloqueio instalado no veículo (hardware) e seu estado reportado (`capabilities.relay`, `relay_state`). O publicador da outbox nunca é chamado de relé. | [06](../spec/06-comandos-e-bloqueio.md) |
 | **Replay** | Reprocessamento de fatos já conhecidos. Preserva identidade e nunca gera efeito externo (INV-05). | [05](../spec/05-ingestao-e-telemetria.md) |
 | **REQ** | Requisito normativo com fase, prioridade, risco, invariantes e CT. | [00](../spec/00-indice.md) |
 | **`revision`** | Contador do estado atual de cada rastreador (`device_state.revision`). Só cresce; clientes descartam revisão menor (INV-04). | [05](../spec/05-ingestao-e-telemetria.md) |
@@ -80,5 +85,6 @@
 | **Testes congelados** | Testes de aceite em `tests/acceptance/T-NNN/`, escritos antes da implementação; um PR de implementação não pode alterá-los. | [14](../spec/14-qualidade-e-processo-ia.md) |
 | **Traccar** | Servidor open source que decodifica os protocolos dos rastreadores e envia comandos; é a borda de protocolos da TrackSys. | [ADR-003](../adr/ADR-003-traccar-borda-de-protocolos.md) |
 | **UNKNOWN** | Estado de comando com resultado indeterminado. Nunca dispara repetição automática de bloqueio (INV-08). | [06](../spec/06-comandos-e-bloqueio.md) |
+| **Vínculo** | `device_assignment`: período em que um rastreador pertence a um veículo e a um cliente; o fato pertence ao vínculo vigente no `fix_time` (INV-06). | [04](../spec/04-dominio-e-dados.md) |
 | **WAL** | Log de escrita do PostgreSQL, arquivado continuamente (WAL-G) para backup e réplica. | [13](../spec/13-infra-e-operacao.md) |
 | **WNRO** | Bug de "virada da semana GPS" em rastreadores baratos: datas ~19,6 anos no passado. Barrado pela janela de tempo aceita. | [05](../spec/05-ingestao-e-telemetria.md) |

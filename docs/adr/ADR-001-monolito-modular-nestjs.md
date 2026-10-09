@@ -12,10 +12,10 @@
 
 ## Decisão
 
-1. Um repositório pnpm com a estrutura canônica de [03 §12](../spec/03-arquitetura.md) e um monólito modular NestJS 11 (adaptador Fastify) com dois entrypoints:
+1. Um repositório pnpm com a estrutura canônica de [03 §12](../spec/03-arquitetura.md#12-monorepo-e-regras-de-dependência) e um monólito modular NestJS 11 (adaptador Fastify) com dois entrypoints:
    - `apps/api`: duas aplicações Nest no mesmo processo. A pública escuta em 3000 (via Caddy) e carrega todos os módulos de requisição; a interna escuta em 3001 (só rede Docker) e carrega só o módulo `ingestion` com as rotas `/internal/v1`.
    - `apps/worker`: `NestFactory.createApplicationContext` (sem HTTP de negócio) mais servidor mínimo de health na 3002; consome as filas pg-boss.
-2. Módulos por contexto, cada um dono das suas tabelas ([03 §4](../spec/03-arquitetura.md)). Um módulo expõe um serviço público; os outros não escrevem nas tabelas dele.
+2. Módulos por contexto, cada um dono das suas tabelas ([03 §4](../spec/03-arquitetura.md#4-módulos-do-monólito-e-donos-de-tabelas)). Um módulo expõe um serviço público; os outros não escrevem nas tabelas dele.
 3. Lógica pura em `packages/domain`; acesso a dados compartilhado (repositórios Kysely, aplicador de projeção, outbox, auditoria) em `packages/db`; contratos em `packages/contracts`. `apps/api` e `apps/worker` nunca importam um ao outro.
 4. Os dois processos são construídos do mesmo commit e tag (`TRACKSYS_VERSION`) e sempre implantados juntos por `infra/scripts/deploy.sh`.
 5. F0–F2: uma instância de cada processo. Mais de um `worker` funciona sem mudança (pg-boss usa `SKIP LOCKED`); mais de um `api` funciona porque cada processo mantém seu próprio LISTEN.
@@ -34,7 +34,7 @@
 **Positivas**
 - Uma build, um deploy, uma versão, um rollback.
 - Chamada entre módulos é chamada de função com transação compartilhada: outbox e auditoria entram no mesmo commit.
-- Dois processos de 1 GB cabem no orçamento de RAM ([03 §11](../spec/03-arquitetura.md)).
+- Dois processos de 1 GB cabem no orçamento de RAM ([03 §11](../spec/03-arquitetura.md#11-orçamento-de-recursos-vm-de-12-gb-2-ocpu-ampere)).
 - Agentes repetem um padrão só: módulo NestJS + Kysely + Zod.
 - Rotas internas em listener próprio já preparam uma extração futura da ingestão.
 

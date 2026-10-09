@@ -8,12 +8,34 @@
 > - SVA por indicação vira linha de receita, com consentimento por parceiro e transparência. M1 e M5 da v1.1 são reaproveitados para revisões e custos PF no F2.
 > - Colisão deixa de ser "detecção" e vira "alerta de possível impacto", só com hardware homologado e sem socorro automático.
 
+**Nesta página**
+
+- [1. Princípios](#1-princípios)
+- [2. Onde fica o código](#2-onde-fica-o-código)
+- [3. Dados (acréscimos a [04 §6](04-dominio-e-dados.md#6-tabelas-do-f1-em-diante-resumo))](#3-dados-acréscimos-a-04-6)
+- [4. Vínculo da conta Asaas (F1)](#4-vínculo-da-conta-asaas-f1)
+- [5. Sincronização (F1)](#5-sincronização-f1)
+- [6. Webhook (F1)](#6-webhook-f1)
+- [7. Reconciliação diária](#7-reconciliação-diária)
+- [8. Inadimplência e status comercial](#8-inadimplência-e-status-comercial)
+- [9. PIX no app (F1)](#9-pix-no-app-f1)
+- [10. Split e fechamento mensal](#10-split-e-fechamento-mensal)
+- [11. NFS-e opcional (F1, P2)](#11-nfs-e-opcional-f1-p2)
+- [12. Spike Asaas (1º dia da tarefa de cobrança, sandbox)](#12-spike-asaas-1º-dia-da-tarefa-de-cobrança-sandbox)
+- [13. SVA: catálogo por fase](#13-sva-catálogo-por-fase)
+- [14. Parceiros e repartição](#14-parceiros-e-repartição)
+- [15. Motor de indicações](#15-motor-de-indicações)
+- [16. Consentimento e transparência](#16-consentimento-e-transparência)
+- [17. SVAs do F2 e do F3](#17-svas-do-f2-e-do-f3)
+- [18. Requisitos — Cobrança](#18-requisitos--cobrança)
+- [19. Requisitos — SVA](#19-requisitos--sva)
+
 ## 1. Princípios
 
 1. **Integrar, não migrar.** A cobrança continua na conta Asaas da operadora. A TrackSys lê clientes, assinaturas e cobranças. No Asaas, ela só escreve três coisas: o registro do webhook, o split da Versix e, sob demanda, o cadastro de cliente. Ela nunca cria, altera valor, cancela nem estorna cobrança.
-2. **A Versix não cobra o cliente final** ([01 §5](01-visao-e-negocio.md)). O split é o meio de a operadora pagar a tarifa. A conta oficial é o fechamento mensal (§10.2).
+2. **A Versix não cobra o cliente final** ([01 §5](01-visao-e-negocio.md#5-modelo-de-receita)). O split é o meio de a operadora pagar a tarifa. A conta oficial é o fechamento mensal (§10.2).
 3. **Comercial não aciona físico (INV-09).** `billing` não importa `commands` e `commands` não importa `billing` (`pnpm check:boundaries`, [06](06-comandos-e-bloqueio.md)).
-4. **IA sem poder financeiro (INV-11).** Nenhuma rota que escreve em cobrança, split, tarifa, parceiro, indicação ou consentimento tem `aiTool: true`. Sessão de suporte é READ ONLY ([08 §12](08-identidade-e-seguranca.md)).
+4. **IA sem poder financeiro (INV-11).** Nenhuma rota que escreve em cobrança, split, tarifa, parceiro, indicação ou consentimento tem `aiTool: true`. Sessão de suporte é READ ONLY ([08 §12](08-identidade-e-seguranca.md#12-agentes-de-ia-inv-07-inv-11)).
 5. **Dinheiro em centavos (INV-12).** No banco, `bigint` com sufixo `_cents`; na API, `valueCents` inteiro. A conversão para reais existe só em `apps/worker/src/billing/asaas/money.ts`.
 6. **Indicação só por ação humana (INV-05).** Nenhum job, consumidor de evento, replay, importação ou agente cria `referral`.
 
@@ -29,18 +51,18 @@
 | Migrations | `packages/db/migrations/*_billing_*.sql`, `*_sva_*.sql` |
 | Fakes | `packages/testkit/src/fakes/asaas/`: servidor HTTP que grava requisições, responde por roteiro e dispara webhooks com token. `fakes/partner/` no F2 |
 
-## 3. Dados (acréscimos a [04 §6](04-dominio-e-dados.md))
+## 3. Dados (acréscimos a [04 §6](04-dominio-e-dados.md#6-tabelas-do-f1-em-diante-resumo))
 
 | Tabela | Tipo RLS | Acrescenta ao modelo canônico |
 |---|---|---|
-| `billing_account` | C + G | `environment` (`sandbox`, `production`); `status` em `pending_verification`, `active`, `error`, `disabled`; `webhook_secret_ref` = SHA-256 hex (64 caracteres) do token; `provider_webhook_id`; `suspend_after_days` smallint, padrão 15, faixa 0–90, 0 = sem suspensão automática [PREMISSA]; `split_enabled` (padrão `false`); `nfse_enabled` (padrão `false`); `notify_push` (padrão `true`); `last_error`, `verified_at`, `updated_at`. `api_key_ref` aponta para `app.operator_secret` ([08 §8](08-identidade-e-seguranca.md)) |
+| `billing_account` | C + G | `environment` (`sandbox`, `production`); `status` em `pending_verification`, `active`, `error`, `disabled`; `webhook_secret_ref` = SHA-256 hex (64 caracteres) do token; `provider_webhook_id`; `suspend_after_days` smallint, padrão 15, faixa 0–90, 0 = sem suspensão automática [PREMISSA]; `split_enabled` (padrão `false`); `nfse_enabled` (padrão `false`); `notify_push` (padrão `true`); `last_error`, `verified_at`, `updated_at`. `api_key_ref` aponta para `app.operator_secret` ([08 §8](08-identidade-e-seguranca.md#8-segredos)) |
 | `billing_customer` | B | `UNIQUE (operator_id, provider_customer_id)`; `linked_by` (`sync`, `operator`); `auto_suspended_at` NULL |
 | `billing_subscription` | B | Nova (DDL abaixo) |
 | `invoice` | B | Unicidade **por operadora**: `(operator_id, provider_payment_id)`, porque a mesma conta Asaas pode estar ligada à operadora de bancada. `billing_subscription_id` NULL; `competency` `YYYY-MM` (mês de `due_date`); `status` em `pending`, `overdue`, `paid`, `refunded`, `chargeback`, `cancelled`; `provider_status`; `billing_type`; `provider_event_at`; `invoice_url`; `bank_slip_url`; `pix_expires_at`; `split_cents` (padrão 0); `split_status` em `none`, `requested`, `confirmed`, `failed`, `reversed`, `not_applicable`; `split_confirmed_at`; `paid_outside_provider`; `nfse_url`; `reminded_due_soon_at`, `reminded_overdue_at`, `notified_paid_at`; `updated_at` |
 | `billing_event` | C | Nova (DDL abaixo) |
 | `platform_fee` | C | `UNIQUE (operator_id, period)`; `price_cents`; `fee_policy` (`charge`, `waive`); `active_vehicles_suspended`; `billable_vehicles`; `split_received_cents`; `waived_split_cents`; `referral_credit_cents`; `credit_in_cents`; `adjustment_cents`; `balance_cents`; `credit_out_cents`; `cutoff_at`; `detail` jsonb (por `tenantId`: veículos, cobráveis, dispensado); `versix_charge_ref`; `status` em `closed`, `invoiced`, `paid` |
 | `operator_price` | C | `suspended_fee_policy` (`charge`, `waive`): resultado da DEC-06. Padrão `charge` até a decisão [PREMISSA] |
-| `partner` | especial ([04 §6](04-dominio-e-dados.md)) | `terms` jsonb validado por Zod: `termsVersion`, `feeModel` (`fixed`/`percent`), `feeFixedCents`, `feeBps`, `operatorShareBps`; `benefit_text` (≤ 140 caracteres); `service_codes` text[]. F2: `webhook_url`, `webhook_secret_ref` |
+| `partner` | especial ([04 §6](04-dominio-e-dados.md#6-tabelas-do-f1-em-diante-resumo)) | `terms` jsonb validado por Zod: `termsVersion`, `feeModel` (`fixed`/`percent`), `feeFixedCents`, `feeBps`, `operatorShareBps`; `benefit_text` (≤ 140 caracteres); `service_codes` text[]. F2: `webhook_url`, `webhook_secret_ref` |
 | `operator_partner` (F2) | C | Nova: `operator_id`, `partner_id`, `enabled`, `updated_at`. Liga parceiro nacional ao app da operadora |
 | `referral` | A + gatilho | `code` (8 caracteres, base32 Crockford); `location_source` (`vehicle`, `phone`); `location_fix_at`; `contacted_at`, `converted_at`, `rejected_at`; `reject_reason` (`expired`, `partner_declined`, `customer_cancelled`, `fraud`, `other`); `fee_cents`, `operator_share_cents`, `versix_share_cents` (gravados na conversão); `transitioned_by` |
 | `consent` | A + gatilho | `purpose` em `block_terms`, `sva_referral`, `sva_partner_share`, `sva_maintenance`, `impact_alert`; índice único parcial `(tenant_id, user_id, purpose, coalesce(partner_id, '00000000-0000-0000-0000-000000000000'))` com `revoked_at IS NULL` |
@@ -89,7 +111,7 @@ AS $$ SELECT decode(b.webhook_secret_ref, 'hex') FROM app.billing_account b
        WHERE b.operator_id = p_operator_id AND b.status IN ('pending_verification', 'active') $$;
 ```
 
-`billing_account` ganha a política tipo G `billing_account_definer_read`. A retenção acrescenta dois tipos a `app.retention_purge` ([04 §4.4](04-dominio-e-dados.md)): `billing_event_payload` (zera `payload` com mais de 90 dias) e `referral_location` (zera `location_*` de indicação com mais de 90 dias). As linhas de `invoice`, `platform_fee`, `referral` e `consent` ficam 5 anos.
+`billing_account` ganha a política tipo G `billing_account_definer_read`. A retenção acrescenta dois tipos a `app.retention_purge` ([04 §4.4](04-dominio-e-dados.md#44-funções-security-definer-lista-fechada)): `billing_event_payload` (zera `payload` com mais de 90 dias) e `referral_location` (zera `location_*` de indicação com mais de 90 dias). As linhas de `invoice`, `platform_fee`, `referral` e `consent` ficam 5 anos.
 
 **Atenção a nomes.** No Asaas, "payment" é a cobrança e "invoice" é a nota fiscal (NFS-e). Na TrackSys, `invoice` é a cobrança (payment do Asaas).
 
@@ -142,7 +164,7 @@ Cadastro de cliente no Asaas (P2): `POST /api/v1/tenants/{tenantId}/billing-cust
 1. **Hook `onRequest`, antes de ler o corpo.**
    - `operatorId` deve ser uuid e o header `asaas-access-token` deve existir [VALIDAR — S-A2]. Senão, 401 `WEBHOOK_UNAUTHORIZED`.
    - O SHA-256 do header é comparado com `app.billing_webhook_token_hash(operatorId)` por `timingSafeEqual`. NULL ou diferente → 401 (operadora inexistente também recebe 401).
-   - Limite de 600 req/min por operadora ([08 §9](08-identidade-e-seguranca.md)).
+   - Limite de 600 req/min por operadora ([08 §9](08-identidade-e-seguranca.md#9-limites-cors-e-headers)).
 2. Corpo ≤ 256 KiB, validado por Zod tolerante (campos extras são ignorados): `{id, event, dateCreated?, payment?}`. O `payload` guarda só `id`, `customer`, `subscription`, `value`, `netValue`, `status`, `dueDate`, `paymentDate`, `confirmedDate`, `billingType`, `invoiceUrl`, `bankSlipUrl`, `deleted` e `split`.
 3. Transação `withContext({ scope: 'operator', operatorId })` com `statement_timeout` de 5 s: `INSERT billing_event ... ON CONFLICT (operator_id, source, provider_event_id) DO NOTHING`. Em conflito: COMMIT e 200 `{"result":"duplicate"}`.
 4. Os casos abaixo respondem 200 `ignored`:
@@ -200,11 +222,11 @@ Eventos assinados [VALIDAR — S-A3]: `PAYMENT_CREATED`, `PAYMENT_UPDATED`, `PAY
 - o console mostra o selo "Suspenso (comercial)";
 - a tarifa da Versix segue a DEC-06 (§10.2).
 
-`tenant_member` não vê faturas nem o banner ([08 §3](08-identidade-e-seguranca.md)).
+`tenant_member` não vê faturas nem o banner ([08 §3](08-identidade-e-seguranca.md#3-papéis-e-permissões)).
 
 **Lembretes (P2).**
 - `billing.reminders` envia "Sua fatura vence em 3 dias" (D−3) e "Sua fatura venceu. Toque para pagar com PIX." (D+1). O push "Pagamento confirmado" sai quando o webhook muda o status para `paid` com `replay: false`.
-- Push sem valor nem nome, canal Android `billing` (importância padrão), só ao `tenant_owner`. Usa o serviço de push de [07 §7](07-alertas-e-tempo-real.md).
+- Push sem valor nem nome, canal Android `billing` (importância padrão), só ao `tenant_owner`. Usa o serviço de push de [07 §7](07-alertas-e-tempo-real.md#7-entrega-push-fcm).
 - A deduplicação é por UPDATE condicional nas colunas `reminded_*`/`notified_paid_at` (`... WHERE reminded_due_soon_at IS NULL RETURNING id`).
 - `notify_push = false` desliga os três.
 
@@ -248,8 +270,10 @@ Cobrança avulsa (instalação, multa) e cobrança fora dessas condições ficam
 
 ```json
 PUT /v3/payments/pay_000010
-{ "split": [ { "walletId": "<ASAAS_VERSIX_WALLET_ID>", "fixedValue": 3.9, "externalReference": "tracksys:<invoiceId>" } ] }
+{ "split": [ { "walletId": "<ASAAS_VERSIX_WALLET_ID>", "fixedValue": 7.80, "externalReference": "tracksys:<invoiceId>" } ] }
 ```
+
+`fixedValue` é `split_cents / 100` (no exemplo, 7.80 para `N = 2` e `price_cents = 390`); nunca uma constante. A conversão de centavos para reais acontece só na fronteira do Asaas (INV-12).
 
 Antes do PUT, o job relê a cobrança. Se ela já tem split para a carteira da Versix, só grava o estado e não envia de novo. Sucesso grava `split_status = 'requested'`. O split é uma estimativa; a conta oficial é o fechamento.
 
@@ -269,7 +293,7 @@ Antes do PUT, o job relê a cobrança. Se ela já tem split para a carteira da V
 | `waived_split_cents` | Splits confirmados na janela de cobranças cuja competência C teve o cliente dispensado: em `platform_fee(C).detail` se C < P, ou neste fechamento se C = P. É receita da Versix e não abate saldo |
 | `referral_credit_cents` | Parte da operadora nas indicações convertidas em P (§15.4) |
 | `credit_in_cents` | `credit_out_cents` do período anterior |
-| `adjustment_cents` | Ajuste manual pela CLI `billing:adjust`, com motivo e `audit_log`. Nunca por IA (INV-11) |
+| `adjustment_cents` | Ajuste manual pela CLI `billing:adjust`, com motivo e `audit_log`. Motivos previstos: `overlap_waiver` (isenção da mensalidade por veículo migrado enquanto a operadora paga a plataforma anterior no aviso prévio, até 60 dias, DEC-10 [DECISÃO DO FUNDADOR PENDENTE]) e correção de fechamento. Nunca por IA (INV-11) |
 | `balance_cents` | `amount_cents − split_received_cents − referral_credit_cents − credit_in_cents + adjustment_cents` |
 | Liquidação | `balance_cents > 0` → `settled_via = 'invoice'`, `credit_out_cents = 0`, a Versix cobra `balance_cents` com vencimento no dia 10 de P+1. `balance_cents ≤ 0` → `settled_via = 'split'`, `credit_out_cents = −balance_cents` |
 
@@ -309,7 +333,7 @@ A operadora liga e desliga cada SVA no próprio app: parceiro local por `partner
 | Parceiro | Quem fecha | Quem paga a indicação | Parte da operadora | Situação |
 |---|---|---|---|---|
 | Nacional (`scope = 'platform'`) | Versix | Parceiro → Versix | Proposta 20–30% (`operatorShareBps` 2000–3000) | DEC-05. Parceiro nacional não sai de `draft` antes dela |
-| Local (`scope = 'operator'`) | Operadora | Parceiro → Versix | Proposta 50% (`operatorShareBps` 5000) | [DECISÃO DO FUNDADOR PENDENTE: ampliar a DEC-05 para cobrir a divisão de parceiro local, proposta 50%; [01 §5](01-visao-e-negocio.md) registra a alternativa de 70–80% para a operadora] |
+| Local (`scope = 'operator'`) | Operadora | Parceiro → Versix | Proposta 75% para quem fecha a parceria (`operatorShareBps` 7500) | [DECISÃO DO FUNDADOR PENDENTE: ampliar a DEC-05 para cobrir a divisão de parceiro local, recomendação 75% para a operadora; [01 §5](01-visao-e-negocio.md#5-modelo-de-receita) registra a alternativa de 70–80% para a operadora] |
 
 **Conta da repartição** (inteiros, `packages/domain/src/sva/fee.ts`):
 - `fee_cents = feeModel = 'fixed' ? feeFixedCents : floor(converted_value_cents × feeBps / 10000)`;
@@ -376,7 +400,7 @@ A operadora vê só a própria; o `platform_admin` vê o consolidado ([REQ-NEG-0
 
 | `purpose` | `partner_id` | Quem aceita | Texto | Fase | Sem aceite |
 |---|---|---|---|---|---|
-| `block_terms` | NULL | `tenant_owner` | `block-terms-v{N}/{kmh}kmh` ([06 §12](06-comandos-e-bloqueio.md)) | F1 | Bloqueio indisponível |
+| `block_terms` | NULL | `tenant_owner` | `block-terms-v{N}/{kmh}kmh` ([06 §12](06-comandos-e-bloqueio.md#12-termo-de-ciência-do-bloqueio)) | F1 | Bloqueio indisponível |
 | `sva_referral` | Obrigatório | Usuário que chama | `sva-referral-v{N}` | F1 | "Chamar sem registrar" |
 | `sva_partner_share` | Obrigatório | Usuário | `sva-partner-share-v{N}`: envio automático de dados ao parceiro por API | F2 | Só WhatsApp/telefone |
 | `sva_maintenance` | NULL | `tenant_owner` | `sva-maintenance-v{N}`: km para lembretes e oferta de oficinas | F2 | Sem lembretes |
@@ -421,7 +445,7 @@ Texto `sva-referral-v1` (modelo; revisão em DEC-08):
 - Estimativa de combustível = km / consumo (km/L) × preço por litro + pedágios. É exibida separada da despesa comprovada.
 
 **Alerta de possível impacto (F3).**
-- Só existe com perfil `homologated`, `accelerometer = "yes"` ([04 §3.3](04-dominio-e-dados.md)), alarme de impacto homologado [VALIDAR — nome do alarme no Traccar] e `impact_alert` aceito.
+- Só existe com perfil `homologated`, `accelerometer = "yes"` ([04 §3.3](04-dominio-e-dados.md#33-frota)), alarme de impacto homologado [VALIDAR — nome do alarme no Traccar] e `impact_alert` aceito.
 - Fluxo:
   1. Alerta `possible_impact` (critical).
   2. Push "Possível impacto detectado. Está tudo bem?". O app mostra "Estou bem" / "Preciso de ajuda" e uma contagem de 30 s a partir do envio.
@@ -431,7 +455,7 @@ Texto `sva-referral-v1` (modelo; revisão em DEC-08):
 
 ## 18. Requisitos — Cobrança
 
-Fixture de [08 §13](08-identidade-e-seguranca.md): operadoras Alfa (Lider) e Beta; clientes A1 (CPF 111.444.777-35) e A2 (CPF 529.982.247-25) da Alfa e B1 da Beta; usuários `admin.alfa`, `agente.alfa`, `dono.a1` e `admin.beta`; veículos V1 (TST1A23, de A1) e V3 (TST3C45, de A1); carteira Versix `7f1c0000-0000-4000-8000-00000000c0de`; preço `base` de 390 centavos.
+Fixture de [08 §13](08-identidade-e-seguranca.md#13-requisitos): operadoras Alfa (Lider) e Beta; clientes A1 (CPF 111.444.777-35) e A2 (CPF 529.982.247-25) da Alfa e B1 da Beta; usuários `admin.alfa`, `agente.alfa`, `dono.a1` e `admin.beta`; veículos V1 (TST1A23, de A1) e V3 (TST3C45, de A1); carteira Versix `7f1c0000-0000-4000-8000-00000000c0de`; preço `base` de 390 centavos.
 
 ### REQ-COB-001 — Asaas da operadora como fonte da cobrança
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N0 · **Invariantes:** INV-12
@@ -559,13 +583,13 @@ Parceiros dos CTs: `Guincho Lider` (local da Alfa, WhatsApp +5511999990000, `ter
 
 ### REQ-SVA-009 — Indicação só por ação humana
 **Fase:** F1 · **Prioridade:** P0 · **Risco:** N1 · **Invariantes:** INV-05, INV-11
-**Regra.** `referral` DEVE nascer só de `POST /api/v1/referrals` com sessão de usuário humano e `Idempotency-Key`. Replay, backfill, relay da outbox, lembrete de revisão, alerta de impacto e agentes de IA NÃO DEVEM criar indicação nem renotificar parceiro.
-**Aceite.** CT-SVA-009 — Dado 50 indicações e seus 50 `referral.created.v1`, Quando o relay republica a outbox e um backfill reprocessa 10.000 posições de V1, Então `referral` continua com 50 linhas e o fake de parceiro recebe 0 chamadas novas; e `POST /api/v1/referrals` com ator `ai_agent` responde 403.
+**Regra.** `referral` DEVE nascer só de `POST /api/v1/referrals` com sessão de usuário humano e `Idempotency-Key`. Replay, backfill, publicador da outbox, lembrete de revisão, alerta de impacto e agentes de IA NÃO DEVEM criar indicação nem renotificar parceiro.
+**Aceite.** CT-SVA-009 — Dado 50 indicações e seus 50 `referral.created.v1`, Quando o publicador da outbox republica a outbox e um backfill reprocessa 10.000 posições de V1, Então `referral` continua com 50 linhas e o fake de parceiro recebe 0 chamadas novas; e `POST /api/v1/referrals` com ator `ai_agent` responde 403.
 
 ### REQ-SVA-010 — Assistência 24h com parceiro integrado
 **Fase:** F2 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** INV-05, INV-07
 **Regra.** Com `sva_partner_share`, a indicação DEVE ser entregue 1 vez ao webhook do parceiro, assinada por HMAC-SHA256, sem CPF. A conversão PODE vir do portal do parceiro (§17).
-**Aceite.** CT-SVA-010 — Dado `Assist Brasil` com segredo `whsec_teste_0001` e o consentimento de `dono.a1`, Quando `dono.a1` pede `fuel` para V1, Então o fake do parceiro recebe 1 POST com assinatura válida e corpo com `code`, `service = "fuel"` e "TST1A23", sem `cpf`; reentrega pelo relay → 0 chamadas extras; sem consentimento → 0 chamadas; confirmação pelo portal com 25000 → `converted`.
+**Aceite.** CT-SVA-010 — Dado `Assist Brasil` com segredo `whsec_teste_0001` e o consentimento de `dono.a1`, Quando `dono.a1` pede `fuel` para V1, Então o fake do parceiro recebe 1 POST com assinatura válida e corpo com `code`, `service = "fuel"` e "TST1A23", sem `cpf`; reentrega pelo publicador da outbox → 0 chamadas extras; sem consentimento → 0 chamadas; confirmação pelo portal com 25000 → `converted`.
 
 ### REQ-SVA-011 — Revisões por km e tempo com odômetro GPS calibrado
 **Fase:** F2 · **Prioridade:** P1 · **Risco:** N1 · **Invariantes:** INV-01, INV-03, INV-05

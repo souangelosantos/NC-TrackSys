@@ -3,35 +3,36 @@
 | Campo | Valor |
 |---|---|
 | Fase | F1 (quinzena 01–15/11/2026) |
-| Requisitos | REQ-CMD-004, REQ-CMD-009, REQ-CMD-010, REQ-CMD-020, REQ-CMD-022, REQ-DAD-001, REQ-DAD-003, REQ-SEG-020, REQ-QLD-011 |
+| Requisitos | REQ-CMD-004, REQ-CMD-009, REQ-CMD-010, REQ-CMD-020, REQ-CMD-022, REQ-DAD-001, REQ-DAD-003, REQ-SEG-020, REQ-DAD-026, REQ-QLD-011 |
 | Invariantes | INV-06, INV-07, INV-08, INV-10, INV-12 |
-| Regras de catálogo | CAT-01 a CAT-07 (a CAT-07 já vem da T-005 ou da T-006; esta migration não cria função `SECURITY DEFINER`); ISO-01 a ISO-05 para cada tabela nova |
+| Regras de catálogo | CAT-01 a CAT-07 (a CAT-07 e as políticas `*_definer_read` vêm da T-004; esta migration cria uma função `SECURITY DEFINER`, `app.revoke_device_keys(uuid)`, e a acrescenta a `securityDefiner`); ISO-01 a ISO-05 para cada tabela nova |
 | Risco de revisão | N0 — migration, RLS, gatilhos e cifra; revisão adversarial de outro fornecedor + leitura humana linha a linha |
-| Depende de | T-005 (`app.tg_immutable_columns`, `device`, `device_assignment`, `outbox` e helper de outbox), T-006 (`auth."user"`, `membership`, `audit_log`), T-016 (pares de transição) |
+| Depende de | T-004 (`app.tg_immutable_columns`, CAT-07, `membership_definer_read`), T-005 (`device`, `device_assignment`, `outbox` e helper de outbox), T-006 (`auth."user"`, `membership`, `audit_log`, `withContext` com `userId` e `app.current_user_id()`), T-016 (pares de transição) |
 | Estimativa | 2 sessões de agente |
 | Bloqueado por decisão | Nenhuma (DEC-07 só define o valor gravado pela Lider; o CHECK 0–40 é da plataforma) |
 
 ## Objetivo
 
-Criar, numa única migration, as tabelas que o F1 de comandos precisa — `command_policy`, `occurrence`, `command`, `command_attempt`, `command_event`, `command_challenge`, `device_key`, `consent`, `operator_secret` — com RLS forçada, políticas por tipo, FK composta, gatilhos de máquina de estados e de imutabilidade, e grants mínimos. Entregar em `packages/db` os helpers transacionais de comando (transição condicional + `command_event` + outbox + NOTIFY) e a cifra AES-256-GCM dos segredos da operadora. Ao final, o banco recusa sozinho transição inválida, segundo comando de relé ativo, segunda ocorrência aberta, teto acima de 40 km/h e qualquer escrita fora do escopo.
+Criar, numa única migration, as tabelas que o F1 de comandos precisa — `command_policy`, `occurrence`, `command`, `command_attempt`, `command_event`, `command_challenge`, `device_key`, `consent`, `operator_secret` — com RLS forçada, políticas por tipo, FK composta, gatilhos de máquina de estados e de imutabilidade, e grants mínimos. Entregar em `packages/db` os helpers transacionais de comando (transição condicional + `command_event` + outbox + NOTIFY) e a cifra AES-256-GCM dos segredos da operadora. Ao final, o banco recusa sozinho transição inválida, segundo comando de relé ativo, segunda ocorrência aberta, teto acima de 40 km/h, chave de aparelho reativada ou escrita por outro usuário, `can_command` ligado por quem não é `tenant_owner` e qualquer escrita fora do escopo.
 
 ## Contexto obrigatório
 
-- [06 §3.3, §4.3, §5, §6, §11](../docs/spec/06-comandos-e-bloqueio.md) — DDL de referência, gatilho e regras.
-- [04 §1, §3.2, §3.4, §4.2, §4.3, §10](../docs/spec/04-dominio-e-dados.md) — convenções, imutabilidade, tipos A–G, migrations.
-- [08 §6.1, §6.2, §8 itens 4–5](../docs/spec/08-identidade-e-seguranca.md) — `device_key`, `command_challenge`, `operator_secret`.
-- [12 §3](../docs/spec/12-cobranca-e-svas.md) — `consent` e `tg_consent_guard`.
+- [06 §3.3, §4.3, §5, §6, §11](../docs/spec/06-comandos-e-bloqueio.md#33-política-da-operadora-command_policy) — DDL de referência, gatilho e regras.
+- [04 §1, §3.2, §3.4, §4.2, §4.3, §10](../docs/spec/04-dominio-e-dados.md#1-hierarquia-e-convenções) — convenções, imutabilidade, tipos A–G, migrations.
+- [08 §6.1, §6.2, §8 itens 4–5](../docs/spec/08-identidade-e-seguranca.md#61-chave-do-aparelho-cadastro-f1) — `device_key`, `command_challenge`, `operator_secret`.
+- [12 §3](../docs/spec/12-cobranca-e-svas.md#3-dados-acréscimos-a-04-6) — `consent` e `tg_consent_guard`.
 - [T-001](T-001-fundacao-monorepo-e-isolamento.md) — `withContext`, verificador de catálogo, formato dos testes.
 
 ## Escopo — fazer
 
 1. Migration `packages/db/migrations/20261102090000_f1_comandos.sql` com o SQL da seção 1 (bloco A ou B de `device_key`, conforme a regra da seção 1.3).
-2. `packages/db/catalog-allowlist.json`: acrescentar `"command_policy"` em `appendOnly`; no bloco A de `device_key` (seção 1.3), acrescentar também `"device_key"` em `withoutOperatorId` com justificativa (CAT-03: chave do aparelho pertence ao usuário e não tem `operator_id`; o isolamento é por `user_id`, política tipo E).
+2. `packages/db/catalog-allowlist.json`: acrescentar `"command_policy"` em `appendOnly`; no bloco A de `device_key` (seção 1.3), acrescentar também `"device_key"` em `withoutOperatorId` com justificativa (CAT-03: chave do aparelho pertence ao usuário e não tem `operator_id`; o isolamento é por `user_id`, política `device_key_self`, tipo E); e `"app.revoke_device_keys(uuid)"` em `securityDefiner` (CAT-07: a central revoga chaves de outro usuário, que a política `device_key_self` não permite).
 3. `packages/db/src/commands.ts`: helpers da seção 2, exportados por `packages/db/src/index.ts`.
 4. `packages/db/src/secrets.ts`: cifra e acesso a `operator_secret` (seção 3), exportados por `index.ts`.
 5. Regenerar os tipos Kysely com o script da T-004.
 6. `.env.example`: `SECRETS_MASTER_KEYS` e `SECRETS_ACTIVE_KEY_VERSION` com valores de desenvolvimento (seção 3).
-7. Testes congelados em `tests/acceptance/T-017/` (seção "Testes de aceite").
+7. Na mesma migration, `auth.email_token` aceita o `purpose` `device_key_not_me` (link "Não fui eu" da T-018): `ALTER TABLE auth.email_token DROP CONSTRAINT email_token_purpose_check, ADD CONSTRAINT email_token_purpose_check CHECK (purpose IN ('invitation', 'password_reset', 'device_key_not_me'))` [VALIDAR o nome da constraint com `\d auth.email_token`]; o `down` restaura os dois valores.
+8. Testes congelados em `tests/acceptance/T-017/` (seção "Testes de aceite").
 
 ## Fora do escopo
 
@@ -103,7 +104,7 @@ CREATE UNIQUE INDEX occurrence_open_key ON app.occurrence (vehicle_id) WHERE sta
 CREATE INDEX occurrence_scope_idx ON app.occurrence (operator_id, tenant_id, opened_at DESC);
 ```
 
-Depois, **copie sem alterar** de [06 §6](../docs/spec/06-comandos-e-bloqueio.md) os blocos `CREATE TABLE app.command` (com os 3 índices), `CREATE TABLE app.command_attempt` (com o índice `command_attempt_inflight_key`) e `CREATE TABLE app.command_event` (com o índice), marcando `-- rls: A` em `command`, `-- rls: B` em `command_attempt` e `-- rls: A · append-only (CAT-06)` em `command_event`. A função `app.tg_command_state()` entra **com uma única mudança** em relação a 06 §6: o par `'ARMED>FAILED'` no array e a cláusula extra abaixo (motivo em "Decisões já tomadas" da T-016):
+Depois, **copie sem alterar** de [06 §6](../docs/spec/06-comandos-e-bloqueio.md#6-modelo-de-dados) os blocos `CREATE TABLE app.command` (com os 3 índices), `CREATE TABLE app.command_attempt` (com o índice `command_attempt_inflight_key`) e `CREATE TABLE app.command_event` (com o índice), marcando `-- rls: A` em `command`, `-- rls: B` em `command_attempt` e `-- rls: A · append-only (CAT-06)` em `command_event`. A função `app.tg_command_state()` entra **com uma única mudança** em relação a 06 §6: o par `'ARMED>FAILED'` no array e a cláusula extra abaixo (motivo em "Decisões já tomadas" da T-016):
 
 ```sql
      OR (pair = 'ARMED>FAILED' AND (NEW.type <> 'block'
@@ -206,7 +207,7 @@ ALTER TABLE app.membership ADD CONSTRAINT membership_can_command_chk CHECK (NOT 
 
 #### 1.3 `device_key` — bloco A ou B
 
-Antes de escrever a migration, rode `grep -l "CREATE TABLE app.device_key" packages/db/migrations/*.sql`. **Vazio** → bloco A (a tabela nasce aqui, como diz [04 §3.7](../docs/spec/04-dominio-e-dados.md)). **Encontrado** (a T-006 já a criou) → bloco B. O bloco vem **antes** de `command_challenge` na migration (FK).
+Antes de escrever a migration, rode `grep -l "CREATE TABLE app.device_key" packages/db/migrations/*.sql`. **Vazio** → bloco A (a tabela nasce aqui, como diz [04 §3.7](../docs/spec/04-dominio-e-dados.md#37-conformidade)). **Encontrado** (a T-006 já a criou) → bloco B. O bloco vem **antes** de `command_challenge` na migration (FK).
 
 ```sql
 -- Bloco A · rls: E
@@ -232,9 +233,18 @@ CREATE UNIQUE INDEX device_key_user_active_key ON app.device_key (user_id) WHERE
 -- Nos dois blocos
 CREATE TRIGGER device_key_immutable BEFORE UPDATE ON app.device_key FOR EACH ROW
   EXECUTE FUNCTION app.tg_immutable_columns('id', 'user_id', 'public_key', 'platform', 'created_at');
+CREATE FUNCTION app.tg_device_key_revoke_once() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF OLD.revoked_at IS NOT NULL THEN
+    RAISE EXCEPTION 'chave revogada não muda' USING ERRCODE = '23514';   -- revogação não se desfaz (08 §6.5)
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER device_key_revoke_once BEFORE UPDATE ON app.device_key FOR EACH ROW
+  EXECUTE FUNCTION app.tg_device_key_revoke_once();
 ```
 
-No bloco A, `device_key` também entra no laço de RLS da seção 1.4 (política tipo E). No bloco B a política `device_key_member` já existe.
+Nos dois blocos a política é `device_key_self` (seção 1.4, tipo E). No bloco A, `device_key` ganha `ENABLE` + `FORCE ROW LEVEL SECURITY` na seção 1.4. No bloco B, a migration executa `DROP POLICY IF EXISTS device_key_member ON app.device_key` antes de criar `device_key_self`.
 
 #### 1.4 RLS e grants
 
@@ -266,16 +276,35 @@ BEGIN
 END $$;
 CREATE POLICY command_policy_tenant_read ON app.command_policy FOR SELECT
   USING (operator_id = app.current_operator_id() AND app.current_scope() = 'tenant');
--- Só no bloco A de device_key:
--- ALTER TABLE app.device_key ENABLE ROW LEVEL SECURITY, FORCE ROW LEVEL SECURITY;
--- CREATE POLICY device_key_member ... (texto exato do tipo E do bloco DO de 04 §4.2)
+-- device_key (tipo E): só o usuário do contexto (app.user_id) lê e escreve as próprias chaves (04 §4.2)
+-- Só no bloco A: ALTER TABLE app.device_key ENABLE ROW LEVEL SECURITY, FORCE ROW LEVEL SECURITY;
+CREATE POLICY device_key_self ON app.device_key FOR ALL
+  USING (user_id = app.current_user_id()) WITH CHECK (user_id = app.current_user_id());
+CREATE POLICY device_key_definer ON app.device_key FOR ALL TO tracksys_owner USING (true) WITH CHECK (true);   -- só app.revoke_device_keys
+
+-- Revogação pela central: age sobre outro usuário, por isso SECURITY DEFINER (CAT-07, 04 §4.4, 08 §6.5)
+CREATE FUNCTION app.revoke_device_keys(p_user_id uuid) RETURNS integer
+  LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp
+AS $$
+DECLARE v_count integer;
+BEGIN
+  IF app.current_scope() IS DISTINCT FROM 'operator' OR NOT EXISTS (
+       SELECT 1 FROM app.membership m WHERE m.user_id = p_user_id AND m.operator_id = app.current_operator_id()) THEN
+    RAISE EXCEPTION 'usuário fora da operadora do contexto' USING ERRCODE = '42501';
+  END IF;
+  UPDATE app.device_key SET revoked_at = now() WHERE user_id = p_user_id AND revoked_at IS NULL;
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count;
+END $$;
+REVOKE ALL ON FUNCTION app.revoke_device_keys(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app.revoke_device_keys(uuid) TO tracksys_app;
 
 GRANT SELECT, INSERT ON app.command_policy, app.command_event TO tracksys_app;
 GRANT SELECT, INSERT, UPDATE ON app.command, app.command_attempt, app.occurrence, app.command_challenge,
   app.consent, app.operator_secret, app.device_key TO tracksys_app;
 ```
 
-`-- migrate:down`: `DROP TABLE` na ordem inversa (`operator_secret`, `consent`, `command_challenge`, `command_event`, `command_attempt`, `command`, `occurrence`, `command_policy`), `DROP FUNCTION` das 4 funções criadas, `ALTER TABLE app.membership DROP CONSTRAINT membership_can_command_chk, DROP COLUMN can_command`; bloco A: `DROP TABLE app.device_key`; bloco B: remover as 3 colunas, o gatilho e o índice novo e recriar `device_key_user_active_idx`. Comentário no down: "down de expand: só desenvolvimento; produção nunca roda migrate down ([13 §7](../docs/spec/13-infra-e-operacao.md))".
+`-- migrate:down`: `DROP TABLE` na ordem inversa (`operator_secret`, `consent`, `command_challenge`, `command_event`, `command_attempt`, `command`, `occurrence`, `command_policy`), `DROP FUNCTION` de `app.revoke_device_keys`, `app.tg_device_key_revoke_once` e das demais funções criadas, `ALTER TABLE app.membership DROP CONSTRAINT membership_can_command_chk, DROP COLUMN can_command`; bloco A: `DROP TABLE app.device_key`; bloco B: remover as 3 colunas, os gatilhos, `device_key_self` e `device_key_definer`, o índice novo, e recriar `device_key_user_active_idx` e `device_key_member`. Comentário no down: "down de expand: só desenvolvimento; produção nunca roda migrate down ([13 §7](../docs/spec/13-infra-e-operacao.md#7-deploy))".
 
 ### 2. Helpers de comando (`packages/db/src/commands.ts`)
 
@@ -308,7 +337,7 @@ export type SecretKind = 'asaas_api_key' | 'sms_password'
 ```
 
 1. `SECRETS_MASTER_KEYS` = `"<versão>:<base64 de 32 bytes>[,<versão>:<base64>]"`; `SECRETS_ACTIVE_KEY_VERSION` presente na lista. Validação por Zod; chave com outro tamanho ou versão ativa ausente → erro citando só o nome da variável.
-2. AES-256-GCM (`node:crypto`), nonce aleatório de 12 bytes, tag de 16 bytes concatenada ao fim do `ciphertext`, AAD = `"<operatorId>:<kind>:<id>"` em UTF-8 ([08 §8](../docs/spec/08-identidade-e-seguranca.md)).
+2. AES-256-GCM (`node:crypto`), nonce aleatório de 12 bytes, tag de 16 bytes concatenada ao fim do `ciphertext`, AAD = `"<operatorId>:<kind>:<id>"` em UTF-8 ([08 §8](../docs/spec/08-identidade-e-seguranca.md#8-segredos)).
 3. `putOperatorSecret`: gera `id` (`randomUUID()`) só no 1º INSERT; troca de valor faz UPDATE da mesma linha (mesmo `id`, novo nonce, `rotated_at = now()`). `last4` = 4 últimos caracteres do valor.
 4. `readOperatorSecret` decifra com a `key_version` da linha. Falha de autenticação (AAD ou tag) lança `SecretDecryptError` sem o valor nem o AAD na mensagem.
 5. Nada desta seção loga, devolve ou serializa texto claro, chave ou nonce.
@@ -324,7 +353,7 @@ SECRETS_ACTIVE_KEY_VERSION=1
 
 Postgres real, papel `tracksys_app` com `withContext` (T-001) e `DATABASE_URL_ADMIN` só para semear `auth."user"` e perfis. Os blocos completos são escritos no PR do cartão a partir deste plano (DoR item 6); nomes de `describe`/`it` e asserções abaixo são normativos.
 
-`tests/acceptance/T-017/world.ts` exporta `seedCommandWorld(app, admin)` que cria, com UUID aleatório: operadoras Alfa e Beta; clientes A1 e A2 (Alfa) e B1 (Beta); usuários `admin.alfa`, `agente.alfa`, `dono.a1`, `familia.a1`, `dono.a2`, `admin.beta` em `auth."user"` com memberships; veículos V1 (A1), V3 (A2), V2 (B1); rastreadores R1 (V1), R3 (V3), R2 (V2) com perfil `j16-gt06` de teste e vínculos primários abertos (`cut_point = 'fuel_pump'` em R1, NULL em R3). Devolve todos os ids.
+`tests/acceptance/T-017/world.ts` exporta `seedCommandWorld(app, admin)` (o contexto dos testes de `device_key` e `membership` passa `userId`, T-006) que cria, com UUID aleatório: operadoras Alfa e Beta; clientes A1 e A2 (Alfa) e B1 (Beta); usuários `admin.alfa`, `agente.alfa`, `dono.a1`, `familia.a1`, `dono.a2`, `admin.beta` em `auth."user"` com memberships; veículos V1 (A1), V3 (A2), V2 (B1); rastreadores R1 (V1), R3 (V3), R2 (V2) com perfil `j16-gt06` de teste e vínculos primários abertos (`cut_point = 'fuel_pump'` em R1, NULL em R3). Devolve todos os ids.
 
 `tests/acceptance/T-017/isolation.test.ts` — `describe('T-017 isolamento das tabelas novas (INV-07)')`, um bloco `it.each` por tabela (`occurrence`, `command`, `command_attempt`, `command_event`, `command_challenge`, `consent`, `command_policy`, `operator_secret`):
 - `ISO-01 <tabela>: contexto tenant de A1 vê só linhas de A1` → linhas de A2 e da Beta ausentes (em `command_policy`, A1 lê a política da Alfa e não a da Beta; em `operator_secret`, A1 vê 0 linhas).
@@ -332,7 +361,12 @@ Postgres real, papel `tracksys_app` com `withContext` (T-001) e `DATABASE_URL_AD
 - `ISO-03 <tabela>: sem contexto, 0 linhas`.
 - `ISO-04 <tabela>: INSERT com operator_id da Beta no contexto da Alfa → 42501`; e `ISO-04b`: tenant A1 inserindo `tenant_id` de A2 → 42501; em `command_attempt`, `command_policy` e `operator_secret`, qualquer INSERT no escopo tenant → 42501.
 - `ISO-05 <tabela>: FK composta recusa veículo/comando/cliente de outra operadora → 23503`.
-- `device_key (tipo E)`: `dono.a1` vê a própria chave; contexto tenant de A2 não vê a chave de `dono.a1`; escopo operator da Beta não vê; segunda chave ativa do mesmo usuário → 23505.
+- `device_key (tipo E, device_key_self)`:
+  - `dono.a1` com `userId = dono.a1` vê a própria chave; sem `userId` no contexto, 0 linhas (INV-07);
+  - contexto tenant de A2 com `userId = dono.a2` e contexto operator da Beta com `userId = admin.beta` não veem a chave de `dono.a1`;
+  - segunda chave ativa do mesmo usuário → 23505;
+  - **CT-DAD-026:** contexto operator da Beta (`userId = admin.beta`) faz `UPDATE ... SET revoked_at = NULL` na chave K de `dono.a1` → 0 linhas atualizadas e K intacta; `INSERT` com `user_id` de outro usuário → 42501;
+  - `revoked_at` preenchido: o próprio dono tenta `UPDATE revoked_at = NULL` ou qualquer outro campo → 23514 (`device_key_revoke_once`).
 
 `tests/acceptance/T-017/command-triggers.test.ts` — `describe('T-017 máquina de estados no banco — CT-CMD-009, CT-CMD-010, CT-CMD-004, CT-CMD-022')`:
 - `block REQUESTED v1 → CONFIRMED é recusado` → SQLSTATE 23514.
@@ -363,13 +397,17 @@ Postgres real, papel `tracksys_app` com `withContext` (T-001) e `DATABASE_URL_AD
 - `consent só revoga: UPDATE de text_version → 23000; revogar 2 vezes → 23000`.
 - `2 consentimentos ativos block_terms do mesmo usuário e cliente → 23505; revogado + novo → grava`.
 - `sva_referral sem partner_id → 23514; block_terms com partner_id → 23514`.
-- `can_command = true em tenant_owner → 23514; em tenant_member → grava; dono.a1 (escopo tenant) altera can_command de familia.a1 → 1 linha`.
+- `can_command = true em tenant_owner → 23514; em tenant_member → grava; dono.a1 (escopo tenant, userId = dono.a1) altera can_command de familia.a1 → 1 linha`.
+- **CT-DAD-026 (membership_tenant_manage):** contexto tenant de A1 com `userId = familia.a1` (`tenant_member`) insere membership `tenant_member` com `can_command = true` → 42501; o mesmo com `userId = dono.a1` → grava; sem `userId` → 42501.
+- **`app.revoke_device_keys`:** `agente.alfa` (contexto operator da Alfa) revoga as chaves de `dono.a1` → retorna 1 e `revoked_at` preenchido; para `admin.beta` (sem membership na Alfa) → 42501; no contexto tenant de A1 → 42501; 2ª chamada → 0; `has_function_privilege`: `tracksys_app` com EXECUTE e PUBLIC sem EXECUTE; o catálogo (CAT-07) lista a função na allowlist.
 
 `tests/acceptance/T-017/secrets.test.ts` — `describe('T-017 operator_secret — CT-SEG-020 (parte de banco e cifra)')`:
 - `ciphertext não contém o texto claro`: `putOperatorSecret('asaas-teste-chave-0001')` → `position(convert_to('asaas-teste-chave-0001','UTF8') in ciphertext) = 0`, `last4 = '0001'`, `readOperatorSecret` devolve o original.
 - `linha copiada para a Beta não decifra`: copiar `ciphertext`, `nonce`, `key_version` para uma linha da Beta (mesmo `kind`, outro `id`) → `readOperatorSecret` no contexto da Beta lança `SecretDecryptError`.
 - `rotação: com chaves 1 e 2 e ativa 2, rewrapOperatorSecrets regrava e deixa 0 linhas com key_version = 1`.
 - `tenant A1 não lê operator_secret (0 linhas)`.
+
+`identity-consent.test.ts` (complemento): `email_token` com `purpose = 'device_key_not_me'` grava; `purpose = 'outro'` → 23514.
 - `loadMasterKeys recusa chave de 31 bytes citando só SECRETS_MASTER_KEYS`.
 
 ## Comandos de verificação
@@ -387,6 +425,7 @@ pnpm verify
 
 - [ ] Migration única, com `-- rls: X` em cada tabela, `lock_timeout` e `statement_timeout`, sem `DELETE` concedido a `tracksys_app`.
 - [ ] `command_policy` em `appendOnly`; `pnpm db:check` verde; rollback e novo `up` verdes.
+- [ ] `device_key_self`, `device_key_revoke_once` e `app.revoke_device_keys` (CAT-07, `EXECUTE` só para `tracksys_app`) na migration; `pnpm db:check` verde com a função na allowlist.
 - [ ] Gatilho de 06 §6 copiado byte a byte, exceto o par `ARMED>FAILED` e `policy_snapshot` na imutabilidade, diferenças listadas na descrição do PR.
 - [ ] Helpers sem transação própria, sem log de payload; segredos nunca em log ou erro.
 - [ ] Testes congelados de T-001 e T-005 continuam verdes.
@@ -396,14 +435,18 @@ pnpm verify
 
 | Dúvida provável | Resposta |
 |---|---|
-| 06 §6 diz que `command_event` é tipo B. Por que A? | O `api` grava o evento de criação na transação do pedido, no contexto do titular (escopo `tenant`); o tipo B recusaria. Tipo A com append-only (sem UPDATE/DELETE, CAT-06) mantém o cliente preso ao próprio cliente. Lacuna de 06 registrada. |
-| `command_attempt` continua B? | Sim. Só o worker (escopo `operator`) e o registro de contingência da central gravam tentativas. |
-| Crio a política v1 para as operadoras existentes? | Não. `created_by` exige usuário e a migration não tem um. Sem linha, vale `PLATFORM_DEFAULT_POLICY` (mesmos valores da v1 de 06 §3.3). A Lider grava a sua versão pelo console com step-up (GC-1). |
-| `device_key` já existe? | Use a regra da seção 1.3 (grep antes de escrever). Nunca edite a migration da T-006. |
-| Por que `text_sha256` em `consent`? | Prova o texto aceito ([Anexo B §1](../docs/anexos/B-juridico.md): SHA-256 no `consent/manifest.json`); a versão sozinha não prova o conteúdo. |
-| Por que `last4` em `operator_secret`? | `GET /api/v1/billing/account` devolve `apiKeyLast4` sem decifrar ([08 §8](../docs/spec/08-identidade-e-seguranca.md) item 6); a API nunca chama `decryptSecret`. |
-| `consent.partner_id` sem FK? | Nesta migration, sim: `partner` nasce na T-026, que acrescenta a FK composta. O CHECK já exige `partner_id` nas finalidades de parceiro. |
-| `membership.vehicle_ids` (proposta de 08 §3)? | Fora. No F1, `can_command` vale para todos os veículos do cliente; o limite de segurança no banco continua sendo o cliente. |
-| Helper usa Kysely ou `pg`? | `pg` (`Pick<pg.ClientBase, 'query'>`), igual a `withContext` da T-001; funciona com o cliente que o `api` e o `worker` já recebem. |
-| `pg_notify` com coordenadas? | Nunca. Só ids (`c`, `o`, `t`, `v`); o hub SSE relê sob RLS ([03 §7](../docs/spec/03-arquitetura.md)). |
-| Onde fica a chave mestra em produção? | `infra/secrets/prod.env.sops` (SOPS + age, [08 §8](../docs/spec/08-identidade-e-seguranca.md)); o valor do `.env.example` é só para desenvolvimento. |
+| 1. `command_event` é tipo A ou B? | Tipo A, append-only (sem UPDATE/DELETE, CAT-06): o `api` grava o evento de criação na transação do pedido, no contexto do titular (escopo `tenant`), e o tipo A mantém o cliente preso ao próprio cliente. |
+| 2. `command_attempt` continua B? | Sim. Só o worker (escopo `operator`) e o registro de contingência da central gravam tentativas. |
+| 3. Crio a política v1 para as operadoras existentes? | Não. `created_by` exige usuário e a migration não tem um. Sem linha, vale `PLATFORM_DEFAULT_POLICY` (mesmos valores da v1 de 06 §3.3). A Lider grava a sua versão pelo console com step-up (GC-1). |
+| 4. `device_key` já existe? | Use a regra da seção 1.3 (grep antes de escrever). Nunca edite a migration da T-006. |
+| 5. Por que `text_sha256` em `consent`? | Prova o texto aceito ([Anexo B §1](../docs/anexos/B-juridico.md#1-prontidão-jurídica-por-marco): SHA-256 no `consent/manifest.json`); a versão sozinha não prova o conteúdo. |
+| 6. Por que `last4` em `operator_secret`? | `GET /api/v1/billing/account` devolve `apiKeyLast4` sem decifrar ([08 §8](../docs/spec/08-identidade-e-seguranca.md#8-segredos) item 6); a API nunca chama `decryptSecret`. |
+| 7. `consent.partner_id` sem FK? | Nesta migration, sim: `partner` nasce na T-026, que acrescenta a FK composta. O CHECK já exige `partner_id` nas finalidades de parceiro. |
+| 8. E o `membership.vehicle_ids`? | Não existe. No F1, `can_command` vale para todos os veículos do cliente; o limite de segurança no banco continua sendo o cliente. |
+| 9. Helper usa Kysely ou `pg`? | `pg` (`Pick<pg.ClientBase, 'query'>`), igual a `withContext` da T-001; funciona com o cliente que o `api` e o `worker` já recebem. |
+| 10. `pg_notify` com coordenadas? | Nunca. Só ids (`c`, `o`, `t`, `v`); o hub SSE relê sob RLS ([03 §7](../docs/spec/03-arquitetura.md#7-tempo-real-sse--listennotify)). |
+| 11. Onde fica a chave mestra em produção? | `infra/secrets/prod.env.sops` (SOPS + age, [08 §8](../docs/spec/08-identidade-e-seguranca.md#8-segredos)); o valor do `.env.example` é só para desenvolvimento. |
+| 12. Quem escreve `device_key` e o que o contexto precisa ter? | Só o próprio usuário: `withContext` com `userId` (T-006) grava `app.user_id`, e `device_key_self` compara `user_id = app.current_user_id()`. Sem `userId`, nenhuma linha passa. |
+| 13. Como a central revoga a chave de outro usuário? | Por `app.revoke_device_keys(p_user_id)` (`SECURITY DEFINER`, CAT-07, `EXECUTE` só para `tracksys_app`): exige escopo `operator` e membership do usuário na operadora do contexto, senão 42501. A rota grava `audit_log` `device_key.revoke` na mesma transação (T-018). |
+| 14. Chave revogada pode ser reativada? | Nunca. `device_key_revoke_once` recusa (23514) qualquer UPDATE de linha com `revoked_at` preenchido; a rota revoga só linhas `revoked_at IS NULL`. |
+| 15. Quem liga `can_command`? | Só `tenant_owner` ativo do cliente: o WITH CHECK de `membership_tenant_manage` (criado na T-006) exige membership `tenant_owner` ativa do `app.user_id` do contexto. `tenant_member` não cria membro nem liga `can_command` (42501). |
