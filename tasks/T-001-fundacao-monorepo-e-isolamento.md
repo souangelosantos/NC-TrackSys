@@ -3,7 +3,7 @@
 | Campo | Valor |
 |---|---|
 | Fase | F0 (semana S1: 07–13/10/2026) |
-| Requisitos | REQ-DAD-002, REQ-DAD-003 (padrões para as 4 tabelas desta tarefa), REQ-DAD-004, REQ-DAD-005 (CAT-01 a CAT-06; a CAT-07 entra na T-005 ou na T-006), REQ-QLD-005 (job acceptance-freeze) |
+| Requisitos | REQ-DAD-001 (parte: escopo NOT NULL e FK composta das 4 tabelas; o gatilho de imutabilidade entra depois), REQ-DAD-002, REQ-DAD-003 (padrões para as 4 tabelas desta tarefa), REQ-DAD-004 (parte das 4 tabelas), REQ-DAD-005 (CAT-01 a CAT-06; a CAT-07 entra na T-004), REQ-QLD-005 (job acceptance-freeze) |
 | Invariantes | INV-07 (isolamento), INV-12 (convenções) |
 | Regras de catálogo | CAT-01 a CAT-06; testes ISO-01 a ISO-09 (2 operadoras × 2 clientes) e testes do `withContext` |
 | Risco de revisão | **N0** (migrations e contexto RLS) — revisão cruzada por agente de outro fornecedor + leitura humana linha a linha |
@@ -569,7 +569,7 @@ O job `acceptance-freeze` bloqueia PR que **modifica, apaga ou renomeia** arquiv
 
 ## Testes de aceite (congelados)
 
-Copie os arquivos abaixo **sem alterar nenhum byte** (o `acceptance-match` da T-019 compara). Cobrem ISO-01 a ISO-09 com 2 operadoras × 2 clientes, o contrato do `withContext` e o meta-teste do verificador de catálogo (CT-DAD-002 a CT-DAD-005).
+Copie os arquivos abaixo **sem alterar nenhum byte** (o `acceptance-match` da T-019 compara). Cobrem ISO-01 a ISO-09 com 2 operadoras × 2 clientes, o contrato do `withContext` e o meta-teste do verificador de catálogo. De CT-DAD-002 a CT-DAD-005, cobrem a parte que cabe às 4 tabelas e aos papéis desta tarefa; os casos com `device`, `position`, `membership`, `tracksys_ingest`, `tracksys_ops_ro` e o SQLSTATE 22P02 de `app.tenant_ids` inválido entram com as tarefas que criam essas peças (T-004 a T-006).
 
 `tests/tsconfig.json`
 ```json
@@ -1029,6 +1029,14 @@ Resultado esperado de `pnpm verify`: Biome sem erros; `tsc` sem erros; `Applied:
 | O build da imagem falhou por rede | A imagem precisa do apt do Debian e do PGDG. Em rede restrita, registre no PR e peça liberação. Não troque a imagem nem remova o PostGIS. |
 | Identificadores em inglês ou português? | Código e identificadores em inglês; comentários, mensagens de teste e documentação em PT-BR. |
 | Commit | Conventional Commits, ex.: `feat(db): ...`, `test(db): ...`, `ci: ...`. |
+| Plano no PR (risco N0)? | O plano é a lista do "Escopo — fazer" deste cartão, copiada na descrição do PR antes do primeiro commit de código. Não há desenho a propor: o conteúdo é exato. |
+| Template de PR? | Ainda não existe (nasce na T-019). Descrição com REQ, INV, CT, `Risco declarado: N0` e `Implementado por: <fornecedor>/<ferramenta>/<modelo>`. |
+| Comandos do `AGENTS.md` que ainda não existem (`agent:env-check`, `db:lint`, `docs:check`, `tasks:lint`)? | Nascem na T-019. Nesta tarefa, siga sem eles e registre no PR. |
+| CAT-05: contar view, sequência ou tabela externa? | Não. Implemente exatamente o critério da tabela (tabela, função e schema). Superconjunto não é pedido nem testado. |
+| CAT-06: uma violação por privilégio? | Uma violação por tabela, com mensagem que cita UPDATE, DELETE e TRUNCATE. |
+| Validar as chaves da allowlist como identificador SQL? | Não é preciso: as consultas usam parâmetros (`$1`) e nunca interpolam o nome. |
+| `withContext` com LISTEN, advisory lock de sessão ou prepared statement nomeado? | Fora do contrato. `RESET ALL` não desfaz essas coisas: use conexão dedicada fora do pool (T-004 e T-008). |
+| Erro tipado para transação abortada? | Não nesta tarefa. O teste só exige `Error` com a palavra `abortada`; a T-004 pode envolvê-lo num erro de domínio. |
 | Nomes das variáveis de banco? | `DATABASE_URL` (dono: dbmate, `db:check`), `DATABASE_URL_APP` (aplicação e testes), `DATABASE_URL_ADMIN` (superusuário local, só testes e semeadura; nunca em `apps/`). São os nomes canônicos de [03](../docs/spec/03-arquitetura.md) §13; a T-005 acrescenta `DATABASE_URL_INGEST`. |
 | Zod em `packages/db`? | Sim: valida ambiente, contexto e allowlist (regra "Zod em toda fronteira" do `AGENTS.md`). |
 | Por que `RESET ALL` e não `DISCARD ALL`? | `DISCARD ALL` apaga os prepared statements que o driver guarda por conexão e quebraria o próximo uso. `RESET ALL` limpa os parâmetros de sessão (inclusive `app.*`), que é o que importa para o isolamento. |
