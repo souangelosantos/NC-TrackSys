@@ -17,7 +17,7 @@
 
 Criar o esqueleto do monorepo e a primeira migration com o modelo de isolamento em 3 níveis (plataforma → operadora → cliente). A partir desta tarefa, **nenhuma tabela entra no schema `app` sem RLS forçada, política e FK composta**: o CI verifica isso automaticamente em todo PR (verificador de catálogo) e prova o isolamento com testes reais no banco.
 
-## Contexto (por quê)
+## Contexto obrigatório
 
 - [ADR-004 — Isolamento em 3 níveis](../docs/adr/ADR-004-isolamento-tres-niveis.md) e [04 — Domínio e dados](../docs/spec/04-dominio-e-dados.md): modelo RLS, papéis de banco, funções de contexto.
 - [14 — Qualidade e processo com IA](../docs/spec/14-qualidade-e-processo-ia.md): testes congelados, níveis de risco, CI.
@@ -37,8 +37,8 @@ Criar o esqueleto do monorepo e a primeira migration com o modelo de isolamento 
 2. Criar a imagem do banco e o `docker-compose.yml` (2).
 3. Criar a migration `20261007120000_fundacao_isolamento.sql` com o SQL exato (3).
 4. Implementar o pacote `@tracksys/db` (4): `loadDbEnv`, `withContext`, `runCatalogChecks`, `loadCatalogAllowlist` e o script `check-catalog`.
-5. Copiar os testes de aceite congelados para `tests/acceptance/T-001/` **sem alterar nada** (5).
-6. Criar o workflow de CI (6).
+5. Copiar os testes de aceite congelados para `tests/acceptance/T-001/` **sem alterar nada** (seção "Testes de aceite (congelados)").
+6. Criar o workflow de CI (5).
 7. Rodar `pnpm install` para gerar o `pnpm-lock.yaml` e commitá-lo.
 8. Rodar a sequência de verificação e deixar tudo verde.
 
@@ -49,7 +49,7 @@ Criar o esqueleto do monorepo e a primeira migration com o modelo de isolamento 
 - Deploy, backups e qualquer infraestrutura na Oracle.
 - Alterar versões major das dependências listadas.
 
-## Arquivos a criar
+## Arquivos a criar/alterar
 
 ```
 .editorconfig
@@ -519,7 +519,57 @@ Regras que este SQL materializa e que **toda migration futura** deve seguir:
 
 Estilo dos arquivos TypeScript: ESM, imports com extensão `.ts` entre arquivos locais (ex.: `from './context.ts'`), `import pg from 'pg'` para valores e `import type { Pool, PoolClient } from 'pg'` para tipos, Zod 4 (`z.uuid()`, `z.discriminatedUnion`). Rode `pnpm format` antes de commitar.
 
-### (5) Testes de aceite congelados — copiar sem alterar
+### (5) CI — conteúdo exato
+
+`.github/workflows/ci.yml`
+```yaml
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: cp .env.example .env
+      - run: pnpm db:up
+      - run: pnpm verify
+
+  acceptance-freeze:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Testes de aceite existentes não podem ser alterados sem o rótulo acceptance-change
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'acceptance-change') }}
+        run: |
+          git diff --diff-filter=MDR --name-only "origin/${{ github.base_ref }}...HEAD" -- tests/acceptance > changed.txt
+          if [ -s changed.txt ]; then
+            echo "::error::Arquivos congelados alterados (exige rótulo acceptance-change e aprovação humana):"
+            cat changed.txt
+            exit 1
+          fi
+```
+
+O job `acceptance-freeze` bloqueia PR que **modifica, apaga ou renomeia** arquivos já existentes em `tests/acceptance/**` sem o rótulo `acceptance-change`. Adicionar testes de uma tarefa nova é permitido.
+
+## Testes de aceite (congelados)
+
+Copie os arquivos abaixo **sem alterar nenhum byte** (o `acceptance-match` da T-019 compara). Cobrem ISO-01 a ISO-09 com 2 operadoras × 2 clientes, o contrato do `withContext` e o meta-teste do verificador de catálogo (CT-DAD-002 a CT-DAD-005).
 
 `tests/tsconfig.json`
 ```json
@@ -939,54 +989,6 @@ describe('T-001 verificador de catálogo (CAT-01..CAT-06)', () => {
   })
 })
 ```
-
-### (6) CI — conteúdo exato
-
-`.github/workflows/ci.yml`
-```yaml
-name: ci
-
-on:
-  pull_request:
-  push:
-    branches: [main]
-
-jobs:
-  verify:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: cp .env.example .env
-      - run: pnpm db:up
-      - run: pnpm verify
-
-  acceptance-freeze:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Testes de aceite existentes não podem ser alterados sem o rótulo acceptance-change
-        if: ${{ !contains(github.event.pull_request.labels.*.name, 'acceptance-change') }}
-        run: |
-          git diff --diff-filter=MDR --name-only "origin/${{ github.base_ref }}...HEAD" -- tests/acceptance > changed.txt
-          if [ -s changed.txt ]; then
-            echo "::error::Arquivos congelados alterados (exige rótulo acceptance-change e aprovação humana):"
-            cat changed.txt
-            exit 1
-          fi
-```
-
-O job `acceptance-freeze` bloqueia PR que **modifica, apaga ou renomeia** arquivos já existentes em `tests/acceptance/**` sem o rótulo `acceptance-change`. Adicionar testes de uma tarefa nova é permitido.
 
 ## Comandos de verificação (nesta ordem, todos devem passar)
 
