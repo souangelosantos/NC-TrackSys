@@ -158,7 +158,7 @@ Tabela proposta para [04](04-dominio-e-dados.md): `alert_preference (id, operato
 | `GET /api/v1/me/alert-preferences?vehicleId=<uuid>` | Lista `{type, enabled, locked, available, params}` para os tipos da fase em vigor |
 | `PUT /api/v1/me/alert-preferences` com `{vehicleId, type, enabled, params?}` | 200; `sos`, `watch_mode_breach` e `command_unknown` com `enabled = false` → 422 `ALERT_PREFERENCE_LOCKED`; `overspeed.params.limitKmh` fora de 40–200 → 422; veículo fora do escopo → 404 |
 
-A preferência só decide a entrega ao usuário. O episódio é sempre registrado e aparece na fila da central. As duas rotas são só de `tenant_owner` e `tenant_member`; equipe da operadora recebe 403 `FORBIDDEN` ([09 §3](09-api-e-contratos.md#3-erros-problem-details)), porque as preferências são do titular; a entrega à equipe `on_call` é regida pelo REQ-ALR-024 (T-012; escolha reversível, [15 §5](15-decisoes-riscos-premissas.md#5-propostas-de-decisão-registradas-nos-capítulos)).
+A preferência só decide a entrega ao usuário. O episódio é sempre registrado e aparece na fila da central. As duas rotas são só de `tenant_owner` e `tenant_member`; equipe da operadora recebe 403 `FORBIDDEN` ([09 §3](09-api-e-contratos.md#3-erros-problem-details)), porque as preferências são do titular; a entrega à equipe `on_call` é regida pelo REQ-ALR-024 (T-029; escolha reversível, [15 §5](15-decisoes-riscos-premissas.md#5-propostas-de-decisão-registradas-nos-capítulos)).
 
 ## 9. Fila de alertas no console da central
 
